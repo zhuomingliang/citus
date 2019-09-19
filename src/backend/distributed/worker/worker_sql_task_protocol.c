@@ -174,7 +174,7 @@ TaskFileDestReceiverStartup(DestReceiver *dest, int operation,
 	copyOutState->null_print = (char *) nullPrintCharacter;
 	copyOutState->null_print_client = (char *) nullPrintCharacter;
 	copyOutState->binary = taskFileDest->binaryCopyFormat;
-	copyOutState->fe_msgbuf = makeStringInfo();
+	initStringInfo(&copyOutState->fe_msgbuf);
 	copyOutState->rowcontext = taskFileDest->tupleContext;
 	taskFileDest->copyOutState = copyOutState;
 
@@ -211,7 +211,7 @@ TaskFileDestReceiverReceive(TupleTableSlot *slot, DestReceiver *dest)
 	CopyOutState copyOutState = taskFileDest->copyOutState;
 	FmgrInfo *columnOutputFunctions = taskFileDest->columnOutputFunctions;
 
-	StringInfo copyData = copyOutState->fe_msgbuf;
+	StringInfo copyData = &copyOutState->fe_msgbuf;
 
 	MemoryContext executorTupleContext = taskFileDest->tupleContext;
 	MemoryContext oldContext = MemoryContextSwitchTo(executorTupleContext);
@@ -227,7 +227,7 @@ TaskFileDestReceiverReceive(TupleTableSlot *slot, DestReceiver *dest)
 
 	if (copyData->len > COPY_BUFFER_SIZE)
 	{
-		WriteToLocalFile(copyOutState->fe_msgbuf, taskFileDest);
+		WriteToLocalFile(copyData, taskFileDest);
 		resetStringInfo(copyData);
 	}
 
@@ -270,18 +270,18 @@ TaskFileDestReceiverShutdown(DestReceiver *destReceiver)
 	TaskFileDestReceiver *taskFileDest = (TaskFileDestReceiver *) destReceiver;
 	CopyOutState copyOutState = taskFileDest->copyOutState;
 
-	if (copyOutState->fe_msgbuf->len > 0)
+	if (copyOutState->fe_msgbuf.len > 0)
 	{
-		WriteToLocalFile(copyOutState->fe_msgbuf, taskFileDest);
-		resetStringInfo(copyOutState->fe_msgbuf);
+		WriteToLocalFile(&copyOutState->fe_msgbuf, taskFileDest);
+		resetStringInfo(&copyOutState->fe_msgbuf);
 	}
 
 	if (copyOutState->binary)
 	{
 		/* write footers when using binary encoding */
 		AppendCopyBinaryFooters(copyOutState);
-		WriteToLocalFile(copyOutState->fe_msgbuf, taskFileDest);
-		resetStringInfo(copyOutState->fe_msgbuf);
+		WriteToLocalFile(&copyOutState->fe_msgbuf, taskFileDest);
+		resetStringInfo(&copyOutState->fe_msgbuf);
 	}
 
 	FileClose(taskFileDest->fileCompat.fd);

@@ -250,7 +250,7 @@ RemoteFileDestReceiverStartup(DestReceiver *dest, int operation,
 	copyOutState->null_print = (char *) nullPrintCharacter;
 	copyOutState->null_print_client = (char *) nullPrintCharacter;
 	copyOutState->binary = CanUseBinaryCopyFormat(inputTupleDescriptor);
-	copyOutState->fe_msgbuf = makeStringInfo();
+	initStringInfo(&copyOutState->fe_msgbuf);
 	copyOutState->rowcontext = GetPerTupleMemoryContext(resultDest->executorState);
 	resultDest->copyOutState = copyOutState;
 
@@ -328,13 +328,13 @@ RemoteFileDestReceiverStartup(DestReceiver *dest, int operation,
 	if (copyOutState->binary)
 	{
 		/* send headers when using binary encoding */
-		resetStringInfo(copyOutState->fe_msgbuf);
+		resetStringInfo(&copyOutState->fe_msgbuf);
 		AppendCopyBinaryHeaders(copyOutState);
-		BroadcastCopyData(copyOutState->fe_msgbuf, connectionList);
+		BroadcastCopyData(&copyOutState->fe_msgbuf, connectionList);
 
 		if (resultDest->writeLocalFile)
 		{
-			WriteToLocalFile(copyOutState->fe_msgbuf, &resultDest->fileCompat);
+			WriteToLocalFile(&copyOutState->fe_msgbuf, &resultDest->fileCompat);
 		}
 	}
 
@@ -374,7 +374,7 @@ RemoteFileDestReceiverReceive(TupleTableSlot *slot, DestReceiver *dest)
 	CopyOutState copyOutState = resultDest->copyOutState;
 	FmgrInfo *columnOutputFunctions = resultDest->columnOutputFunctions;
 
-	StringInfo copyData = copyOutState->fe_msgbuf;
+	StringInfo copyData = &copyOutState->fe_msgbuf;
 
 	EState *executorState = resultDest->executorState;
 	MemoryContext executorTupleContext = GetPerTupleMemoryContext(executorState);
@@ -397,7 +397,7 @@ RemoteFileDestReceiverReceive(TupleTableSlot *slot, DestReceiver *dest)
 	/* write to local file (if applicable) */
 	if (resultDest->writeLocalFile)
 	{
-		WriteToLocalFile(copyOutState->fe_msgbuf, &resultDest->fileCompat);
+		WriteToLocalFile(copyData, &resultDest->fileCompat);
 	}
 
 	MemoryContextSwitchTo(oldContext);
@@ -443,13 +443,13 @@ RemoteFileDestReceiverShutdown(DestReceiver *destReceiver)
 	if (copyOutState->binary)
 	{
 		/* send footers when using binary encoding */
-		resetStringInfo(copyOutState->fe_msgbuf);
+		resetStringInfo(&copyOutState->fe_msgbuf);
 		AppendCopyBinaryFooters(copyOutState);
-		BroadcastCopyData(copyOutState->fe_msgbuf, connectionList);
+		BroadcastCopyData(&copyOutState->fe_msgbuf, connectionList);
 
 		if (resultDest->writeLocalFile)
 		{
-			WriteToLocalFile(copyOutState->fe_msgbuf, &resultDest->fileCompat);
+			WriteToLocalFile(&copyOutState->fe_msgbuf, &resultDest->fileCompat);
 		}
 	}
 

@@ -468,8 +468,9 @@ OpenPartitionFiles(StringInfo directoryName, uint32 fileCount)
 
 		partitionFileArray[fileIndex].fileCompat = FileCompatFromFileStart(
 			fileDescriptor);
-		partitionFileArray[fileIndex].fileBuffer = makeStringInfo();
-		partitionFileArray[fileIndex].filePath = filePath;
+		initStringInfo(&partitionFileArray[fileIndex].fileBuffer);
+		partitionFileArray[fileIndex].filePath = *filePath;
+		pfree(filePath);
 	}
 
 	return partitionFileArray;
@@ -491,8 +492,8 @@ ClosePartitionFiles(FileOutputStream *partitionFileArray, uint32 fileCount)
 		FileOutputStreamFlush(partitionFile);
 
 		FileClose(partitionFile->fileCompat.fd);
-		FreeStringInfo(partitionFile->fileBuffer);
-		FreeStringInfo(partitionFile->filePath);
+		pfree(partitionFile->fileBuffer.data);
+		pfree(partitionFile->filePath.data);
 	}
 
 	pfree(partitionFileArray);
@@ -599,16 +600,18 @@ JobDirectoryElement(const char *filename)
 {
 	bool directoryElement = false;
 
-	StringInfo directoryPath = makeStringInfo();
-	appendStringInfo(directoryPath, "base/%s/%s", PG_JOB_CACHE_DIR, JOB_DIRECTORY_PREFIX);
+	StringInfoData directoryPath;
+	initStringInfo(&directoryPath);
+	appendStringInfo(&directoryPath, "base/%s/%s", PG_JOB_CACHE_DIR,
+					 JOB_DIRECTORY_PREFIX);
 
-	char *directoryPathFound = strstr(filename, directoryPath->data);
+	char *directoryPathFound = strstr(filename, directoryPath.data);
 	if (directoryPathFound != NULL)
 	{
 		directoryElement = true;
 	}
 
-	pfree(directoryPath);
+	pfree(directoryPath.data);
 
 	return directoryElement;
 }
@@ -623,10 +626,11 @@ CacheDirectoryElement(const char *filename)
 {
 	bool directoryElement = false;
 
-	StringInfo directoryPath = makeStringInfo();
-	appendStringInfo(directoryPath, "base/%s/", PG_JOB_CACHE_DIR);
+	StringInfoData directoryPath;
+	initStringInfo(&directoryPath);
+	appendStringInfo(&directoryPath, "base/%s/", PG_JOB_CACHE_DIR);
 
-	char *directoryPathFound = strstr(filename, directoryPath->data);
+	char *directoryPathFound = strstr(filename, directoryPath.data);
 
 	/*
 	 * If directoryPath occurs at the beginning of the filename, then the
@@ -637,7 +641,7 @@ CacheDirectoryElement(const char *filename)
 		directoryElement = true;
 	}
 
-	pfree(directoryPath);
+	pfree(directoryPath.data);
 
 	return directoryElement;
 }
@@ -750,6 +754,8 @@ CitusRemoveDirectory(StringInfo filename)
 								   directoryName)));
 		}
 
+		StringInfoData fullFilename;
+		initStringInfo(&fullFilename);
 		struct dirent *directoryEntry = ReadDir(directory, directoryName);
 		for (; directoryEntry != NULL; directoryEntry = ReadDir(directory, directoryName))
 		{
@@ -762,13 +768,11 @@ CitusRemoveDirectory(StringInfo filename)
 				continue;
 			}
 
-			StringInfo fullFilename = makeStringInfo();
-			appendStringInfo(fullFilename, "%s/%s", directoryName, baseFilename);
-
-			CitusRemoveDirectory(fullFilename);
-
-			FreeStringInfo(fullFilename);
+			resetStringInfo(&fullFilename);
+			appendStringInfo(&fullFilename, "%s/%s", directoryName, baseFilename);
+			CitusRemoveDirectory(&fullFilename);
 		}
+		pfree(fullFilename.data);
 
 		FreeDir(directory);
 	}
@@ -813,7 +817,7 @@ RenameDirectory(StringInfo oldDirectoryName, StringInfo newDirectoryName)
 static void
 FileOutputStreamWrite(FileOutputStream *file, StringInfo dataToWrite)
 {
-	StringInfo fileBuffer = file->fileBuffer;
+	StringInfo fileBuffer = &file->fileBuffer;
 	uint32 newBufferSize = fileBuffer->len + dataToWrite->len;
 
 	appendBinaryStringInfo(fileBuffer, dataToWrite->data, dataToWrite->len);
@@ -831,7 +835,7 @@ FileOutputStreamWrite(FileOutputStream *file, StringInfo dataToWrite)
 static void
 FileOutputStreamFlush(FileOutputStream *file)
 {
-	StringInfo fileBuffer = file->fileBuffer;
+	StringInfo fileBuffer = &file->fileBuffer;
 
 	errno = 0;
 	int written = FileWriteCompat(&file->fileCompat, fileBuffer->data, fileBuffer->len,
@@ -840,7 +844,7 @@ FileOutputStreamFlush(FileOutputStream *file)
 	{
 		ereport(ERROR, (errcode_for_file_access(),
 						errmsg("could not write %d bytes to partition file \"%s\"",
-							   fileBuffer->len, file->filePath->data)));
+							   fileBuffer->len, file->filePath.data)));
 	}
 }
 
@@ -961,7 +965,7 @@ FilterAndPartitionTable(const char *filterQuery,
 			AppendCopyRowData(valueArray, isNullArray, rowDescriptor,
 							  rowOutputState, columnOutputFunctions, NULL);
 
-			StringInfo rowText = rowOutputState->fe_msgbuf;
+			StringInfo rowText = &rowOutputState->fe_msgbuf;
 
 			FileOutputStream *partitionFile = &partitionFileArray[partitionId];
 			FileOutputStreamWrite(partitionFile, rowText);
@@ -1077,7 +1081,7 @@ InitRowOutputState(void)
 															   ALLOCSET_DEFAULT_MAXSIZE);
 
 	/* allocate the message buffer to use for serializing a row */
-	rowOutputState->fe_msgbuf = makeStringInfo();
+	initStringInfo(&rowOutputState->fe_msgbuf);
 
 	return rowOutputState;
 }
@@ -1091,7 +1095,7 @@ ClearRowOutputState(CopyOutState rowOutputState)
 
 	MemoryContextDelete(rowOutputState->rowcontext);
 
-	FreeStringInfo(rowOutputState->fe_msgbuf);
+	pfree(rowOutputState->fe_msgbuf.data);
 
 	pfree(rowOutputState->null_print_client);
 	pfree(rowOutputState->delim);
@@ -1115,12 +1119,12 @@ OutputBinaryHeaders(FileOutputStream *partitionFileArray, uint32 fileCount)
 		CopyOutState headerOutputState = (CopyOutState) & headerOutputStateData;
 
 		memset(headerOutputState, 0, sizeof(CopyOutStateData));
-		headerOutputState->fe_msgbuf = makeStringInfo();
+		initStringInfo(&headerOutputState->fe_msgbuf);
 
 		AppendCopyBinaryHeaders(headerOutputState);
 
 		partitionFile = partitionFileArray[fileIndex];
-		FileOutputStreamWrite(&partitionFile, headerOutputState->fe_msgbuf);
+		FileOutputStreamWrite(&partitionFile, &headerOutputState->fe_msgbuf);
 	}
 }
 
@@ -1140,12 +1144,12 @@ OutputBinaryFooters(FileOutputStream *partitionFileArray, uint32 fileCount)
 		CopyOutState footerOutputState = (CopyOutState) & footerOutputStateData;
 
 		memset(footerOutputState, 0, sizeof(CopyOutStateData));
-		footerOutputState->fe_msgbuf = makeStringInfo();
+		initStringInfo(&footerOutputState->fe_msgbuf);
 
 		AppendCopyBinaryFooters(footerOutputState);
 
 		partitionFile = partitionFileArray[fileIndex];
-		FileOutputStreamWrite(&partitionFile, footerOutputState->fe_msgbuf);
+		FileOutputStreamWrite(&partitionFile, &footerOutputState->fe_msgbuf);
 	}
 }
 

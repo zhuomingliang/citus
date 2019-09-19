@@ -396,16 +396,17 @@ RecoverWorkerTransactions(WorkerNode *workerNode)
 static List *
 PendingWorkerTransactionList(MultiConnection *connection)
 {
-	StringInfo command = makeStringInfo();
+	StringInfoData command;
 	bool raiseInterrupts = true;
 	List *transactionNames = NIL;
 	int coordinatorId = GetLocalGroupId();
 
-	appendStringInfo(command, "SELECT gid FROM pg_prepared_xacts "
-							  "WHERE gid LIKE 'citus\\_%d\\_%%'",
+	initStringInfo(&command);
+	appendStringInfo(&command, "SELECT gid FROM pg_prepared_xacts "
+							   "WHERE gid LIKE 'citus\\_%d\\_%%'",
 					 coordinatorId);
 
-	int querySent = SendRemoteCommand(connection, command->data);
+	int querySent = SendRemoteCommand(connection, command.data);
 	if (querySent == 0)
 	{
 		ReportConnectionError(connection, ERROR);
@@ -471,24 +472,25 @@ static bool
 RecoverPreparedTransactionOnWorker(MultiConnection *connection, char *transactionName,
 								   bool shouldCommit)
 {
-	StringInfo command = makeStringInfo();
+	StringInfoData command;
 	PGresult *result = NULL;
 	bool raiseInterrupts = false;
 
+	initStringInfo(&command);
 	if (shouldCommit)
 	{
 		/* should have committed this prepared transaction */
-		appendStringInfo(command, "COMMIT PREPARED %s",
+		appendStringInfo(&command, "COMMIT PREPARED %s",
 						 quote_literal_cstr(transactionName));
 	}
 	else
 	{
 		/* should have aborted this prepared transaction */
-		appendStringInfo(command, "ROLLBACK PREPARED %s",
+		appendStringInfo(&command, "ROLLBACK PREPARED %s",
 						 quote_literal_cstr(transactionName));
 	}
 
-	int executeCommand = ExecuteOptionalRemoteCommand(connection, command->data, &result);
+	int executeCommand = ExecuteOptionalRemoteCommand(connection, command.data, &result);
 	if (executeCommand == QUERY_SEND_FAILED)
 	{
 		return false;
@@ -498,12 +500,11 @@ RecoverPreparedTransactionOnWorker(MultiConnection *connection, char *transactio
 		return false;
 	}
 
-	PQclear(result);
 	ClearResults(connection, raiseInterrupts);
 
 	ereport(LOG, (errmsg("recovered a prepared transaction on %s:%d",
 						 connection->hostname, connection->port),
-				  errcontext("%s", command->data)));
+				  errcontext("%s", command.data)));
 
 	return true;
 }

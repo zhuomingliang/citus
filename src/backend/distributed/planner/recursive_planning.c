@@ -230,12 +230,13 @@ GenerateSubplansForSubqueriesAndCTEs(uint64 planId, Query *originalQuery,
 
 	if (context.subPlanList && IsLoggableLevel(DEBUG1))
 	{
-		StringInfo subPlanString = makeStringInfo();
-		pg_get_query_def(originalQuery, subPlanString);
+		StringInfoData subPlanString;
+		initStringInfo(&subPlanString);
+		pg_get_query_def(originalQuery, &subPlanString);
 		ereport(DEBUG1, (errmsg(
 							 "Plan " UINT64_FORMAT
 							 " query after replacing subqueries and CTEs: %s", planId,
-							 ApplyLogRedaction(subPlanString->data))));
+							 ApplyLogRedaction(subPlanString.data))));
 	}
 
 	recursivePlanningDepth--;
@@ -878,7 +879,7 @@ ShouldRecursivelyPlanSubquery(Query *subquery, RecursivePlanningContext *context
 	else if (DeferErrorIfCannotPushdownSubquery(subquery, false) == NULL)
 	{
 		/*
-		 * We should do one more check for the distribution key equality.
+		 * We should do one more checks for the distribution key equality.
 		 *
 		 * If the input query to the planner doesn't contain distribution key equality,
 		 * we should further check whether this individual subquery contains or not.
@@ -1505,7 +1506,7 @@ TransformFunctionRTE(RangeTblEntry *rangeTblEntry)
 
 
 /*
- * ShouldTransformRTE determines whether a given RTE should bne wrapped in a
+ * ShouldTransformRTE determines whether a given RTE should be wrapped in a
  * subquery.
  *
  * Not all functions should be wrapped in a subquery for now. As we support more
@@ -1751,11 +1752,12 @@ BuildReadIntermediateResultsQuery(List *targetEntryList, List *columnAliasList,
 char *
 GenerateResultId(uint64 planId, uint32 subPlanId)
 {
-	StringInfo resultId = makeStringInfo();
+	StringInfoData resultId;
 
-	appendStringInfo(resultId, UINT64_FORMAT "_%u", planId, subPlanId);
+	initStringInfo(&resultId);
+	appendStringInfo(&resultId, UINT64_FORMAT "_%u", planId, subPlanId);
 
-	return resultId->data;
+	return resultId.data;
 }
 
 

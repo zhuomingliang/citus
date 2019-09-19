@@ -16,15 +16,17 @@ Datum
 citus_rm_job_directory(PG_FUNCTION_ARGS)
 {
 	uint64 jobId = PG_GETARG_INT64(0);
-	StringInfo jobCacheDirectory = makeStringInfo();
+	StringInfoData jobCacheDirectory;
+	initStringInfo(&jobCacheDirectory);
 
 	EnsureSuperUser();
 
-	appendStringInfo(jobCacheDirectory, "base/%s/%s%0*" INT64_MODIFIER "u",
+	appendStringInfo(&jobCacheDirectory, "base/%s/%s%0*" INT64_MODIFIER "u",
 					 PG_JOB_CACHE_DIR, JOB_DIRECTORY_PREFIX,
 					 MIN_JOB_DIRNAME_WIDTH, jobId);
-	CitusRemoveDirectory(jobCacheDirectory);
-	FreeStringInfo(jobCacheDirectory);
+	CitusRemoveDirectory(&jobCacheDirectory);
+
+	pfree(jobCacheDirectory.data);
 
 	PG_RETURN_VOID();
 }

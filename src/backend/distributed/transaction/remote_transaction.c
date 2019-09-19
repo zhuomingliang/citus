@@ -94,7 +94,8 @@ StartRemoteTransactionBegin(struct MultiConnection *connection)
 	/* we've pushed into deepest subxact: apply in-progress SET context */
 	if (activeSetStmts != NULL)
 	{
-		appendStringInfoString(beginAndSetDistributedTransactionId, activeSetStmts->data);
+		appendStringInfoString(beginAndSetDistributedTransactionId,
+							   activeSetStmts->data);
 	}
 
 	if (!SendRemoteCommand(connection, beginAndSetDistributedTransactionId->data))
@@ -1136,10 +1137,11 @@ static void
 StartRemoteTransactionSavepointBegin(MultiConnection *connection, SubTransactionId subId)
 {
 	const bool raiseErrors = true;
-	StringInfo savepointCommand = makeStringInfo();
-	appendStringInfo(savepointCommand, "SAVEPOINT savepoint_%u", subId);
+	StringInfoData savepointCommand;
+	initStringInfo(&savepointCommand);
+	appendStringInfo(&savepointCommand, "SAVEPOINT savepoint_%u", subId);
 
-	if (!SendRemoteCommand(connection, savepointCommand->data))
+	if (!SendRemoteCommand(connection, savepointCommand.data))
 	{
 		HandleRemoteTransactionConnectionError(connection, raiseErrors);
 	}
@@ -1175,10 +1177,11 @@ StartRemoteTransactionSavepointRelease(MultiConnection *connection,
 									   SubTransactionId subId)
 {
 	const bool raiseErrors = true;
-	StringInfo savepointCommand = makeStringInfo();
-	appendStringInfo(savepointCommand, "RELEASE SAVEPOINT savepoint_%u", subId);
+	StringInfoData savepointCommand;
+	initStringInfo(&savepointCommand);
+	appendStringInfo(&savepointCommand, "RELEASE SAVEPOINT savepoint_%u", subId);
 
-	if (!SendRemoteCommand(connection, savepointCommand->data))
+	if (!SendRemoteCommand(connection, savepointCommand.data))
 	{
 		HandleRemoteTransactionConnectionError(connection, raiseErrors);
 	}
@@ -1215,10 +1218,11 @@ StartRemoteTransactionSavepointRollback(MultiConnection *connection,
 										SubTransactionId subId)
 {
 	const bool raiseErrors = false;
-	StringInfo savepointCommand = makeStringInfo();
-	appendStringInfo(savepointCommand, "ROLLBACK TO SAVEPOINT savepoint_%u", subId);
+	StringInfoData savepointCommand;
+	initStringInfo(&savepointCommand);
+	appendStringInfo(&savepointCommand, "ROLLBACK TO SAVEPOINT savepoint_%u", subId);
 
-	if (!SendRemoteCommand(connection, savepointCommand->data))
+	if (!SendRemoteCommand(connection, savepointCommand.data))
 	{
 		HandleRemoteTransactionConnectionError(connection, raiseErrors);
 	}

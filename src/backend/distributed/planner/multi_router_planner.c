@@ -737,20 +737,21 @@ ModifyQuerySupported(Query *queryTree, Query *originalQuery, bool multiShardQuer
 			 */
 			if (rangeTableEntry->rtekind == RTE_SUBQUERY)
 			{
-				StringInfo errorHint = makeStringInfo();
+				StringInfoData errorHint;
 				DistTableCacheEntry *cacheEntry = DistributedTableCacheEntry(
 					distributedTableId);
 				char *partitionKeyString = cacheEntry->partitionKeyString;
 				char *partitionColumnName = ColumnToColumnName(distributedTableId,
 															   partitionKeyString);
 
-				appendStringInfo(errorHint, "Consider using an equality filter on "
-											"partition column \"%s\" to target a single shard.",
+				initStringInfo(&errorHint);
+				appendStringInfo(&errorHint, "Consider using an equality filter on "
+											 "partition column \"%s\" to target a single shard.",
 								 partitionColumnName);
 
 				return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED, "subqueries are not "
 																	"supported in modifications across multiple shards",
-									 errorHint->data, NULL);
+									 errorHint.data, NULL);
 			}
 			else if (rangeTableEntry->rtekind == RTE_JOIN)
 			{
@@ -2687,9 +2688,12 @@ BuildRoutesForInsert(Query *query, DeferredErrorMessage **planningError)
 			char *partitionKeyString = cacheEntry->partitionKeyString;
 			char *partitionColumnName = ColumnToColumnName(distributedTableId,
 														   partitionKeyString);
-			StringInfo errorMessage = makeStringInfo();
-			StringInfo errorHint = makeStringInfo();
+			StringInfoData errorMessage;
+			StringInfoData errorHint;
 			const char *targetCountType = NULL;
+
+			initStringInfo(&errorMessage);
+			initStringInfo(&errorHint);
 
 			if (prunedShardIntervalCount == 0)
 			{
@@ -2702,22 +2706,22 @@ BuildRoutesForInsert(Query *query, DeferredErrorMessage **planningError)
 
 			if (prunedShardIntervalCount == 0)
 			{
-				appendStringInfo(errorHint, "Make sure you have created a shard which "
-											"can receive this partition column value.");
+				appendStringInfo(&errorHint, "Make sure you have created a shard which "
+											 "can receive this partition column value.");
 			}
 			else
 			{
-				appendStringInfo(errorHint, "Make sure the value for partition column "
-											"\"%s\" falls into a single shard.",
+				appendStringInfo(&errorHint, "Make sure the value for partition column "
+											 "\"%s\" falls into a single shard.",
 								 partitionColumnName);
 			}
 
-			appendStringInfo(errorMessage, "cannot run INSERT command which targets %s "
-										   "shards", targetCountType);
+			appendStringInfo(&errorMessage, "cannot run INSERT command which targets %s "
+											"shards", targetCountType);
 
 			(*planningError) = DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
-											 errorMessage->data, NULL,
-											 errorHint->data);
+											 errorMessage.data, NULL,
+											 errorHint.data);
 
 			return NIL;
 		}
