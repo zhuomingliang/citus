@@ -330,6 +330,7 @@ SELECT citus.mitmproxy('conn.onQuery(query="COPY").kill()');
 
 SELECT master_add_node('localhost', :worker_1_port);
 NOTICE:  Replicating reference table "user_table" to the node localhost:xxxxx
+DETAIL:  from localhost:xxxxx
 ERROR:  could not copy table "user_table_200000" from "localhost:xxxxx"
 CONTEXT:  while executing command on localhost:xxxxx
 -- verify node is not added
