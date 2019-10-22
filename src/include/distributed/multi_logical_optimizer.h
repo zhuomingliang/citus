@@ -28,6 +28,7 @@
 #define JSON_CAT_AGGREGATE_NAME "json_cat_agg"
 #define WORKER_PARTIAL_AGGREGATE_NAME "worker_partial_agg"
 #define COORD_COMBINE_AGGREGATE_NAME "coord_combine_agg"
+#define COORD_FOLD_ARRAY_NAME "coord_fold_array"
 #define WORKER_COLUMN_FORMAT "worker_column_%d"
 
 /* Definitions related to count(distinct) approximations */
@@ -80,8 +81,9 @@ typedef enum
 	AGGREGATE_TOPN_UNION_AGG = 19,
 	AGGREGATE_ANY_VALUE = 20,
 
-	/* AGGREGATE_CUSTOM must come last */
-	AGGREGATE_CUSTOM = 21
+	/* AGGREGATE_CUSTOM_* must come last */
+	AGGREGATE_CUSTOM_COMBINE = 21,
+	AGGREGATE_CUSTOM_COLLECT = 22
 } AggregateType;
 
 /*

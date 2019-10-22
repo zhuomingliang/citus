@@ -29,6 +29,7 @@
 #include "distributed/colocation_utils.h"
 #include "distributed/extended_op_node_utils.h"
 #include "distributed/function_utils.h"
+#include "distributed/listutils.h"
 #include "distributed/metadata_cache.h"
 #include "distributed/multi_logical_optimizer.h"
 #include "distributed/multi_logical_planner.h"
@@ -46,9 +47,11 @@
 #else
 #include "optimizer/var.h"
 #endif
+#include "parser/parser.h"
 #include "parser/parse_agg.h"
 #include "parser/parse_coerce.h"
 #include "parser/parse_oper.h"
+#include "parser/parse_type.h"
 #include "parser/parsetree.h"
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
@@ -65,6 +68,7 @@ typedef struct MasterAggregateWalkerContext
 {
 	AttrNumber columnId;
 	bool pullDistinctColumns;
+	bool hasSubLinks;
 } MasterAggregateWalkerContext;
 
 typedef struct WorkerAggregateWalkerContext
@@ -246,6 +250,7 @@ static TargetEntry * GenerateWorkerTargetEntry(TargetEntry *targetEntry,
 											   AttrNumber targetProjectionNumber);
 static void AppendTargetEntryToGroupClause(TargetEntry *targetEntry,
 										   QueryGroupClause *queryGroupClause);
+static RowExpr * CreateCollectRowExpr(Aggref *originalAggregate);
 static bool WorkerAggregateWalker(Node *node,
 								  WorkerAggregateWalkerContext *walkerContext);
 static List * WorkerAggregateExpressionList(Aggref *originalAggregate,
@@ -256,6 +261,7 @@ static bool AggregateEnabledCustom(Aggref *aggregateExpression);
 static Oid CitusFunctionOidWithSignature(char *functionName, int numargs, Oid *argtypes);
 static Oid WorkerPartialAggOid(void);
 static Oid CoordCombineAggOid(void);
+static Oid CoordArrayFoldOid(void);
 static Oid AggregateFunctionOid(const char *functionName, Oid inputType);
 static Oid TypeOid(Oid schemaId, const char *typeName);
 static SortGroupClause * CreateSortGroupClause(Var *column);
@@ -301,13 +307,16 @@ static bool HasOrderByHllType(List *sortClauseList, List *targetList);
  * the given logical plan tree. Specifically, the function applies four set of
  * optimizations in a particular order.
  *
- * First, the function splits the search node into two nodes that contain And
- * and Or clauses, and pushes down the node that contains And clauses. Second,
- * the function pushes down the project node; this node either contains columns
- * to return to the user, or aggregate expressions used by the aggregate node.
- * Third, the function pulls up the collect operators in the tree. Fourth, the
- * function finds the extended operator node, and splits this node into master
- * and worker extended operator nodes.
+ * 1. split the search node into two nodes that contain And and Or clauses,
+ * and pushes down the node that contains And clauses.
+ *
+ * 2. push down the project node; this node either contains columns to return
+ * to the user, or aggregate expressions used by the aggregate node.
+ *
+ * 3. pull up the collect operators in the tree.
+ *
+ * 4. find the extended operator node,
+ * and splits this node into master and worker extended operator nodes.
  */
 void
 MultiLogicalPlanOptimize(MultiTreeRoot *multiLogicalPlan)
@@ -1428,6 +1437,7 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 	masterExtendedOpNode->limitCount = originalOpNode->limitCount;
 	masterExtendedOpNode->limitOffset = originalOpNode->limitOffset;
 	masterExtendedOpNode->havingQual = newHavingQual;
+	masterExtendedOpNode->hasSubLinks = walkerContext->hasSubLinks;
 
 	return masterExtendedOpNode;
 }
@@ -1819,7 +1829,7 @@ MasterAggregateExpression(Aggref *originalAggregate,
 
 		newMasterExpression = (Expr *) unionAggregate;
 	}
-	else if (aggregateType == AGGREGATE_CUSTOM)
+	else if (aggregateType == AGGREGATE_CUSTOM_COMBINE)
 	{
 		HeapTuple aggTuple =
 			SearchSysCache1(AGGFNOID, ObjectIdGetDatum(originalAggregate->aggfnoid));
@@ -1880,6 +1890,136 @@ MasterAggregateExpression(Aggref *originalAggregate,
 			elog(ERROR, "Aggregate lacks COMBINEFUNC");
 		}
 	}
+	else if (aggregateType == AGGREGATE_CUSTOM_COLLECT)
+	{
+		Aggref *catAggCall = makeNode(Aggref);
+
+		Var *column = makeVar(masterTableId, walkerContext->columnId, CSTRINGOID,
+							  -1, InvalidOid, columnLevelsUp);
+		walkerContext->columnId++;
+
+		RowExpr *rowExpr = CreateCollectRowExpr(originalAggregate);
+
+		int32 resulttypmod = BlessRecordExpression((Expr *) rowExpr);
+
+		Const *recordOidConst = makeConst(OIDOID, -1, InvalidOid, sizeof(Oid),
+										  ObjectIdGetDatum(RECORDOID), false, true);
+
+		FuncExpr *inCallExpr = makeNode(FuncExpr);
+		inCallExpr->funcid = F_ARRAY_IN;
+		inCallExpr->args = list_make3(column, recordOidConst, MakeIntegerConst(
+										  resulttypmod));
+		inCallExpr->funcformat = COERCE_EXPLICIT_CALL;
+		inCallExpr->funcresulttype = RECORDARRAYOID;
+
+		catAggCall->aggfnoid = AggregateFunctionOid(ARRAY_CAT_AGGREGATE_NAME,
+													ANYARRAYOID);
+		catAggCall->aggtype = RECORDARRAYOID;
+		catAggCall->args = list_make1(makeTargetEntry((Expr *) inCallExpr, 1, NULL,
+													  false));
+		catAggCall->aggkind = AGGKIND_NORMAL;
+		catAggCall->aggtranstype = RECORDARRAYOID;
+		catAggCall->aggargtypes = list_make1_oid(RECORDARRAYOID);
+		catAggCall->aggsplit = AGGSPLIT_SIMPLE;
+
+		FuncExpr *foldCallExpr = makeNode(FuncExpr);
+		foldCallExpr->funcid = CoordArrayFoldOid();
+		foldCallExpr->funcresulttype = originalAggregate->aggtype;
+		foldCallExpr->funcformat = COERCE_EXPLICIT_CALL;
+		foldCallExpr->args = NIL;
+
+		/* 1 aggregate oid */
+		Const *aggOidParam = makeConst(OIDOID, -1, InvalidOid, sizeof(Oid),
+									   ObjectIdGetDatum(originalAggregate->aggfnoid),
+									   false, true);
+		foldCallExpr->args = lappend(foldCallExpr->args, aggOidParam);
+
+		/* 2 inputRecords */
+		foldCallExpr->args = lappend(foldCallExpr->args, catAggCall);
+
+		/* 3 distinct */
+		Const *distinctParam = makeConst(BOOLOID, -1, InvalidOid, sizeof(bool),
+										 BoolGetDatum(originalAggregate->aggdistinct),
+										 false, true);
+		foldCallExpr->args = lappend(foldCallExpr->args, distinctParam);
+
+		/* 4 resjunk */
+		ArrayExpr *resjunkParam = makeNode(ArrayExpr);
+		resjunkParam->location = -1;
+		resjunkParam->array_typeid = BOOLARRAYOID;
+		resjunkParam->element_typeid = BOOLOID;
+		TargetEntry *targetArg;
+		foreach_ptr(targetArg, originalAggregate->args)
+		{
+			Const *resjunk = makeConst(BOOLOID, -1, InvalidOid, sizeof(bool),
+									   BoolGetDatum(targetArg->resjunk),
+									   false, true);
+			resjunkParam->elements = lappend(resjunkParam->elements, resjunk);
+		}
+		foldCallExpr->args = lappend(foldCallExpr->args, resjunkParam);
+
+		/* 5 order by */
+		Oid arrayFoldOrderingTypeOid =
+			LookupTypeNameOid(NULL,
+							  typeStringToTypeName("pg_catalog.array_fold_ordering"),
+							  false);
+		Oid arrayFoldOrderingArrayTypeOid =
+			get_array_type(arrayFoldOrderingTypeOid);
+
+		if (originalAggregate->aggorder)
+		{
+			ArrayExpr *sortArrayExpr = makeNode(ArrayExpr);
+			sortArrayExpr->location = -1;
+			sortArrayExpr->array_typeid = arrayFoldOrderingArrayTypeOid;
+			sortArrayExpr->element_typeid = arrayFoldOrderingTypeOid;
+
+			SortGroupClause *sortClause;
+			foreach_ptr(sortClause, originalAggregate->aggorder)
+			{
+				RowExpr *sortExpr = makeNode(RowExpr);
+				sortExpr->row_format = COERCE_EXPLICIT_CALL;
+				sortExpr->row_typeid = arrayFoldOrderingTypeOid;
+				sortExpr->args = NIL;
+
+				int tleIndex = 0;
+				TargetEntry *targetEntry;
+				foreach_ptr(targetEntry, originalAggregate->args)
+				{
+					if (targetEntry->ressortgroupref == sortClause->tleSortGroupRef)
+					{
+						break;
+					}
+					tleIndex++;
+				}
+				Const *indexField = MakeIntegerConst(tleIndex);
+				sortExpr->args = lappend(sortExpr->args, indexField);
+
+				Const *sortopField = makeConst(OIDOID, -1, InvalidOid, sizeof(Oid),
+											   ObjectIdGetDatum(sortClause->sortop),
+											   false, true);
+				sortExpr->args = lappend(sortExpr->args, sortopField);
+
+				Const *nullsFirstField = makeConst(BOOLOID, -1, InvalidOid, sizeof(bool),
+												   BoolGetDatum(sortClause->nulls_first),
+												   false, true);
+				sortExpr->args = lappend(sortExpr->args, nullsFirstField);
+
+				sortArrayExpr->elements = lappend(sortArrayExpr->elements, sortExpr);
+			}
+			foldCallExpr->args = lappend(foldCallExpr->args, sortArrayExpr);
+		}
+		else
+		{
+			Const *noSort = makeNullConst(arrayFoldOrderingArrayTypeOid, -1, InvalidOid);
+			foldCallExpr->args = lappend(foldCallExpr->args, noSort);
+		}
+
+		/* 6 output type */
+		Const *nulltag = makeNullConst(originalAggregate->aggtype, -1, InvalidOid);
+		foldCallExpr->args = lappend(foldCallExpr->args, nulltag);
+
+		return (Expr *) foldCallExpr;
+	}
 	else
 	{
 		/*
@@ -1937,7 +2077,7 @@ MasterAggregateExpression(Aggref *originalAggregate,
 		newMasterExpression = typeConvertedExpression;
 	}
 
-	/* Run AggRefs through cost machinery to mark required fields sanely */
+	/* Run Aggrefs through cost machinery to mark required fields sanely */
 	memset(&aggregateCosts, 0, sizeof(aggregateCosts));
 
 	get_agg_clause_costs(NULL, (Node *) newMasterExpression, AGGSPLIT_SIMPLE,
@@ -2004,8 +2144,7 @@ MasterAverageExpression(Oid sumAggregateType, Oid countAggregateType,
 	 */
 	List *operatorNameList = list_make1(makeString(DIVISION_OPER_NAME));
 	Expr *opExpr = make_op(NULL, operatorNameList, (Node *) firstSum, (Node *) secondSum,
-						   NULL,
-						   -1);
+						   NULL, -1);
 
 	return opExpr;
 }
@@ -2592,7 +2731,7 @@ ExpandWorkerTargetEntry(List *expressionList, TargetEntry *originalTargetEntry,
 		TargetEntry *newTargetEntry =
 			GenerateWorkerTargetEntry(originalTargetEntry, newExpression,
 									  queryTargetList->targetProjectionNumber);
-		(queryTargetList->targetProjectionNumber)++;
+		queryTargetList->targetProjectionNumber++;
 		queryTargetList->targetEntryList =
 			lappend(queryTargetList->targetEntryList, newTargetEntry);
 
@@ -2718,6 +2857,27 @@ AppendTargetEntryToGroupClause(TargetEntry *targetEntry,
 	queryGroupClause->groupClauseList =
 		lappend(queryGroupClause->groupClauseList, groupByClause);
 	(*queryGroupClause->nextSortGroupRefIndex)++;
+}
+
+
+/*
+ * CreateCollectRowExpr returns a RowExpr for the given Aggref's args.
+ */
+static RowExpr *
+CreateCollectRowExpr(Aggref *originalAggregate)
+{
+	RowExpr *rowExpr = makeNode(RowExpr);
+	rowExpr->row_format = COERCE_EXPLICIT_CALL;
+	rowExpr->row_typeid = RECORDOID;
+	rowExpr->args = NIL;
+
+	TargetEntry *aggArg = NULL;
+	foreach_ptr(aggArg, originalAggregate->args)
+	{
+		rowExpr->args = lappend(rowExpr->args, aggArg->expr);
+	}
+
+	return rowExpr;
 }
 
 
@@ -2888,7 +3048,7 @@ WorkerAggregateExpressionList(Aggref *originalAggregate,
 		workerAggregateList = lappend(workerAggregateList, sumAggregate);
 		workerAggregateList = lappend(workerAggregateList, countAggregate);
 	}
-	else if (aggregateType == AGGREGATE_CUSTOM)
+	else if (aggregateType == AGGREGATE_CUSTOM_COMBINE)
 	{
 		HeapTuple aggTuple =
 			SearchSysCache1(AGGFNOID, ObjectIdGetDatum(originalAggregate->aggfnoid));
@@ -2944,6 +3104,34 @@ WorkerAggregateExpressionList(Aggref *originalAggregate,
 			elog(ERROR, "Aggregate lacks COMBINEFUNC");
 		}
 	}
+	else if (aggregateType == AGGREGATE_CUSTOM_COLLECT)
+	{
+		Aggref *workerAggregate = copyObject(originalAggregate);
+
+		RowExpr *rowExpr = CreateCollectRowExpr(originalAggregate);
+
+		TargetEntry *newTargetEntry = makeTargetEntry((Expr *) rowExpr, 1, NULL, false);
+
+		workerAggregate->aggfnoid = AggregateFunctionOid("array_agg", ANYARRAYOID);
+		workerAggregate->aggtype = RECORDARRAYOID;
+		workerAggregate->aggtranstype = INTERNALOID;
+		workerAggregate->aggdirectargs = NIL;
+		workerAggregate->aggkind = AGGKIND_NORMAL;
+		workerAggregate->args = list_make1(newTargetEntry);
+		workerAggregate->aggargtypes = list_make1_oid(RECORDOID);
+		workerAggregate->aggvariadic = false;
+		workerAggregate->aggorder = NIL;
+		workerAggregate->aggdistinct = NIL;
+		workerAggregate->aggstar = false;
+
+		FuncExpr *outexpr = makeNode(FuncExpr);
+		outexpr->funcid = F_ARRAY_OUT;
+		outexpr->funcformat = COERCE_EXPLICIT_CALL;
+		outexpr->funcresulttype = CSTRINGOID;
+		outexpr->args = list_make1(workerAggregate);
+
+		workerAggregateList = lappend(workerAggregateList, outexpr);
+	}
 	else
 	{
 		/*
@@ -2997,10 +3185,16 @@ GetAggregateType(Aggref *aggregateExpression)
 
 	if (AggregateEnabledCustom(aggregateExpression))
 	{
-		return AGGREGATE_CUSTOM;
+		return AGGREGATE_CUSTOM_COMBINE;
 	}
 
-	ereport(ERROR, (errmsg("unsupported aggregate function %s", aggregateProcName)));
+	if (AGGKIND_IS_ORDERED_SET(aggregateExpression->aggkind))
+	{
+		ereport(ERROR, (errmsg("unsupported aggregate %s", aggregateProcName),
+						errhint("ordered-set aggregation is unsupported")));
+	}
+
+	return AGGREGATE_CUSTOM_COLLECT;
 }
 
 
@@ -3040,9 +3234,12 @@ AggregateEnabledCustom(Aggref *aggregateExpression)
 	}
 	Form_pg_aggregate aggform = (Form_pg_aggregate) GETSTRUCT(aggTuple);
 
-	if (aggform->aggcombinefn == InvalidOid)
+	bool supportsCombine = aggform->aggcombinefn != InvalidOid;
+
+	ReleaseSysCache(aggTuple);
+
+	if (!supportsCombine)
 	{
-		ReleaseSysCache(aggTuple);
 		return false;
 	}
 
@@ -3055,7 +3252,6 @@ AggregateEnabledCustom(Aggref *aggregateExpression)
 
 	bool supportsSafeCombine = typeform->typtype != TYPTYPE_PSEUDO;
 
-	ReleaseSysCache(aggTuple);
 	ReleaseSysCache(typeTuple);
 
 	return supportsSafeCombine;
@@ -3174,6 +3370,30 @@ CoordCombineAggOid()
 	};
 
 	return CitusFunctionOidWithSignature(COORD_COMBINE_AGGREGATE_NAME, 3, argtypes);
+}
+
+
+/*
+ * CoordFoldArrayOid looks up oid of pg_catalog.coord_fold_array
+ */
+static Oid
+CoordArrayFoldOid()
+{
+	Oid arrayFoldOrderingTypeOid =
+		LookupTypeNameOid(NULL,
+						  typeStringToTypeName("pg_catalog.array_fold_ordering"),
+						  false);
+
+	Oid argtypes[] = {
+		OIDOID,
+		RECORDARRAYOID,
+		BOOLOID,
+		BOOLARRAYOID,
+		get_array_type(arrayFoldOrderingTypeOid),
+		ANYELEMENTOID,
+	};
+
+	return CitusFunctionOidWithSignature(COORD_FOLD_ARRAY_NAME, 6, argtypes);
 }
 
 
@@ -3806,7 +4026,7 @@ IsPartitionColumn(Expr *columnExpression, Query *query)
 /*
  * FindReferencedTableColumn recursively traverses query tree to find actual relation
  * id, and column that columnExpression refers to. If columnExpression is a
- * non-relational or computed/derived expression, the function returns InvolidOid for
+ * non-relational or computed/derived expression, the function returns InvalidOid for
  * relationId and NULL for column. The caller should provide parent query list from
  * top of the tree to this particular Query's parent. This argument is used to look
  * into CTEs that may be present in the query.

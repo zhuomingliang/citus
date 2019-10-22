@@ -8,6 +8,9 @@
  * calling finalfunc on workers, instead passing state to coordinator where
  * it uses combinefunc in coord_combine_agg & applying finalfunc only at end.
  *
+ * As a last resort we use coord_fold_array. It functions by collecting
+ * intermediate results & performing all aggregation on the coordinators.
+ *
  * Copyright Citus Data, Inc.
  *
  *-------------------------------------------------------------------------
@@ -21,19 +24,32 @@
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
 #include "distributed/version_compat.h"
+#include "executor/executor.h"
+#include "parser/parse_type.h"
 #include "utils/acl.h"
+#include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/datum.h"
+#include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
+#include "utils/sortsupport.h"
 #include "utils/syscache.h"
+#include "utils/typcache.h"
 #include "fmgr.h"
 #include "miscadmin.h"
 #include "pg_config_manual.h"
+
+#define array_fold_ordering_index 1
+#define array_fold_ordering_sortop 2
+#define array_fold_ordering_nullsfirst 3
+#define array_fold_ordering_Natts 3
+
 
 PG_FUNCTION_INFO_V1(worker_partial_agg_sfunc);
 PG_FUNCTION_INFO_V1(worker_partial_agg_ffunc);
 PG_FUNCTION_INFO_V1(coord_combine_agg_sfunc);
 PG_FUNCTION_INFO_V1(coord_combine_agg_ffunc);
+PG_FUNCTION_INFO_V1(coord_fold_array);
 
 /*
  * internal type for support aggregates to pass transition state alongside
@@ -50,16 +66,33 @@ typedef struct StypeBox
 	bool valueInit;
 } StypeBox;
 
+typedef struct SortInputRecordsContext
+{
+	TupleDesc tupleDesc;
+	HeapTuple tuple;
+	MemoryContext callContext;
+	Datum *firstArgValues;
+	bool *firstArgNulls;
+	Datum *secondArgValues;
+	bool *secondArgNulls;
+	SortSupport sortKeys;
+	int nkeys;
+	bool distinct;
+} SortInputRecordsContext;
+
 static HeapTuple GetAggregateForm(Oid oid, Form_pg_aggregate *form);
 static HeapTuple GetProcForm(Oid oid, Form_pg_proc *form);
 static HeapTuple GetTypeForm(Oid oid, Form_pg_type *form);
 static void * pallocInAggContext(FunctionCallInfo fcinfo, size_t size);
 static void aclcheckAggregate(ObjectType objectType, Oid userOid, Oid funcOid);
+static void aclcheckAggform(Form_pg_aggregate aggform);
 static void InitializeStypeBox(FunctionCallInfo fcinfo, StypeBox *box, HeapTuple aggTuple,
 							   Oid transtype);
 static void HandleTransition(StypeBox *box, FunctionCallInfo fcinfo,
 							 FunctionCallInfo innerFcinfo);
 static void HandleStrictUninit(StypeBox *box, FunctionCallInfo fcinfo, Datum value);
+static int CompareRecordData(const void *a, const void *b, void *context);
+
 
 /*
  * GetAggregateForm loads corresponding tuple & Form_pg_aggregate for oid
@@ -142,23 +175,31 @@ aclcheckAggregate(ObjectType objectType, Oid userOid, Oid funcOid)
 }
 
 
-/*
- * See GetAggInitVal from pg's nodeAgg.c
- */
+/* aclcheckAggform makes ACL_EXECUTE checks as would be done in nodeAgg.c */
 static void
-InitializeStypeBox(FunctionCallInfo fcinfo, StypeBox *box, HeapTuple aggTuple, Oid
-				   transtype)
+aclcheckAggform(Form_pg_aggregate aggform)
 {
-	Form_pg_aggregate aggform = (Form_pg_aggregate) GETSTRUCT(aggTuple);
 	Oid userId = GetUserId();
 
-	/* First we make ACL_EXECUTE checks as would be done in nodeAgg.c */
 	aclcheckAggregate(OBJECT_AGGREGATE, userId, aggform->aggfnoid);
 	aclcheckAggregate(OBJECT_FUNCTION, userId, aggform->aggfinalfn);
 	aclcheckAggregate(OBJECT_FUNCTION, userId, aggform->aggtransfn);
 	aclcheckAggregate(OBJECT_FUNCTION, userId, aggform->aggdeserialfn);
 	aclcheckAggregate(OBJECT_FUNCTION, userId, aggform->aggserialfn);
 	aclcheckAggregate(OBJECT_FUNCTION, userId, aggform->aggcombinefn);
+}
+
+
+/*
+ * See GetAggInitVal from pg's nodeAgg.c
+ */
+static void
+InitializeStypeBox(FunctionCallInfo fcinfo, StypeBox *box, HeapTuple aggTuple,
+				   Oid transtype)
+{
+	Form_pg_aggregate aggform = (Form_pg_aggregate) GETSTRUCT(aggTuple);
+
+	aclcheckAggform(aggform);
 
 	Datum textInitVal = SysCacheGetAttr(AGGFNOID, aggTuple,
 										Anum_pg_aggregate_agginitval,
@@ -252,6 +293,7 @@ HandleTransition(StypeBox *box, FunctionCallInfo fcinfo, FunctionCallInfo innerF
 static void
 HandleStrictUninit(StypeBox *box, FunctionCallInfo fcinfo, Datum value)
 {
+	/* TODO test binary compatible */
 	MemoryContext aggregateContext;
 
 	if (!AggCheckCallContext(fcinfo, &aggregateContext))
@@ -538,7 +580,6 @@ coord_combine_agg_ffunc(PG_FUNCTION_ARGS)
 	StypeBox *box = (StypeBox *) (PG_ARGISNULL(0) ? NULL : PG_GETARG_POINTER(0));
 	LOCAL_FCINFO(innerFcinfo, FUNC_MAX_ARGS);
 	FmgrInfo info;
-	int innerNargs = 0;
 	Form_pg_aggregate aggform;
 	Form_pg_proc ffuncform;
 
@@ -574,24 +615,509 @@ coord_combine_agg_ffunc(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 	}
 
-	if (fextra)
-	{
-		innerNargs = fcinfo->nargs;
-	}
-	else
-	{
-		innerNargs = 1;
-	}
+	short innerNargs = fextra ? fcinfo->nargs : 1;
 	fmgr_info(ffunc, &info);
 	InitFunctionCallInfoData(*innerFcinfo, &info, innerNargs, fcinfo->fncollation,
 							 fcinfo->context, fcinfo->resultinfo);
 	fcSetArgExt(innerFcinfo, 0, box->value, box->valueNull);
-	for (int argumentIndex = 1; argumentIndex < innerNargs; argumentIndex++)
+	for (short argumentIndex = 1; argumentIndex < innerNargs; argumentIndex++)
 	{
 		fcSetArgNull(innerFcinfo, argumentIndex);
 	}
 
 	Datum result = FunctionCallInvoke(innerFcinfo);
 	fcinfo->isnull = innerFcinfo->isnull;
+	return result;
+}
+
+
+/*
+ * coord_fold_array(
+ *  aggregateOid oid,
+ *  inputRecords record[],
+ *  distinct bool,
+ *  resjunk bool[],
+ *  orderBy array_fold_ordering[],
+ *  nulltag anyelement)
+ *
+ * The aggregate for aggregateOid is used to reduce input rows from inputRecords.
+ * If distinct is true, we deduplicate the input rows.
+ */
+Datum
+coord_fold_array(PG_FUNCTION_ARGS)
+{
+	if (PG_ARGISNULL(0) ||
+		PG_ARGISNULL(2) ||
+		PG_ARGISNULL(3))
+	{
+		elog(ERROR, "coord_fold_array received an unexpected NULL parameter");
+	}
+
+	Oid aggregateOid = PG_GETARG_OID(0);
+	ArrayType *inputRecordsArray = PG_ARGISNULL(1) ? NULL : PG_GETARG_ARRAYTYPE_P(1);
+	bool distinct = PG_GETARG_BOOL(2);
+	ArrayType *resjunkArray = PG_GETARG_ARRAYTYPE_P(3);
+	ArrayType *orderby = PG_ARGISNULL(4) ? NULL : PG_GETARG_ARRAYTYPE_P(4);
+	LOCAL_FCINFO(innerFcinfo, FUNC_MAX_ARGS);
+	FmgrInfo info;
+
+	/* step 1 load aggregate info */
+	Form_pg_aggregate aggform;
+	HeapTuple aggTuple = GetAggregateForm(aggregateOid, &aggform);
+
+	aclcheckAggform(aggform);
+
+	Oid ffunc = aggform->aggfinalfn;
+	Oid fextra = aggform->aggfinalextra;
+	Oid transtype = aggform->aggtranstype;
+	Oid transfunc = aggform->aggtransfn;
+	Datum transValue = (Datum) 0;
+	bool transNull = false;
+	Datum textInitVal = SysCacheGetAttr(AGGFNOID, aggTuple,
+										Anum_pg_aggregate_agginitval,
+										&transNull);
+	bool transInit = !transNull;
+	if (!transNull)
+	{
+		Oid typinput,
+			typioparam;
+
+		getTypeInputInfo(transtype, &typinput, &typioparam);
+		char *strInitVal = TextDatumGetCString(textInitVal);
+		transValue = OidInputFunctionCall(typinput, strInitVal,
+										  typioparam, -1);
+		pfree(strInitVal);
+	}
+
+	ReleaseSysCache(aggTuple);
+
+	int16_t transtypeLen;
+	bool transtypeByVal;
+	get_typlenbyval(transtype,
+					&transtypeLen,
+					&transtypeByVal);
+
+	ExprContext *econtext = CreateStandaloneExprContext();
+	AggState *aggState = makeNode(AggState);
+	MemoryContext callContext =
+		AllocSetContextCreate(CurrentMemoryContext, "Citus Aggregates",
+							  ALLOCSET_DEFAULT_SIZES);
+	MemoryContext aggregateContext = CurrentMemoryContext;
+
+	aggState->curaggcontext = econtext;
+	econtext->ecxt_per_tuple_memory = aggregateContext;
+
+	int arrayLength = inputRecordsArray == NULL ? 0 : ARR_DIMS(inputRecordsArray)[0];
+	if (arrayLength > 0)
+	{
+		ArrayIterator input_iterator = array_create_iterator(inputRecordsArray, 0, NULL);
+		Datum *inputRecords = palloc(sizeof(Datum) * arrayLength);
+		Datum *inputRecordsCursor = inputRecords;
+		Datum cursorValue;
+		bool cursorNull;
+		while (array_iterate(input_iterator, &cursorValue, &cursorNull))
+		{
+			Assert(inputRecordsCursor < inputRecords + arrayLength);
+			if (cursorNull)
+			{
+				elog(ERROR, "unexpected null");
+			}
+
+			/* TODO check that tuple descriptors are all the same */
+			/* TODO don't allow tuple descriptors with dropped columns */
+			*inputRecordsCursor++ = cursorValue;
+		}
+
+		Assert(inputRecordsCursor == inputRecords + arrayLength);
+
+		Datum firstValue = inputRecords[0];
+		HeapTupleHeader rec = DatumGetHeapTupleHeader(firstValue);
+
+		Oid tupType = HeapTupleHeaderGetTypeId(rec);
+		int32 tupTypmod = HeapTupleHeaderGetTypMod(rec);
+		TupleDesc tupDesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
+		HeapTupleData tuple;
+		int ncolumns = tupDesc->natts;
+
+		tuple.t_len = HeapTupleHeaderGetDatumLength(rec);
+		ItemPointerSetInvalid(&tuple.t_self);
+		tuple.t_tableOid = InvalidOid;
+		tuple.t_data = NULL;
+
+		Datum *argValues = palloc(ncolumns * sizeof(Datum));
+		bool *argNulls = palloc(ncolumns * sizeof(bool));
+
+		if (orderby)
+		{
+			Datum *secondArgValues = palloc(ncolumns * sizeof(Datum));
+			bool *secondArgNulls = palloc(ncolumns * sizeof(bool));
+			TypeName *arrayFoldOrderingName =
+				typeStringToTypeName("pg_catalog.array_fold_ordering");
+			Oid arrayFoldOrderingTypeOid =
+				LookupTypeNameOid(NULL, arrayFoldOrderingName, false);
+			SortInputRecordsContext sortContext = {
+				.tupleDesc = tupDesc,
+				.tuple = &tuple,
+				.callContext = callContext,
+				.firstArgValues = argValues,
+				.firstArgNulls = argNulls,
+				.secondArgValues = secondArgValues,
+				.secondArgNulls = secondArgNulls,
+				.sortKeys = palloc0(ARR_DIMS(orderby)[0] * sizeof(SortSupportData)),
+				.nkeys = ARR_DIMS(orderby)[0],
+				.distinct = distinct,
+			};
+
+			/* setup SortSupport array */
+			{
+				TupleDesc orderDesc =
+					lookup_rowtype_tupdesc(arrayFoldOrderingTypeOid, -1);
+				HeapTupleData orderTuple = {
+					.t_len = orderDesc->natts,
+					.t_tableOid = InvalidOid,
+					.t_data = NULL,
+				};
+				ItemPointerSetInvalid(&orderTuple.t_self);
+				Datum *orderValues = palloc(orderDesc->natts * sizeof(Datum));
+				bool *orderNulls = palloc(orderDesc->natts * sizeof(bool));
+				SortSupport sortKeyCursor = sortContext.sortKeys;
+				ArrayIterator order_iterator =
+					array_create_iterator(orderby, 0, NULL);
+				Datum orderValue;
+				bool orderNull;
+
+				while (array_iterate(order_iterator, &orderValue, &orderNull))
+				{
+					if (orderNull)
+					{
+						elog(ERROR, "unexpected null");
+					}
+
+					orderTuple.t_data =
+						DatumGetHeapTupleHeader(orderValue);
+
+					heap_deform_tuple(&orderTuple, orderDesc, orderValues, orderNulls);
+
+					for (int i = 0; i < orderDesc->natts; i++)
+					{
+						if (orderNulls[i])
+						{
+							elog(ERROR, "unexpected null");
+						}
+					}
+
+					int32 columnIndex = DatumGetInt32(
+						orderValues[array_fold_ordering_index - 1]);
+					Oid sortop = DatumGetObjectId(
+						orderValues[array_fold_ordering_sortop - 1]);
+					bool nullsfirst = DatumGetBool(
+						orderValues[array_fold_ordering_nullsfirst - 1]);
+
+					sortKeyCursor->ssup_cxt = aggregateContext;
+					sortKeyCursor->ssup_collation = InvalidOid;
+					sortKeyCursor->ssup_nulls_first = nullsfirst;
+					sortKeyCursor->ssup_attno = columnIndex + 1;
+
+					PrepareSortSupportFromOrderingOp(sortop, sortKeyCursor);
+
+					sortKeyCursor++;
+				}
+
+				pfree(orderValues);
+				pfree(orderNulls);
+				ReleaseTupleDesc(orderDesc);
+			}
+
+			MemoryContextSwitchTo(callContext);
+			qsort_arg(inputRecords, arrayLength, sizeof(Datum), CompareRecordData,
+					  &sortContext);
+			MemoryContextSwitchTo(aggregateContext);
+
+			pfree(sortContext.sortKeys);
+			pfree(arrayFoldOrderingName);
+			pfree(secondArgValues);
+			pfree(secondArgNulls);
+		}
+
+		fmgr_info(transfunc, &info);
+		InitFunctionCallInfoData(*innerFcinfo, &info, info.fn_nargs, fcinfo->fncollation,
+								 (Node *) aggState, NULL);
+
+		Datum oldValue = (Datum) 0;
+		for (int arrayIndex = 0; arrayIndex < arrayLength; arrayIndex++)
+		{
+			bool isnull = false;
+			Datum value = inputRecords[arrayIndex];
+			if (isnull)
+			{
+				elog(ERROR, "unexpected null");
+			}
+
+			if (arrayIndex > 0 && distinct)
+			{
+				/* TODO figure this all out before looping */
+				/* See recordeq code in postgres. We skip resjunk columns of records */
+
+				/* argValues/argNulls hold oldValue's data */
+
+				tuple.t_data = DatumGetHeapTupleHeader(value);
+				heap_deform_tuple(&tuple, tupDesc, argValues, argNulls);
+
+				Datum *newValues = palloc(ncolumns * sizeof(Datum));
+				bool *newNulls = palloc(ncolumns * sizeof(bool));
+
+				tuple.t_data = DatumGetHeapTupleHeader(oldValue);
+				heap_deform_tuple(&tuple, tupDesc, newValues, newNulls);
+
+				bool notDistinct = false;
+
+				for (int columnIndex = 0; columnIndex < ncolumns; columnIndex++)
+				{
+					int columnIndex1 = columnIndex + 1;
+					bool resjunkNull;
+					bool resjunk = array_ref(resjunkArray, 1, &columnIndex1, -1, 1, true,
+											 'c', &resjunkNull);
+
+					if (resjunkNull)
+					{
+						elog(ERROR, "unexpected null");
+					}
+
+					if (resjunk)
+					{
+						continue;
+					}
+
+					if (argNulls[0] != argNulls[1])
+					{
+						/* NOT DISTINCT */
+						break;
+					}
+
+					if (argNulls[0])
+					{
+						continue;
+					}
+
+					Form_pg_attribute attform = TupleDescAttr(tupDesc, columnIndex);
+					Oid atttypid = attform->atttypid;
+					TypeCacheEntry *typentry =
+						typentry = lookup_type_cache(atttypid, TYPECACHE_EQ_OPR_FINFO);
+					if (!OidIsValid(typentry->eq_opr_finfo.fn_oid))
+					{
+						ereport(ERROR,
+								(errcode(ERRCODE_UNDEFINED_FUNCTION),
+								 errmsg(
+									 "could not identify an equality operator for type %s",
+									 format_type_be(typentry->type_id))));
+					}
+
+					LOCAL_FCINFO(locfcinfo, 2);
+					InitFunctionCallInfoData(*locfcinfo, &typentry->eq_opr_finfo,
+											 2, attform->attcollation, NULL, NULL);
+					fcSetArg(locfcinfo, 0, argValues[columnIndex]);
+					fcSetArg(locfcinfo, 1, argValues[columnIndex]);
+
+					bool eqresult = DatumGetBool(FunctionCallInvoke(locfcinfo));
+
+					if (!eqresult)
+					{
+						notDistinct = true;
+						break;
+					}
+				}
+
+				if (notDistinct)
+				{
+					pfree(newValues);
+					pfree(newNulls);
+					goto skipindistinctrecord;
+				}
+
+				memcpy(argValues, newValues, ncolumns * sizeof(Datum));
+				memcpy(argNulls, newNulls, ncolumns * sizeof(Datum));
+
+				pfree(newValues);
+				pfree(newNulls);
+			}
+			else
+			{
+				tuple.t_data = DatumGetHeapTupleHeader(value);
+				heap_deform_tuple(&tuple, tupDesc, argValues, argNulls);
+			}
+
+			if (info.fn_strict)
+			{
+				for (int argumentIndex = 0; argumentIndex < ncolumns; argumentIndex++)
+				{
+					if (argNulls[argumentIndex])
+					{
+						goto skiprecord;
+					}
+				}
+
+				if (!transInit)
+				{
+					/* TODO test binary compatible */
+					transValue = argValues[0];
+					transNull = false;
+					transInit = true;
+					goto skiprecord;
+				}
+			}
+
+			fcSetArgExt(innerFcinfo, 0, transValue, transNull);
+
+			/* TODO type check aggregate inputs */
+			for (int argumentIndex = 0, columnIndex = 0;
+				 columnIndex < ncolumns; columnIndex++)
+			{
+				int columnIndex1 = columnIndex + 1;
+				bool resjunkNull;
+				bool resjunk = array_ref(resjunkArray, 1, &columnIndex1, -1, 1, true, 'c',
+										 &resjunkNull);
+				if (resjunkNull)
+				{
+					elog(ERROR, "unexpected null");
+				}
+
+				if (!resjunk)
+				{
+					fcSetArgExt(innerFcinfo, argumentIndex + 1, argValues[argumentIndex],
+								argNulls[argumentIndex]);
+					argumentIndex++;
+				}
+			}
+
+			MemoryContextSwitchTo(callContext);
+			Datum newVal = FunctionCallInvoke(innerFcinfo);
+			MemoryContextSwitchTo(aggregateContext);
+			bool newValIsNull = innerFcinfo->isnull;
+
+			/* TODO SHARE this logic with HandleTransition */
+			if (!transtypeByVal &&
+				DatumGetPointer(newVal) != DatumGetPointer(transValue))
+			{
+				if (!newValIsNull)
+				{
+					if (!(DatumIsReadWriteExpandedObject(newVal,
+														 false, transtypeLen) &&
+						  MemoryContextGetParent(DatumGetEOHP(newVal)->eoh_context) ==
+						  CurrentMemoryContext))
+					{
+						newVal = datumCopy(newVal, transtypeByVal, transtypeLen);
+					}
+				}
+
+				if (!transNull)
+				{
+					if (DatumIsReadWriteExpandedObject(transValue,
+													   false, transtypeLen))
+					{
+						DeleteExpandedObject(transValue);
+					}
+					else
+					{
+						pfree(DatumGetPointer(transValue));
+					}
+				}
+			}
+
+			transValue = newVal;
+			transNull = newValIsNull;
+
+			MemoryContextReset(callContext);
+
+skiprecord:
+			if (distinct)
+			{
+				oldValue = value;
+			}
+skipindistinctrecord:;
+		}
+
+		pfree(inputRecords);
+		pfree(argValues);
+		pfree(argNulls);
+		ReleaseTupleDesc(tupDesc);
+	}
+
+	if (ffunc != InvalidOid)
+	{
+		Form_pg_proc ffuncform;
+		HeapTuple ffunctuple = GetProcForm(ffunc, &ffuncform);
+		bool finalStrict = ffuncform->proisstrict;
+		ReleaseSysCache(ffunctuple);
+
+		if (!finalStrict || !transNull)
+		{
+			fmgr_info(ffunc, &info);
+
+			short innerNargs = fextra ? info.fn_nargs : 1;
+			InitFunctionCallInfoData(*innerFcinfo, &info, innerNargs, fcinfo->fncollation,
+									 (Node *) aggState, NULL);
+			fcSetArgExt(innerFcinfo, 0, transValue, transNull);
+			for (int argumentIndex = 1; argumentIndex < innerNargs; argumentIndex++)
+			{
+				fcSetArgNull(innerFcinfo, argumentIndex);
+			}
+			transValue = FunctionCallInvoke(innerFcinfo);
+			transNull = innerFcinfo->isnull;
+		}
+	}
+
+	/*
+	 * ExprContext expects ecxt_per_tuple_memory to be a context which
+	 * it itself isn't allocated within. So we have to trick it a little.
+	 */
+	econtext->ecxt_per_tuple_memory = callContext;
+	ReScanExprContext(econtext);
+	MemoryContextDelete(callContext);
+
+	fcinfo->isnull = transNull;
+	return transValue;
+}
+
+
+/*
+ * CompareRecordDatum wraps btrecordcmp for use by pg_qsort.
+ */
+static int
+CompareRecordData(const void *a, const void *b, void *context)
+{
+	SortInputRecordsContext *sortContext = context;
+	Datum firstArg = *(Datum *) a;
+	Datum secondArg = *(Datum *) b;
+
+	sortContext->tuple->t_data = DatumGetHeapTupleHeader(firstArg);
+	heap_deform_tuple(sortContext->tuple, sortContext->tupleDesc,
+					  sortContext->firstArgValues, sortContext->firstArgNulls);
+
+	sortContext->tuple->t_data = DatumGetHeapTupleHeader(secondArg);
+	heap_deform_tuple(sortContext->tuple, sortContext->tupleDesc,
+					  sortContext->secondArgValues, sortContext->secondArgNulls);
+
+	int result = 0;
+	for (int keyIndex = 0; keyIndex < sortContext->nkeys; keyIndex++)
+	{
+		SortSupport sortKey = sortContext->sortKeys + keyIndex;
+		int32 columnIndex = sortKey->ssup_attno - 1;
+
+		result = ApplySortComparator(
+			sortContext->firstArgValues[columnIndex],
+			sortContext->firstArgNulls[columnIndex],
+			sortContext->secondArgValues[columnIndex],
+			sortContext->secondArgNulls[columnIndex],
+			sortKey++);
+
+		if (result != 0)
+		{
+			goto exitwithresult;
+		}
+	}
+
+exitwithresult:
+	MemoryContextReset(sortContext->callContext);
+
 	return result;
 }

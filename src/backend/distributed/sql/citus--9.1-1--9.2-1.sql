@@ -9,3 +9,15 @@ DROP INDEX pg_dist_colocation_configuration_index;
 CREATE INDEX pg_dist_colocation_configuration_index
 ON pg_dist_colocation USING btree(distributioncolumntype, shardcount, replicationfactor, distributioncolumncollation);
 
+-- infrastructure for pulling up intermediate records for aggregation on coordinator
+CREATE TYPE public.array_fold_ordering AS (index int, sortop oid, nulls_first bool);
+ALTER TYPE public.array_fold_ordering SET SCHEMA pg_catalog;
+CREATE FUNCTION pg_catalog.coord_fold_array(oid, record[], bool, bool[], pg_catalog.array_fold_ordering[], anyelement)
+RETURNS anyelement
+AS 'MODULE_PATHNAME'
+LANGUAGE C PARALLEL SAFE;
+COMMENT ON FUNCTION pg_catalog.coord_fold_array(oid, record[], bool, bool[], pg_catalog.array_fold_ordering[], anyelement)
+    IS 'apply aggregate to records in array';
+REVOKE ALL ON FUNCTION pg_catalog.coord_fold_array FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION pg_catalog.coord_fold_array TO PUBLIC;
+

@@ -94,8 +94,27 @@ CREATE AGGREGATE last (
 SELECT create_distributed_function('first(anyelement)');
 SELECT create_distributed_function('last(anyelement)');
 
+set citus.log_remote_commands to on;
+--set citus.log_local_commands to on;
+--set client_min_messages to debug;
+
+create function testlog(val cstring) returns void language c as 'citus';
+
+WITH a as (SELECT key, first(val::text) v FROM aggdata group by key)
+select a.key, a.v || a.v from a;
+
+WITH a as (SELECT first(val::text) v FROM aggdata)
+select a.v || a.v from a;
+
 SELECT key, first(val ORDER BY id), last(val ORDER BY id)
 FROM aggdata GROUP BY key ORDER BY key;
+
+SELECT first(val ORDER BY id) FROM aggdata;
+
+SELECT testlog(first(int4out(val))) FROM aggdata;
+
+SELECT first(val), valf
+FROM aggdata group by valf;
 
 -- test aggregate with stype which is not a by-value datum
 -- also test our handling of the aggregate not existing on workers
