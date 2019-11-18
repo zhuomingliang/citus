@@ -27,32 +27,12 @@ static IntermediateResultsHashEntry * SearchIntermediateResult(HTAB
  * the range table entries in the plan.
  */
 List *
-FindSubPlansUsedInPlan(DistributedPlan *plan, Query *query)
+FindSubPlansUsedInPlan(Query *query)
 {
-	Query *jobQuery = NULL;
 	List *rangeTableList = NIL;
 	ListCell *rangeTableCell = NULL;
 	List *subPlanList = NIL;
 
-	jobQuery = plan->workerJob == NULL ? plan->insertSelectSubquery :
-			   plan->workerJob->jobQuery;
-
-	/*
-	 * Decide if there are no intermediate results.
-	 *
-	 * We usually store the intermediate result info in workerJob field. We currently
-	 * have a single exception to this, which is SELECT INTO queries that have
-	 * ON CONFLICT/RETURNING clauses. If the query is of such a query we need to consider
-	 * pruning intermediate results even though we do not have a workerjob field
-	 *
-	 *  * We do not wish to proceed if one of the following is met:
-	 * - there are no intermediate results
-	 * - the query hits all the worker nodes
-	 */
-	if (jobQuery == NULL)
-	{
-		return NIL;
-	}
 
 	rangeTableList = ExtractRangeTableEntryList(query);
 
@@ -76,8 +56,7 @@ FindSubPlansUsedInPlan(DistributedPlan *plan, Query *query)
 
 			resultIdDatum = resultIdConst->constvalue;
 			resultId = TextDatumGetCString(resultIdDatum);
-			elog(DEBUG4, "Results of SubPlan %s is used in Plan %lu",
-				 resultId, plan->planId);
+
 		}
 	}
 
