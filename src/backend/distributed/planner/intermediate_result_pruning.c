@@ -27,7 +27,7 @@ static IntermediateResultsHashEntry * SearchIntermediateResult(HTAB
  * the range table entries in the plan.
  */
 List *
-FindSubPlansUsedInPlan(DistributedPlan *plan)
+FindSubPlansUsedInPlan(DistributedPlan *plan, Query *query)
 {
 	Query *jobQuery = NULL;
 	List *rangeTableList = NIL;
@@ -54,7 +54,7 @@ FindSubPlansUsedInPlan(DistributedPlan *plan)
 		return NIL;
 	}
 
-	rangeTableList = ExtractRangeTableEntryList(jobQuery);
+	rangeTableList = ExtractRangeTableEntryList(query);
 
 	foreach(rangeTableCell, rangeTableList)
 	{
