@@ -256,8 +256,7 @@ GenerateAlterRoleIfExistsCommandAllRoles()
 		 * The default roles and "postgres" is skipped, because reserved roles
 		 * cannot be altered.
 		 */
-		if (IsReservedName(rolename) ||
-			strcmp(rolename, "postgres") == 0)
+		if (IsReservedName(rolename))
 		{
 			continue;
 		}
