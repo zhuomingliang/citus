@@ -42,8 +42,6 @@ FindSubPlansUsedInPlan(Query *query)
 		if (rangeTableEntry->rtekind == RTE_FUNCTION)
 		{
 			Const *resultIdConst = NULL;
-			Datum resultIdDatum = 0;
-			char *resultId = NULL;
 
 			resultIdConst = FindResultIdOfIntermediateResultFunction(rangeTableEntry);
 
@@ -53,9 +51,6 @@ FindSubPlansUsedInPlan(Query *query)
 			}
 
 			subPlanList = list_append_unique(subPlanList, resultIdConst);
-
-			resultIdDatum = resultIdConst->constvalue;
-			resultId = TextDatumGetCString(resultIdDatum);
 
 		}
 	}
