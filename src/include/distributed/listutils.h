@@ -38,7 +38,7 @@
 #define foreach_ptr(var, l) \
 	for (ListCell *(var ## Cell) = list_head(l); \
 		 (var ## Cell) != NULL && (((var) = lfirst(var ## Cell)) || true); \
-		 var ## Cell = lnext(var ## Cell))
+		 var ## Cell = lnext(l, var ## Cell))
 
 
 /*
@@ -50,7 +50,7 @@
 #define foreach_int(var, l) \
 	for (ListCell *(var ## Cell) = list_head(l); \
 		 (var ## Cell) != NULL && (((var) = lfirst_int(var ## Cell)) || true); \
-		 var ## Cell = lnext(var ## Cell))
+		 var ## Cell = lnext(l, var ## Cell))
 
 
 /*
@@ -62,7 +62,7 @@
 #define foreach_oid(var, l) \
 	for (ListCell *(var ## Cell) = list_head(l); \
 		 (var ## Cell) != NULL && (((var) = lfirst_oid(var ## Cell)) || true); \
-		 var ## Cell = lnext(var ## Cell))
+		 var ## Cell = lnext(l, var ## Cell))
 
 
 /* utility functions declaration shared within this module */

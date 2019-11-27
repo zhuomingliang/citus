@@ -18,7 +18,7 @@
 #include "miscadmin.h"
 
 #include <string.h>
-
+#include "distributed/version_compat.h"
 #include "access/attnum.h"
 #include "access/genam.h"
 #include "access/heapam.h"
@@ -237,7 +237,7 @@ master_get_table_ddl_events(PG_FUNCTION_ARGS)
 		char *ddlStatement = (char *) lfirst(tableDDLEventCell);
 		text *ddlStatementText = cstring_to_text(ddlStatement);
 
-		functionContext->user_fctx = lnext(tableDDLEventCell);
+		functionContext->user_fctx = lnext(functionContext->user_fctx, tableDDLEventCell);
 
 		SRF_RETURN_NEXT(functionContext, PointerGetDatum(ddlStatementText));
 	}

@@ -9,7 +9,10 @@
  */
 
 #include "postgres.h"
+#include "distributed/citus_ruleutils.h"
+#include "distributed/deparse_shard_query.h"
 
+#include "distributed/citus_ruleutils.h"
 #include "catalog/pg_class.h"
 #include "distributed/citus_clauses.h"
 #include "distributed/citus_ruleutils.h"

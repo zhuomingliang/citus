@@ -1049,7 +1049,7 @@ List *
 SequenceDDLCommandsForTable(Oid relationId)
 {
 	List *sequenceDDLList = NIL;
-	List *ownedSequences = getOwnedSequences(relationId, InvalidAttrNumber);
+	List *ownedSequences = getOwnedSequences(relationId);
 	ListCell *listCell;
 	char *ownerName = TableOwner(relationId);
 

@@ -9,7 +9,7 @@
  */
 
 #include "postgres.h"
-
+#include "distributed/listutils.h"
 #include "catalog/namespace.h"
 #include "catalog/pg_class.h"
 #include "distributed/citus_ruleutils.h"

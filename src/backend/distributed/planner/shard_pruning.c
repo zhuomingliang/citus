@@ -846,7 +846,7 @@ AddPartitionKeyRestrictionToInstance(ClauseWalkerContext *context, OpExpr *opCla
 				Assert(btreeInterpretationCell == btreeInterpretationList->head);
 
 				/* stop processing early, would only see unsupported nodes anyhow */
-				btreeInterpretationCell = btreeInterpretationList->tail;
+				btreeInterpretationCell = llast(btreeInterpretationList);
 
 				/* TODO: could add support for this, if we feel like it */
 				matchedOp = false;

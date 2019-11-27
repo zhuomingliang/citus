@@ -10,7 +10,7 @@
 
 #include "postgres.h"
 #include "miscadmin.h"
-
+#include "distributed/version_compat.h"
 #include "access/genam.h"
 #include "access/heapam.h"
 #include "access/htup_details.h"

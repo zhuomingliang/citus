@@ -20,7 +20,9 @@
 #include "optimizer/optimizer.h"
 #endif
 
+#include "distributed/citus_ruleutils.h"
 #if PG_VERSION_NUM >= 120000
+#include "distributed/citus_ruleutils.h"
 
 #define MakeSingleTupleTableSlotCompat MakeSingleTupleTableSlot
 #define AllocSetContextCreateExtended AllocSetContextCreateInternal
@@ -32,6 +34,9 @@
 #define GetSysCacheOid2Compat GetSysCacheOid2
 #define GetSysCacheOid3Compat GetSysCacheOid3
 #define GetSysCacheOid4Compat GetSysCacheOid4
+#define heap_open table_open
+#define heap_close table_close
+#define heap_openrv table_openrv
 
 #define fcGetArgValue(fc, n) ((fc)->args[n].value)
 #define fcGetArgNull(fc, n) ((fc)->args[n].isnull)
