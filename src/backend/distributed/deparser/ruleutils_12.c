@@ -17,7 +17,7 @@
 
 #include "postgres.h"
 
-#if (PG_VERSION_NUM >= 120000) && (PG_VERSION_NUM < 130000)
+#if (PG_VERSION_NUM >= 120000) && (PG_VERSION_NUM <= 130000)
 
 #include <ctype.h>
 #include <unistd.h>
@@ -1847,7 +1847,7 @@ push_ancestor_plan(deparse_namespace *dpns, ListCell *ancestor_cell,
 
 	/* Build a new ancestor list with just this node's ancestors */
 	ancestors = NIL;
-	while ((ancestor_cell = lnext(ancestor_cell)) != NULL)
+	while ((ancestor_cell = lnext(ancestors, ancestor_cell)) != NULL)
 		ancestors = lappend(ancestors, lfirst(ancestor_cell));
 	dpns->ancestors = ancestors;
 
@@ -3407,7 +3407,7 @@ get_update_query_targetlist_def(Query *query, List *targetList,
 				((Param *) expr)->paramkind == PARAM_MULTIEXPR)
 			{
 				cur_ma_sublink = (SubLink *) lfirst(next_ma_cell);
-				next_ma_cell = lnext(next_ma_cell);
+				next_ma_cell = lnext(ma_sublinks, next_ma_cell);
 				remaining_ma_columns = count_nonjunk_tlist_entries(
 																   ((Query *) cur_ma_sublink->subselect)->targetList);
 				Assert(((Param *) expr)->paramid ==
@@ -3570,7 +3570,7 @@ get_utility_query_def(Query *query, deparse_context *context)
 																 context->shardid, NIL);
 			appendStringInfo(buf, " %s", relationName);
 
-			if (lnext(relationCell) != NULL)
+			if (lnext(relationList, relationCell) != NULL)
 			{
 				appendStringInfo(buf, ",");
 			}
@@ -4995,7 +4995,7 @@ get_rule_expr(Node *node, deparse_context *context,
 			{
 				BoolExpr   *expr = (BoolExpr *) node;
 				Node	   *first_arg = linitial(expr->args);
-				ListCell   *arg = lnext(list_head(expr->args));
+				ListCell   *arg = lnext(expr->args, list_head(expr->args));
 
 				switch (expr->boolop)
 				{
@@ -5009,7 +5009,7 @@ get_rule_expr(Node *node, deparse_context *context,
 							appendStringInfoString(buf, " AND ");
 							get_rule_expr_paren((Node *) lfirst(arg), context,
 												false, node);
-							arg = lnext(arg);
+							arg = lnext(expr->args, arg);
 						}
 						if (!PRETTY_PAREN(context))
 							appendStringInfoChar(buf, ')');
@@ -5025,7 +5025,7 @@ get_rule_expr(Node *node, deparse_context *context,
 							appendStringInfoString(buf, " OR ");
 							get_rule_expr_paren((Node *) lfirst(arg), context,
 												false, node);
-							arg = lnext(arg);
+							arg = lnext(expr->args, arg);
 						}
 						if (!PRETTY_PAREN(context))
 							appendStringInfoChar(buf, ')');
@@ -5084,7 +5084,7 @@ get_rule_expr(Node *node, deparse_context *context,
 						appendStringInfo(buf, "hashed %s", splan->plan_name);
 					else
 						appendStringInfoString(buf, splan->plan_name);
-					if (lnext(lc))
+					if (lnext(asplan->subplans, lc))
 						appendStringInfoString(buf, " or ");
 				}
 				appendStringInfoChar(buf, ')');
@@ -6192,7 +6192,7 @@ get_func_expr(FuncExpr *expr, deparse_context *context,
 	{
 		if (nargs++ > 0)
 			appendStringInfoString(buf, ", ");
-		if (use_variadic && lnext(l) == NULL)
+		if (use_variadic && lnext(expr->args, l) == NULL)
 			appendStringInfoString(buf, "VARIADIC ");
 		get_rule_expr((Node *) lfirst(l), context, true);
 	}
@@ -7601,7 +7601,7 @@ printSubscripts(SubscriptingRef *sbsref, deparse_context *context)
 			/* If subexpression is NULL, get_rule_expr prints nothing */
 			get_rule_expr((Node *) lfirst(lowlist_item), context, false);
 			appendStringInfoChar(buf, ':');
-			lowlist_item = lnext(lowlist_item);
+			lowlist_item = lnext(sbsref->reflowerindexpr, lowlist_item);
 		}
 		/* If subexpression is NULL, get_rule_expr prints nothing */
 		get_rule_expr((Node *) lfirst(uplist_item), context, false);
