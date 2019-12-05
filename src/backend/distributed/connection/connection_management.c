@@ -546,7 +546,7 @@ MultiConnectionStatePoll(MultiConnectionPollState *connectionState)
 
 	    connection->socketInTheLastPoll = PQsocket(connection->pgConn);
 	}
-
+	connectionState->pollmode = PQconnectPoll(connection->pgConn);
 
 	/*
 	 * FIXME: Do we want to add transparent retry support here?
@@ -815,6 +815,7 @@ FinishConnectionListEstablishment(List *multiConnectionList)
 			else if (connectionStateChanged ==
 					MULTI_CONNECTION_STATE_NOT_CHANGED_REQIURE_REBUILD)
 			{
+				elog(INFO, "here");
 				waitEventSetRebuild = true;
 			}
 		}
