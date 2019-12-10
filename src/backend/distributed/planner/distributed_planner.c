@@ -19,6 +19,7 @@
 #include "catalog/pg_type.h"
 #include "distributed/citus_nodefuncs.h"
 #include "distributed/citus_nodes.h"
+#include "distributed/cte_inline.h"
 #include "distributed/function_call_delegation.h"
 #include "distributed/insert_select_planner.h"
 #include "distributed/intermediate_result_pruning.h"
@@ -71,6 +72,20 @@ static PlannedStmt * CreateDistributedPlannedStmt(uint64 planId, PlannedStmt *lo
 												  ParamListInfo boundParams,
 												  PlannerRestrictionContext *
 												  plannerRestrictionContext);
+static PlannedStmt * InlineCtesAndCreateDistributedPlannedStmt(uint64 planId,
+															   PlannedStmt *localPlan,
+															   Query *originalQuery,
+															   Query *query, ParamListInfo
+															   boundParams,
+															   PlannerRestrictionContext *
+															   plannerRestrictionContext);
+static PlannedStmt * TryCreateDistributedPlannedStmt(uint64 planId,
+													 PlannedStmt *localPlan,
+													 Query *originalQuery,
+													 Query *query, ParamListInfo
+													 boundParams,
+													 PlannerRestrictionContext *
+													 plannerRestrictionContext);
 static DistributedPlan * CreateDistributedPlan(uint64 planId, Query *originalQuery,
 											   Query *query, ParamListInfo boundParams,
 											   bool hasUnresolvedParams,
@@ -535,6 +550,31 @@ CreateDistributedPlannedStmt(uint64 planId, PlannedStmt *localPlan, Query *origi
 							 Query *query, ParamListInfo boundParams,
 							 PlannerRestrictionContext *plannerRestrictionContext)
 {
+	PlannedStmt *resultPlan = NULL;
+
+	if (QueryTreeContainsInlinableCTE(originalQuery))
+	{
+		/*
+		 * Inlining CTEs as subqueries in the query can avoid recursively
+		 * planning some (or all) of the CTEs. In other words, the inlined
+		 * CTEs could become part of query pushdown planning, which is much
+		 * more efficient than recursively planning. So, first try distributed
+		 * planning on the inlined CTEs in the query tree.
+		 *
+		 * We also should fallback to distributed planning with non-inlined CTEs
+		 * if the distributed planning fails with inlined CTEs, because recursively
+		 * planning CTEs can provide full SQL coverage, although it might be slow.
+		 */
+		resultPlan = InlineCtesAndCreateDistributedPlannedStmt(planId, localPlan,
+															   originalQuery,
+															   query, boundParams,
+															   plannerRestrictionContext);
+		if (resultPlan != NULL)
+		{
+			return resultPlan;
+		}
+	}
+
 	bool hasUnresolvedParams = false;
 	JoinRestrictionContext *joinRestrictionContext =
 		plannerRestrictionContext->joinRestrictionContext;
@@ -594,7 +634,7 @@ CreateDistributedPlannedStmt(uint64 planId, PlannedStmt *localPlan, Query *origi
 	distributedPlan->planId = planId;
 
 	/* create final plan by combining local plan with distributed plan */
-	PlannedStmt *resultPlan = FinalizePlan(localPlan, distributedPlan);
+	resultPlan = FinalizePlan(localPlan, distributedPlan);
 
 	/*
 	 * As explained above, force planning costs to be unrealistically high if
@@ -613,6 +653,94 @@ CreateDistributedPlannedStmt(uint64 planId, PlannedStmt *localPlan, Query *origi
 	}
 
 	return resultPlan;
+}
+
+
+/*
+ * InlineCtesAndCreateDistributedPlannedStmt gets all the parameters required
+ * for creating a distributed planned statement. The function is primarily a
+ * wrapper on top of CreateDistributedPlannedStmt(), by first inlining the
+ * CTEs and calling CreateDistributedPlannedStmt() in PG_TRY() block. The
+ * function returns NULL if the planning fails on the query where eligable
+ * CTEs are inlined.
+ */
+static PlannedStmt *
+InlineCtesAndCreateDistributedPlannedStmt(uint64 planId, PlannedStmt *localPlan,
+										  Query *originalQuery,
+										  Query *query, ParamListInfo boundParams,
+										  PlannerRestrictionContext *
+										  plannerRestrictionContext)
+{
+	/*
+	 * We'll inline the CTEs and try distributed planning, preserve the original
+	 * query in case the planning fails and we fallback to recursive planning of
+	 * CTEs.
+	 */
+	Query *copyOfOriginalQuery = copyObject(originalQuery);
+
+	RecursivelyInlineCtesInQueryTree(copyOfOriginalQuery);
+
+	/* after inlining, we shouldn't have any inliable CTEs */
+	Assert(!QueryTreeContainsInlinableCTE(copyOfOriginalQuery));
+
+	/* simply recurse into CreateDistributedPlannedStmt() in a PG_TRY() block */
+	PlannedStmt *result = TryCreateDistributedPlannedStmt(planId, localPlan,
+														  copyOfOriginalQuery,
+														  query, boundParams,
+														  plannerRestrictionContext);
+
+	return result;
+}
+
+
+/*
+ * TryCreateDistributedPlannedStmt is a wrapper around CreateDistributedPlannedStmt, simply
+ * calling it in PG_TRY()/PG_CATCH() block. The function returns a PlannedStmt if the input
+ * query can be planned by Citus. If not, the function returns NULL and generates a DEBUG4
+ * message with the reason for the failure.
+ */
+static PlannedStmt *
+TryCreateDistributedPlannedStmt(uint64 planId, PlannedStmt *localPlan,
+								Query *originalQuery,
+								Query *query, ParamListInfo boundParams,
+								PlannerRestrictionContext *plannerRestrictionContext)
+{
+	MemoryContext savedContext = CurrentMemoryContext;
+	PlannedStmt *result = NULL;
+
+	PG_TRY();
+	{
+		result = CreateDistributedPlannedStmt(planId, localPlan, originalQuery,
+											  query, boundParams,
+											  plannerRestrictionContext);
+	}
+	PG_CATCH();
+	{
+		MemoryContextSwitchTo(savedContext);
+		ErrorData *edata = CopyErrorData();
+		FlushErrorState();
+
+		/* don't try to intercept PANIC or FATAL, let those breeze past us */
+		if (edata->elevel != ERROR)
+		{
+			PG_RE_THROW();
+		}
+
+		ereport(DEBUG4, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						 errmsg("Planning after CTEs inlined failed with "
+								"\nmessage: %s\ndetail: %s\nhint: %s",
+								edata->message ? edata->message : "",
+								edata->detail ? edata->detail : "",
+								edata->hint ? edata->hint : "")));
+
+		/* leave the error handling system */
+		FreeErrorData(edata);
+
+		result = NULL;
+	}
+	PG_END_TRY();
+
+	return result;
 }
 
 
