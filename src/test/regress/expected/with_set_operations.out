@@ -2,8 +2,10 @@
 -- test recursive planning functionality with Set Operations and CTEs
 -- ===================================================================
 SET client_min_messages TO DEBUG1;
+-- prevent PG 11 - PG 12 outputs to diverge
+SET citus.enable_cte_inlining TO false;
 -- use ctes inside unions on the top level
-WITH 
+WITH
 cte_1 AS (SELECT user_id FROM users_table),
 cte_2 AS (SELECT user_id FROM events_table)
 (SELECT * FROM cte_1) UNION (SELECT * FROM cte_2)
@@ -22,11 +24,11 @@ DEBUG:  Plan 1 query after replacing subqueries and CTEs: SELECT cte_1.user_id F
 (6 rows)
 
 -- use ctes inside unions in a subquery
-WITH 
+WITH
 cte_1 AS (SELECT user_id FROM users_table),
 cte_2 AS (SELECT user_id FROM events_table)
-SELECT 
-	count(*) 
+SELECT
+	count(*)
 FROM (
 		(SELECT * FROM cte_1) UNION (SELECT * FROM cte_2)
 	) as foo;
@@ -40,7 +42,7 @@ DEBUG:  Plan 4 query after replacing subqueries and CTEs: SELECT count(*) AS cou
 (1 row)
 
 -- cte with unions of other ctes
-WITH 
+WITH
 cte_1 AS (SELECT user_id FROM users_table),
 cte_2 AS (SELECT user_id FROM events_table),
 cte_3 AS ((SELECT * FROM cte_1) UNION (SELECT * FROM cte_2))
@@ -60,7 +62,7 @@ DEBUG:  Plan 8 query after replacing subqueries and CTEs: SELECT user_id FROM (S
 (6 rows)
 
 -- cte with unions of distributed table
-WITH 
+WITH
 cte_1 AS ((SELECT user_id FROM users_table) UNION (SELECT user_id FROM users_table))
 SELECT * FROM cte_1 ORDER BY 1 DESC;
 DEBUG:  generating subplan 12_1 for CTE cte_1: SELECT users_table.user_id FROM public.users_table UNION SELECT users_table.user_id FROM public.users_table
@@ -79,7 +81,7 @@ DEBUG:  Plan 12 query after replacing subqueries and CTEs: SELECT user_id FROM (
 (6 rows)
 
 -- cte with unions of tables is intersected with another query
-WITH 
+WITH
 cte_1 AS ((SELECT user_id FROM users_table) UNION (SELECT user_id FROM users_table))
 (SELECT * FROM cte_1) INTERSECT (SELECT user_id FROM users_table) ORDER BY 1 DESC;
 DEBUG:  generating subplan 16_1 for CTE cte_1: SELECT users_table.user_id FROM public.users_table UNION SELECT users_table.user_id FROM public.users_table
@@ -99,10 +101,10 @@ DEBUG:  Plan 16 query after replacing subqueries and CTEs: SELECT cte_1.user_id 
 (6 rows)
 
 -- cte with unions of tables is intersected with another query that involves except
-WITH 
+WITH
 cte_1 AS ((SELECT user_id FROM users_table) UNION (SELECT user_id FROM users_table))
-(SELECT * FROM cte_1) 
-	INTERSECT 
+(SELECT * FROM cte_1)
+	INTERSECT
 ((SELECT user_id FROM events_table WHERE user_id < 3) EXCEPT (SELECT user_id FROM users_table WHERE user_id > 4)) ORDER BY 1 DESC;
 DEBUG:  generating subplan 21_1 for CTE cte_1: SELECT users_table.user_id FROM public.users_table UNION SELECT users_table.user_id FROM public.users_table
 DEBUG:  generating subplan 22_1 for subquery SELECT user_id FROM public.users_table
@@ -118,7 +120,7 @@ DEBUG:  Plan 21 query after replacing subqueries and CTEs: SELECT cte_1.user_id 
 (2 rows)
 
 -- CTE inside a top level EXCEPT
-(WITH cte_1 AS (SELECT user_id FROM events_table WHERE user_id < 3) SELECT * FROM cte_1) INTERSECT (SELECT user_id FROM users_table) ORDER BY 1;   
+(WITH cte_1 AS (SELECT user_id FROM events_table WHERE user_id < 3) SELECT * FROM cte_1) INTERSECT (SELECT user_id FROM users_table) ORDER BY 1;
 DEBUG:  generating subplan 27_1 for CTE cte_1: SELECT user_id FROM public.events_table WHERE (user_id OPERATOR(pg_catalog.<) 3)
 DEBUG:  generating subplan 27_2 for subquery SELECT user_id FROM public.users_table
 DEBUG:  Plan 27 query after replacing subqueries and CTEs: SELECT cte_1.user_id FROM (SELECT intermediate_result.user_id FROM read_intermediate_result('27_1'::text, 'binary'::citus_copy_format) intermediate_result(user_id integer)) cte_1 INTERSECT SELECT intermediate_result.user_id FROM read_intermediate_result('27_2'::text, 'binary'::citus_copy_format) intermediate_result(user_id integer) ORDER BY 1
@@ -129,12 +131,12 @@ DEBUG:  Plan 27 query after replacing subqueries and CTEs: SELECT cte_1.user_id 
 (2 rows)
 
 -- INTERSECT inside a CTE, which is inside a subquery
-SELECT 
-	DISTINCT users_table.user_id 
-FROM 
-	users_table, 
-	(WITH cte_1 AS (SELECT user_id FROM events_table WHERE user_id < 3 INTERSECT 
-					SELECT user_id FROM events_table WHERE user_id < 2) 
+SELECT
+	DISTINCT users_table.user_id
+FROM
+	users_table,
+	(WITH cte_1 AS (SELECT user_id FROM events_table WHERE user_id < 3 INTERSECT
+					SELECT user_id FROM events_table WHERE user_id < 2)
 	 SELECT * FROM cte_1) as foo
 WHERE
 	users_table.user_id = foo.user_id
@@ -151,12 +153,12 @@ DEBUG:  Plan 30 query after replacing subqueries and CTEs: SELECT DISTINCT users
 
 -- UNION is created via outputs of CTEs, which is inside a subquery
 -- and the subquery is joined with a distributed table
-SELECT 
-	count(*) 
-FROM 
+SELECT
+	count(*)
+FROM
 	events_table,
 	(
-		WITH 
+		WITH
 		cte_1 AS (SELECT user_id FROM users_table),
 		cte_2 AS (SELECT user_id FROM events_table)
 		(SELECT * FROM cte_1) UNION (SELECT * FROM cte_2)
@@ -210,17 +212,17 @@ DEBUG:  Plan 41 query after replacing subqueries and CTEs: SELECT intermediate_r
 (6 rows)
 
 -- joins inside unions that are not safe to pushdown inside a subquery
-SELECT 
-	count(*) 
-FROM 
+SELECT
+	count(*)
+FROM
 	(SELECT DISTINCT value_2 FROM events_table) as events_table,
-	(WITH foo AS 
+	(WITH foo AS
 		((SELECT DISTINCT events_table.user_id FROM users_table, events_table WHERE users_table.user_id = events_table.user_id )
 	 	INTERSECT
-		(SELECT DISTINCT events_table.user_id FROM users_table, events_table WHERE users_table.user_id = events_table.user_id LIMIT 10)) 
-	 SELECT * FROM foo) 
+		(SELECT DISTINCT events_table.user_id FROM users_table, events_table WHERE users_table.user_id = events_table.user_id LIMIT 10))
+	 SELECT * FROM foo)
 	as foo
-WHERE 
+WHERE
 	foo.user_id = events_table.value_2;
 DEBUG:  generating subplan 44_1 for subquery SELECT DISTINCT value_2 FROM public.events_table
 DEBUG:  generating subplan 44_2 for CTE foo: SELECT DISTINCT events_table.user_id FROM public.users_table, public.events_table WHERE (users_table.user_id OPERATOR(pg_catalog.=) events_table.user_id) INTERSECT (SELECT DISTINCT events_table.user_id FROM public.users_table, public.events_table WHERE (users_table.user_id OPERATOR(pg_catalog.=) events_table.user_id) LIMIT 10)
@@ -235,14 +237,14 @@ DEBUG:  Plan 44 query after replacing subqueries and CTEs: SELECT count(*) AS co
 (1 row)
 
 -- joins inside unions some safe to pushdown
-SELECT 
-	count(*) 
-FROM 
+SELECT
+	count(*)
+FROM
 	(WITH events_table AS (SELECT DISTINCT user_id FROM events_table) SELECT * FROM events_table) as events_table,
 	((SELECT DISTINCT events_table.user_id FROM users_table, events_table WHERE users_table.user_id = events_table.user_id )
 	INTERSECT
 	(SELECT DISTINCT events_table.user_id FROM users_table, events_table WHERE users_table.user_id = events_table.user_id LIMIT 10)) as foo
-WHERE 
+WHERE
 	foo.user_id = events_table.user_id;
 DEBUG:  generating subplan 49_1 for CTE events_table: SELECT DISTINCT user_id FROM public.events_table
 DEBUG:  push down of limit count: 10
@@ -256,8 +258,8 @@ DEBUG:  Plan 49 query after replacing subqueries and CTEs: SELECT count(*) AS co
 (1 row)
 
 -- CTE inside unions
-(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1) UNION 
-(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1) ORDER BY 1 DESC; 
+(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1) UNION
+(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1) ORDER BY 1 DESC;
 DEBUG:  generating subplan 54_1 for CTE cte_1: SELECT user_id FROM public.users_table
 DEBUG:  generating subplan 54_2 for CTE cte_1: SELECT user_id FROM public.users_table
 DEBUG:  Plan 54 query after replacing subqueries and CTEs: SELECT cte_1.user_id FROM (SELECT intermediate_result.user_id FROM read_intermediate_result('54_1'::text, 'binary'::citus_copy_format) intermediate_result(user_id integer)) cte_1 UNION SELECT cte_1.user_id FROM (SELECT intermediate_result.user_id FROM read_intermediate_result('54_2'::text, 'binary'::citus_copy_format) intermediate_result(user_id integer)) cte_1 ORDER BY 1 DESC
@@ -276,7 +278,7 @@ SELECT
 	count(*)
 FROM
 	(
-		(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1) UNION 
+		(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1) UNION
 		(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1)
 	) as foo,
 	users_table
@@ -291,7 +293,7 @@ DEBUG:  Plan 57 query after replacing subqueries and CTEs: SELECT count(*) AS co
 (1 row)
 
 -- CTEs with less alias than the input subquery
-(WITH cte_1(x) AS (SELECT user_id, value_2 FROM users_table) SELECT * FROM cte_1) UNION 
+(WITH cte_1(x) AS (SELECT user_id, value_2 FROM users_table) SELECT * FROM cte_1) UNION
 (WITH cte_1(x) AS (SELECT user_id, value_2 FROM users_table) SELECT * FROM cte_1) ORDER BY 1 DESC, 2 DESC LIMIT 5;
 DEBUG:  generating subplan 61_1 for CTE cte_1: SELECT user_id, value_2 FROM public.users_table
 DEBUG:  generating subplan 61_2 for CTE cte_1: SELECT user_id, value_2 FROM public.users_table
@@ -306,7 +308,7 @@ DEBUG:  Plan 61 query after replacing subqueries and CTEs: SELECT cte_1.x, cte_1
 (5 rows)
 
 -- simple subqueries in WHERE with unions
-SELECT 
+SELECT
 	count(*)
 FROM
 	users_table
@@ -332,14 +334,14 @@ DEBUG:  Plan 64 query after replacing subqueries and CTEs: SELECT count(*) AS co
 (1 row)
 
 -- simple subqueries in WHERE with unions and ctes
-SELECT 
+SELECT
 	count(*)
 FROM
 	users_table
 WHERE
 	value_2 IN
 	(
-		WITH 
+		WITH
 		cte_1 AS (SELECT user_id FROM users_table),
 		cte_2 AS (SELECT user_id FROM events_table)
 		(SELECT * FROM cte_1) UNION (SELECT * FROM cte_2)
@@ -355,18 +357,18 @@ DEBUG:  Plan 68 query after replacing subqueries and CTEs: SELECT count(*) AS co
 (1 row)
 
 -- unions and ctes inside subqueries in where clause with a pushdownable correlated subquery
-SELECT 
-	DISTINCT user_id 
-FROM 
-	events_table 
-WHERE 
-	event_type IN 
+SELECT
+	DISTINCT user_id
+FROM
+	events_table
+WHERE
+	event_type IN
 (
 	SELECT
 		users_table.user_id
 	FROM
 		(
-			(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1) UNION 
+			(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1) UNION
 			(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1)
 		) as foo,
 		users_table
@@ -388,18 +390,18 @@ DEBUG:  Plan 72 query after replacing subqueries and CTEs: SELECT DISTINCT user_
 
 -- unions and ctes inside subqueries in where clause with a not pushdownable correlated subquery
 -- should error out
-SELECT 
-	DISTINCT user_id 
-FROM 
-	events_table 
-WHERE 
-	event_type IN 
+SELECT
+	DISTINCT user_id
+FROM
+	events_table
+WHERE
+	event_type IN
 (
 	SELECT
 		users_table.user_id
 	FROM
 		(
-			(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1) UNION 
+			(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1) UNION
 			(WITH cte_1 AS (SELECT user_id FROM users_table) SELECT * FROM cte_1)
 		) as foo,
 		users_table

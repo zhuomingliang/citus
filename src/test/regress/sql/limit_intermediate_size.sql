@@ -1,5 +1,7 @@
 SET citus.enable_repartition_joins to ON;
 
+-- prevent PG 11 - PG 12 outputs to diverge
+SET citus.enable_cte_inlining TO false;
 
 SET citus.max_intermediate_result_size TO 2;
 -- should fail because the copy size is ~4kB for each cte
