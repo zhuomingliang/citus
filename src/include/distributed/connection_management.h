@@ -47,7 +47,10 @@ enum MultiConnectionMode
 	FOR_DML = 1 << 2,
 
 	/* open a connection per (co-located set of) placement(s) */
-	CONNECTION_PER_PLACEMENT = 1 << 3
+	CONNECTION_PER_PLACEMENT = 1 << 3,
+
+	/* connection has not been used to access data */
+	NO_DATA_ACCESS_CONNECTION = 1 << 4
 };
 
 typedef enum MultiConnectionState
@@ -178,8 +181,6 @@ extern bool CheckConninfo(const char *conninfo, const char **whitelist,
 /* Low-level connection establishment APIs */
 extern MultiConnection * GetNodeConnection(uint32 flags, const char *hostname,
 										   int32 port);
-extern MultiConnection * GetNonDataAccessConnection(const char *hostname, int32 port);
-extern MultiConnection * StartNonDataAccessConnection(const char *hostname, int32 port);
 extern MultiConnection * StartNodeConnection(uint32 flags, const char *hostname,
 											 int32 port);
 extern MultiConnection * GetNodeUserDatabaseConnection(uint32 flags, const char *hostname,

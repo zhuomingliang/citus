@@ -178,48 +178,6 @@ GetNodeConnection(uint32 flags, const char *hostname, int32 port)
 
 
 /*
- * GetNonDataAccessConnection() establishes a connection to remote node, using
- * default user and database. The returned connection is guaranteed to not have
- * been used for any data access over any placements.
- *
- * See StartNonDataAccessConnection for details.
- */
-MultiConnection *
-GetNonDataAccessConnection(const char *hostname, int32 port)
-{
-	MultiConnection *connection = StartNonDataAccessConnection(hostname, port);
-
-	FinishConnectionEstablishment(connection);
-
-	return connection;
-}
-
-
-/*
- * StartNonDataAccessConnection() initiates a connection that is
- * guaranteed to not have been used for any data access over any
- * placements.
- *
- * The returned connection is started with the default user and database.
- */
-MultiConnection *
-StartNonDataAccessConnection(const char *hostname, int32 port)
-{
-	uint32 flags = 0;
-	MultiConnection *connection = StartNodeConnection(flags, hostname, port);
-
-	if (ConnectionUsedForAnyPlacements(connection))
-	{
-		flags = FORCE_NEW_CONNECTION;
-
-		connection = StartNodeConnection(flags, hostname, port);
-	}
-
-	return connection;
-}
-
-
-/*
  * StartNodeConnection initiates a connection to remote node, using default
  * user and database.
  *
@@ -359,6 +317,7 @@ StartNodeUserDatabaseConnection(uint32 flags, const char *hostname, int32 port, 
 	 * Either no caching desired, or no pre-established, non-claimed,
 	 * connection present. Initiate connection establishment.
 	 */
+
 	connection = StartConnectionEstablishment(&key);
 
 	dlist_push_tail(entry->connections, &connection->connectionNode);
@@ -382,6 +341,12 @@ FindAvailableConnection(dlist_head *connections, uint32 flags)
 
 		/* don't return claimed connections */
 		if (connection->claimedExclusively)
+		{
+			continue;
+		}
+
+		if ((flags & NO_DATA_ACCESS_CONNECTION) != 0 &&
+			ConnectionUsedForAnyPlacements(connection))
 		{
 			continue;
 		}
@@ -960,7 +925,6 @@ StartConnectionEstablishment(ConnectionHashKey *key)
 	connection->port = key->port;
 	strlcpy(connection->database, key->database, NAMEDATALEN);
 	strlcpy(connection->user, key->user, NAMEDATALEN);
-
 
 	connection->pgConn = PQconnectStartParams((const char **) entry->keywords,
 											  (const char **) entry->values,
