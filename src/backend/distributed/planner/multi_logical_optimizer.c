@@ -66,16 +66,16 @@ double CountDistinctErrorRate = 0.0; /* precision of count(distinct) approximate
 
 typedef struct MasterAggregateWalkerContext
 {
+	const ExtendedOpNodeProperties *extendedOpNodeProperties;
 	AttrNumber columnId;
-	bool pullDistinctColumns;
 	bool hasSubLinks;
 } MasterAggregateWalkerContext;
 
 typedef struct WorkerAggregateWalkerContext
 {
+	const ExtendedOpNodeProperties *extendedOpNodeProperties;
 	List *expressionList;
 	bool createGroupByClause;
-	bool pullDistinctColumns;
 } WorkerAggregateWalkerContext;
 
 
@@ -273,7 +273,8 @@ static Const * MakeIntegerConst(int32 integerValue);
 static Const * MakeIntegerConstInt64(int64 integerValue);
 
 /* Local functions forward declarations for aggregate expression checks */
-static void ErrorIfContainsUnsupportedAggregate(MultiNode *logicalPlanNode);
+static void ErrorIfContainsUnsupportedAggregate(MultiNode *logicalPlanNode,
+												bool *cabbage);
 static void ErrorIfUnsupportedArrayAggregate(Aggref *arrayAggregateExpression);
 static void ErrorIfUnsupportedJsonAggregate(AggregateType type,
 											Aggref *aggregateExpression);
@@ -324,9 +325,10 @@ MultiLogicalPlanOptimize(MultiTreeRoot *multiLogicalPlan)
 	ListCell *collectNodeCell = NULL;
 	ListCell *tableNodeCell = NULL;
 	MultiNode *logicalPlanNode = (MultiNode *) multiLogicalPlan;
+	bool cabbage = false;
 
 	/* check that we can optimize aggregates in the plan */
-	ErrorIfContainsUnsupportedAggregate(logicalPlanNode);
+	ErrorIfContainsUnsupportedAggregate(logicalPlanNode, &cabbage);
 
 	/*
 	 * If a select node exists, we use the idempower property to split the node
@@ -389,6 +391,8 @@ MultiLogicalPlanOptimize(MultiTreeRoot *multiLogicalPlan)
 	ExtendedOpNodeProperties extendedOpNodeProperties = BuildExtendedOpNodeProperties(
 		extendedOpNode);
 
+	extendedOpNodeProperties.cabbage = cabbage;
+
 	MultiExtendedOp *masterExtendedOpNode =
 		MasterExtendedOpNode(extendedOpNode, &extendedOpNodeProperties);
 	MultiExtendedOp *workerExtendedOpNode =
@@ -402,7 +406,8 @@ MultiLogicalPlanOptimize(MultiTreeRoot *multiLogicalPlan)
 		MultiTable *tableNode = (MultiTable *) lfirst(tableNodeCell);
 		if (tableNode->relationId == SUBQUERY_RELATION_ID)
 		{
-			ErrorIfContainsUnsupportedAggregate((MultiNode *) tableNode);
+			bool subcabbage = false;
+			ErrorIfContainsUnsupportedAggregate((MultiNode *) tableNode, &subcabbage);
 			TransformSubqueryNode(tableNode);
 		}
 	}
@@ -1374,8 +1379,8 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 	MasterAggregateWalkerContext *walkerContext = palloc0(
 		sizeof(MasterAggregateWalkerContext));
 
+	walkerContext->extendedOpNodeProperties = extendedOpNodeProperties;
 	walkerContext->columnId = 1;
-	walkerContext->pullDistinctColumns = extendedOpNodeProperties->pullDistinctColumns;
 
 	/* iterate over original target entries */
 	foreach(targetEntryCell, targetEntryList)
@@ -1504,16 +1509,44 @@ static Expr *
 MasterAggregateExpression(Aggref *originalAggregate,
 						  MasterAggregateWalkerContext *walkerContext)
 {
-	AggregateType aggregateType = GetAggregateType(originalAggregate);
-	Expr *newMasterExpression = NULL;
 	const uint32 masterTableId = 1;  /* one table on the master node */
 	const Index columnLevelsUp = 0;  /* normal column */
 	const AttrNumber argumentId = 1; /* our aggregates have single arguments */
+
+	if (walkerContext->extendedOpNodeProperties->cabbage)
+	{
+		Aggref *aggregate = (Aggref *) copyObject(originalAggregate);
+
+		TargetEntry *targetEntry;
+		foreach_ptr(targetEntry, aggregate->args)
+		{
+			targetEntry->expr = (Expr *)
+								makeVar(masterTableId, walkerContext->columnId,
+										exprType((Node *) targetEntry->expr),
+										exprTypmod((Node *) targetEntry->expr),
+										exprCollation((Node *) targetEntry->expr),
+										columnLevelsUp);
+			walkerContext->columnId++;
+		}
+
+		if (aggregate->aggfilter)
+		{
+			aggregate->aggfilter = (Expr *)
+								   makeVar(masterTableId, walkerContext->columnId,
+										   BOOLOID, -1, InvalidOid, columnLevelsUp);
+			walkerContext->columnId++;
+		}
+
+		return (Expr *) aggregate;
+	}
+
+	AggregateType aggregateType = GetAggregateType(originalAggregate);
+	Expr *newMasterExpression = NULL;
 	AggClauseCosts aggregateCosts;
 
 	if (aggregateType == AGGREGATE_COUNT && originalAggregate->aggdistinct &&
 		CountDistinctErrorRate == DISABLE_DISTINCT_APPROXIMATION &&
-		walkerContext->pullDistinctColumns)
+		walkerContext->extendedOpNodeProperties->pullDistinctColumns)
 	{
 		Aggref *aggregate = (Aggref *) copyObject(originalAggregate);
 		List *varList = pull_var_clause_default((Node *) aggregate);
@@ -2227,7 +2260,14 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 	queryTargetList.targetProjectionNumber = 1;
 
 	/* worker query always include all the group by entries in the query */
-	queryGroupClause.groupClauseList = copyObject(originalGroupClauseList);
+	if (extendedOpNodeProperties->cabbage)
+	{
+		queryGroupClause.groupClauseList = NIL;
+	}
+	else
+	{
+		queryGroupClause.groupClauseList = copyObject(originalGroupClauseList);
+	}
 
 	/*
 	 * nextSortGroupRefIndex is used by group by, window and order by clauses.
@@ -2335,8 +2375,8 @@ ProcessTargetListForWorkerQuery(List *targetEntryList,
 	WorkerAggregateWalkerContext *workerAggContext =
 		palloc0(sizeof(WorkerAggregateWalkerContext));
 
+	workerAggContext->extendedOpNodeProperties = extendedOpNodeProperties;
 	workerAggContext->expressionList = NIL;
-	workerAggContext->pullDistinctColumns = extendedOpNodeProperties->pullDistinctColumns;
 
 	/* iterate over original target entries */
 	foreach(targetEntryCell, targetEntryList)
@@ -2410,8 +2450,8 @@ ProcessHavingClauseForWorkerQuery(Node *originalHavingQual,
 
 	WorkerAggregateWalkerContext *workerAggContext = palloc0(
 		sizeof(WorkerAggregateWalkerContext));
+	workerAggContext->extendedOpNodeProperties = extendedOpNodeProperties;
 	workerAggContext->expressionList = NIL;
-	workerAggContext->pullDistinctColumns = extendedOpNodeProperties->pullDistinctColumns;
 	workerAggContext->createGroupByClause = false;
 
 	WorkerAggregateWalker(originalHavingQual, workerAggContext);
@@ -2933,13 +2973,32 @@ static List *
 WorkerAggregateExpressionList(Aggref *originalAggregate,
 							  WorkerAggregateWalkerContext *walkerContext)
 {
-	AggregateType aggregateType = GetAggregateType(originalAggregate);
 	List *workerAggregateList = NIL;
+
+	if (walkerContext->extendedOpNodeProperties->cabbage)
+	{
+		TargetEntry *targetEntry;
+		foreach_ptr(targetEntry, originalAggregate->args)
+		{
+			workerAggregateList = lappend(workerAggregateList, targetEntry->expr);
+		}
+
+		if (originalAggregate->aggfilter)
+		{
+			/* TODO ideally we would know when we can push down FILTER into WHERE */
+			workerAggregateList = lappend(workerAggregateList,
+										  originalAggregate->aggfilter);
+		}
+
+		return workerAggregateList;
+	}
+
+	AggregateType aggregateType = GetAggregateType(originalAggregate);
 	AggClauseCosts aggregateCosts;
 
 	if (aggregateType == AGGREGATE_COUNT && originalAggregate->aggdistinct &&
 		CountDistinctErrorRate == DISABLE_DISTINCT_APPROXIMATION &&
-		walkerContext->pullDistinctColumns)
+		walkerContext->extendedOpNodeProperties->pullDistinctColumns)
 	{
 		Aggref *aggregate = (Aggref *) copyObject(originalAggregate);
 		List *columnList = pull_var_clause_default((Node *) aggregate);
@@ -3188,10 +3247,12 @@ GetAggregateType(Aggref *aggregateExpression)
 		return AGGREGATE_CUSTOM_COMBINE;
 	}
 
+	/* TODO sort out CABBAGE vs COLLECT */
+	return AGGREGATE_CUSTOM_CABBAGE;
+
 	if (AGGKIND_IS_ORDERED_SET(aggregateExpression->aggkind))
 	{
-		ereport(ERROR, (errmsg("unsupported aggregate %s", aggregateProcName),
-						errhint("ordered-set aggregation is unsupported")));
+		return AGGREGATE_CUSTOM_CABBAGE;
 	}
 
 	return AGGREGATE_CUSTOM_COLLECT;
@@ -3539,9 +3600,12 @@ MakeIntegerConstInt64(int64 integerValue)
  * logical plan, walks over them and uses helper functions to check if we can
  * transform these aggregate expressions and push them down to worker nodes.
  * These helper functions error out if we cannot transform the aggregates.
+ *
+ * Fills cabbage bool with whether any aggregate is of type AGGREGATE_CUSTOM_CABBAGE,
+ * as in that case all aggregates must use CABBAGE.
  */
 static void
-ErrorIfContainsUnsupportedAggregate(MultiNode *logicalPlanNode)
+ErrorIfContainsUnsupportedAggregate(MultiNode *logicalPlanNode, bool *cabbage)
 {
 	List *opNodeList = FindNodesOfType(logicalPlanNode, T_MultiExtendedOp);
 	MultiExtendedOp *extendedOpNode = (MultiExtendedOp *) linitial(opNodeList);
@@ -3554,6 +3618,8 @@ ErrorIfContainsUnsupportedAggregate(MultiNode *logicalPlanNode)
 	 */
 	List *expressionList = pull_var_clause((Node *) targetList, PVC_INCLUDE_AGGREGATES |
 										   PVC_INCLUDE_WINDOWFUNCS);
+
+	*cabbage = false;
 
 	ListCell *expressionCell = NULL;
 	foreach(expressionCell, expressionList)
@@ -3570,6 +3636,12 @@ ErrorIfContainsUnsupportedAggregate(MultiNode *logicalPlanNode)
 		Aggref *aggregateExpression = (Aggref *) expression;
 		AggregateType aggregateType = GetAggregateType(aggregateExpression);
 		Assert(aggregateType != AGGREGATE_INVALID_FIRST);
+
+		if (aggregateType == AGGREGATE_CUSTOM_CABBAGE)
+		{
+			*cabbage = true;
+			return;
+		}
 
 		/*
 		 * Check that we can transform the current aggregate expression. These
@@ -3663,6 +3735,14 @@ ErrorIfUnsupportedAggregateDistinct(Aggref *aggregateExpression,
 	bool distinctSupported = true;
 
 	AggregateType aggregateType = GetAggregateType(aggregateExpression);
+
+	/* If we're aggregating on coordinator, this becomes simple. */
+	if (aggregateType == AGGREGATE_CUSTOM_COLLECT ||
+		aggregateType == AGGREGATE_CUSTOM_CABBAGE)
+	{
+		/* TODO this doesn't actually work for COLLECT right now */
+		return;
+	}
 
 	/*
 	 * We partially support count(distinct) in subqueries, other distinct aggregates in
