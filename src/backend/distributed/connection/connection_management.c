@@ -345,10 +345,26 @@ FindAvailableConnection(dlist_head *connections, uint32 flags)
 			continue;
 		}
 
-		if ((flags & NO_DATA_ACCESS_CONNECTION) != 0 &&
-			ConnectionUsedForAnyPlacements(connection))
+		if ((flags & NO_DATA_ACCESS_CONNECTION) != 0)
 		{
-			continue;
+			if (!connection->isNonDataAccess &&
+				ConnectionUsedForAnyPlacements(connection))
+			{
+				/* cannot use this connection for intermediate results */
+				continue;
+			}
+			else
+			{
+				connection->isNonDataAccess = true;
+			}
+		}
+		else
+		{
+			if (connection->isNonDataAccess)
+			{
+				/* cannot use this connection for placement access */
+				continue;
+			}
 		}
 
 		return connection;
@@ -1086,6 +1102,7 @@ ResetConnection(MultiConnection *connection)
 
 	/* reset copy state */
 	connection->copyBytesWrittenSinceLastFlush = 0;
+	connection->isNonDataAccess = false;
 
 	UnclaimConnection(connection);
 }

@@ -91,6 +91,9 @@ typedef struct MultiConnection
 	/* is the connection currently in use, and shouldn't be used by anything else */
 	bool claimedExclusively;
 
+	/* the connection should not be used to access data */
+	bool isNonDataAccess;
+
 	/* time connection establishment was started, for timeout */
 	TimestampTz connectionStart;
 
