@@ -1924,7 +1924,7 @@ MasterAggregateExpression(Aggref *originalAggregate,
 			elog(ERROR, "Aggregate lacks COMBINEFUNC");
 		}
 	}
-	else if (aggregateType == AGGREGATE_CUSTOM_COLLECT)
+	else if (aggregateType == AGGREGATE_CUSTOM_ARRAY_FOLD)
 	{
 		Aggref *catAggCall = makeNode(Aggref);
 
@@ -3164,7 +3164,7 @@ WorkerAggregateExpressionList(Aggref *originalAggregate,
 			elog(ERROR, "Aggregate lacks COMBINEFUNC");
 		}
 	}
-	else if (aggregateType == AGGREGATE_CUSTOM_COLLECT)
+	else if (aggregateType == AGGREGATE_CUSTOM_ARRAY_FOLD)
 	{
 		Aggref *workerAggregate = copyObject(originalAggregate);
 
@@ -3260,7 +3260,7 @@ GetAggregateType(Aggref *aggregateExpression)
 
 		case COORDINATOR_AGGREGATION_ROW_GATHER:
 		{
-			return AGGREGATE_CUSTOM_CABBAGE;
+			return AGGREGATE_CUSTOM_ROW_GATHER;
 		}
 
 		case COORDINATOR_AGGREGATION_ARRAY_FOLD:
@@ -3269,9 +3269,9 @@ GetAggregateType(Aggref *aggregateExpression)
 			if (aggregateExpression->aggdistinct != NIL ||
 				AGGKIND_IS_ORDERED_SET(aggregateExpression->aggkind))
 			{
-				return AGGREGATE_CUSTOM_CABBAGE;
+				return AGGREGATE_CUSTOM_ROW_GATHER;
 			}
-			return AGGREGATE_CUSTOM_COLLECT;
+			return AGGREGATE_CUSTOM_ARRAY_FOLD;
 	}
 
 	Assert(false);
@@ -3621,8 +3621,8 @@ MakeIntegerConstInt64(int64 integerValue)
  * transform these aggregate expressions and push them down to worker nodes.
  * These helper functions error out if we cannot transform the aggregates.
  *
- * Fills cabbage bool with whether any aggregate is of type AGGREGATE_CUSTOM_CABBAGE,
- * as in that case all aggregates must use CABBAGE.
+ * Fills cabbage bool with whether any aggregate is of type AGGREGATE_CUSTOM_ROW_GATHER,
+ * as in that case all aggregates must use AGGREGATE_CUSTOM_ROW_GATHER.
  */
 static void
 ErrorIfContainsUnsupportedAggregate(MultiNode *logicalPlanNode, bool *cabbage)
@@ -3657,7 +3657,7 @@ ErrorIfContainsUnsupportedAggregate(MultiNode *logicalPlanNode, bool *cabbage)
 		AggregateType aggregateType = GetAggregateType(aggregateExpression);
 		Assert(aggregateType != AGGREGATE_INVALID_FIRST);
 
-		if (aggregateType == AGGREGATE_CUSTOM_CABBAGE)
+		if (aggregateType == AGGREGATE_CUSTOM_ROW_GATHER)
 		{
 			*cabbage = true;
 			return;
@@ -3757,10 +3757,9 @@ ErrorIfUnsupportedAggregateDistinct(Aggref *aggregateExpression,
 	AggregateType aggregateType = GetAggregateType(aggregateExpression);
 
 	/* If we're aggregating on coordinator, this becomes simple. */
-	if (aggregateType == AGGREGATE_CUSTOM_COLLECT ||
-		aggregateType == AGGREGATE_CUSTOM_CABBAGE)
+	if (aggregateType == AGGREGATE_CUSTOM_ARRAY_FOLD ||
+		aggregateType == AGGREGATE_CUSTOM_ROW_GATHER)
 	{
-		/* TODO this doesn't actually work for COLLECT right now */
 		return;
 	}
 
