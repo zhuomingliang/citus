@@ -62,7 +62,8 @@
 /* Config variable managed via guc.c */
 int LimitClauseRowFetchCount = -1; /* number of rows to fetch from each task */
 double CountDistinctErrorRate = 0.0; /* precision of count(distinct) approximate */
-
+int CoordinatorAggregationStrategy =
+	COORDINATOR_AGGREGATION_DISABLED; /* how to pull up intermediate results for aggregates which don't support push down */
 
 typedef struct MasterAggregateWalkerContext
 {
@@ -3247,15 +3248,34 @@ GetAggregateType(Aggref *aggregateExpression)
 		return AGGREGATE_CUSTOM_COMBINE;
 	}
 
-	/* TODO sort out CABBAGE vs COLLECT */
-	return AGGREGATE_CUSTOM_CABBAGE;
-
-	if (AGGKIND_IS_ORDERED_SET(aggregateExpression->aggkind))
+	switch (CoordinatorAggregationStrategy)
 	{
-		return AGGREGATE_CUSTOM_CABBAGE;
+		default:
+		{
+			ereport(ERROR, (errmsg("unsupported aggregate %s", aggregateProcName),
+							errhint("enable pulling up intermediate results with "
+									"citus.coordinator_aggregation_strategy")));
+			break;
+		}
+
+		case COORDINATOR_AGGREGATION_ROW_GATHER:
+		{
+			return AGGREGATE_CUSTOM_CABBAGE;
+		}
+
+		case COORDINATOR_AGGREGATION_ARRAY_FOLD:
+
+			/* TODO fix distinct handling in coord_fold_array */
+			if (aggregateExpression->aggdistinct != NIL ||
+				AGGKIND_IS_ORDERED_SET(aggregateExpression->aggkind))
+			{
+				return AGGREGATE_CUSTOM_CABBAGE;
+			}
+			return AGGREGATE_CUSTOM_COLLECT;
 	}
 
-	return AGGREGATE_CUSTOM_COLLECT;
+	Assert(false);
+	return AGGREGATE_INVALID_FIRST;
 }
 
 

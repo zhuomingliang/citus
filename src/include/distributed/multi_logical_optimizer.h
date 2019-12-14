@@ -84,8 +84,18 @@ typedef enum
 	/* AGGREGATE_CUSTOM_* must come last */
 	AGGREGATE_CUSTOM_COMBINE = 21,
 	AGGREGATE_CUSTOM_COLLECT = 22,
-	AGGREGATE_CUSTOM_CABBAGE = 23
+	AGGREGATE_CUSTOM_CABBAGE = 23,
 } AggregateType;
+
+
+/* Enumeration for citus.coordinator_aggregation GUC */
+typedef enum
+{
+	COORDINATOR_AGGREGATION_DISABLED,
+	COORDINATOR_AGGREGATION_ARRAY_FOLD,
+	COORDINATOR_AGGREGATION_ROW_GATHER,
+} CoordinatorAggregationStrategyType;
+
 
 /*
  * PushDownStatus indicates whether a node can be pushed down below its child
@@ -138,6 +148,7 @@ static const char *const AggregateNames[] = {
 /* Config variable managed via guc.c */
 extern int LimitClauseRowFetchCount;
 extern double CountDistinctErrorRate;
+extern int CoordinatorAggregationStrategy;
 
 
 /* Function declaration for optimizing logical plans */
