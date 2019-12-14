@@ -99,6 +99,6 @@ BEGIN
 END;
 $BODY$;
 
-SELECT count(*) FROM (SELECT run_ctes(s) FROM generate_series(1,1000) s) a;
+SELECT count(*) FROM (SELECT run_ctes(s) FROM generate_series(1,current_setting('max_connections')::int+2) s) a;
 
 DROP SCHEMA with_transactions CASCADE;

@@ -121,23 +121,23 @@ ROLLBACK;
 RESET client_min_messages;
 CREATE OR REPLACE FUNCTION run_ctes(id int)
 RETURNS text
-LANGUAGE 'plpgsql' 
+LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
 	value text;
 BEGIN
 
-	WITH 
+	WITH
 	dist AS (SELECT tenant_id FROM raw_table WHERE tenant_id < 10)
 	SELECT count(*) INTO value FROM dist WHERE id = tenant_id;
 
 	RETURN value ;
 END;
 $BODY$;
-SELECT count(*) FROM (SELECT run_ctes(s) FROM generate_series(1,1000) s) a;
+SELECT count(*) FROM (SELECT run_ctes(s) FROM generate_series(1,current_setting('max_connections')::int+2) s) a;
  count 
 -------
-  1000
+   102
 (1 row)
 
 DROP SCHEMA with_transactions CASCADE;

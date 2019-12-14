@@ -269,7 +269,6 @@ RemoteFileDestReceiverStartup(DestReceiver *dest, int operation,
 		WorkerNode *workerNode = (WorkerNode *) lfirst(initialNodeCell);
 		char *nodeName = workerNode->workerName;
 		int nodePort = workerNode->workerPort;
-		int flags = NO_DATA_ACCESS_CONNECTION;
 
 		/*
 		 * We prefer to use a connection that is not associcated with
@@ -277,6 +276,8 @@ RemoteFileDestReceiverStartup(DestReceiver *dest, int operation,
 		 * exclusively and that would prevent the consecutive DML/DDL
 		 * use the same connection.
 		 */
+		int flags = REQUIRE_SIDECHANNEL;
+
 		MultiConnection *connection = StartNodeConnection(flags, nodeName, nodePort);
 		ClaimConnectionExclusively(connection);
 		MarkRemoteTransactionCritical(connection);

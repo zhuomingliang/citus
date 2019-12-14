@@ -50,6 +50,7 @@ static bool ShouldShutdownConnection(MultiConnection *connection, const int
 static void ResetConnection(MultiConnection *connection);
 static void DefaultCitusNoticeProcessor(void *arg, const char *message);
 static MultiConnection * FindAvailableConnection(dlist_head *connections, uint32 flags);
+static void GivePurposeToConnection(MultiConnection *connection, int flags);
 static bool RemoteTransactionIdle(MultiConnection *connection);
 static int EventSetSizeForConnectionList(List *connections);
 
@@ -309,6 +310,8 @@ StartNodeUserDatabaseConnection(uint32 flags, const char *hostname, int32 port, 
 		connection = FindAvailableConnection(entry->connections, flags);
 		if (connection)
 		{
+			GivePurposeToConnection(connection, flags);
+
 			return connection;
 		}
 	}
@@ -323,12 +326,21 @@ StartNodeUserDatabaseConnection(uint32 flags, const char *hostname, int32 port, 
 	dlist_push_tail(entry->connections, &connection->connectionNode);
 
 	ResetShardPlacementAssociation(connection);
+	GivePurposeToConnection(connection, flags);
 
 	return connection;
 }
 
 
-/* StartNodeUserDatabaseConnection() helper */
+/*
+ * FindAvailableConnection searches the given list of connections for one that
+ * is not claimed exclusively or marked as a side channel. If the caller passed
+ * the REQUIRE_SIDECHANNEL flag, it will only return a connection that has not
+ * been used to access shard placements and that connectoin will only be returned
+ * in subsequent calls if the REQUIRE_SIDECHANNEL flag is passed.
+ *
+ * If no connection is available, FindAvailableConnection returns NULL.
+ */
 static MultiConnection *
 FindAvailableConnection(dlist_head *connections, uint32 flags)
 {
@@ -339,38 +351,59 @@ FindAvailableConnection(dlist_head *connections, uint32 flags)
 		MultiConnection *connection =
 			dlist_container(MultiConnection, connectionNode, iter.cur);
 
-		/* don't return claimed connections */
 		if (connection->claimedExclusively)
 		{
+			/* connection is in use for an ongoing operation */
 			continue;
 		}
 
-		if ((flags & NO_DATA_ACCESS_CONNECTION) != 0)
+		if ((flags & REQUIRE_SIDECHANNEL) != 0)
 		{
-			if (!connection->isNonDataAccess &&
-				ConnectionUsedForAnyPlacements(connection))
+			if (connection->purpose == CONNECTION_PURPOSE_SIDECHANNEL ||
+				connection->purpose == CONNECTION_PURPOSE_ANY)
 			{
-				/* cannot use this connection for intermediate results */
-				continue;
-			}
-			else
-			{
-				connection->isNonDataAccess = true;
-			}
-		}
-		else
-		{
-			if (connection->isNonDataAccess)
-			{
-				/* cannot use this connection for placement access */
-				continue;
-			}
-		}
+				/* side channel must not have been used to access data */
+				Assert(!ConnectionUsedForAnyPlacements(connection));
 
-		return connection;
+				return connection;
+			}
+		}
+		else if (connection->purpose == CONNECTION_PURPOSE_DATA_ACCESS ||
+				 connection->purpose == CONNECTION_PURPOSE_ANY)
+		{
+			/* can use this connection to access data */
+			return connection;
+		}
 	}
 
 	return NULL;
+}
+
+
+/*
+ * GivePurposeToConnection gives purpose to a connection if it does not already
+ * have a purpose. More specifically, it marks the connection as a sidechannel
+ * if the REQUIRE_SIDECHANNEL flag is set.
+ */
+static void
+GivePurposeToConnection(MultiConnection *connection, int flags)
+{
+	if (connection->purpose != CONNECTION_PURPOSE_ANY)
+	{
+		/* connection already has a purpose */
+		return;
+	}
+
+	if ((flags & REQUIRE_SIDECHANNEL) != 0)
+	{
+		/* connection should not be used for data access */
+		connection->purpose = CONNECTION_PURPOSE_SIDECHANNEL;
+	}
+	else
+	{
+		/* connection should be used for data access */
+		connection->purpose = CONNECTION_PURPOSE_DATA_ACCESS;
+	}
 }
 
 
@@ -946,6 +979,7 @@ StartConnectionEstablishment(ConnectionHashKey *key)
 											  (const char **) entry->values,
 											  false);
 	connection->connectionStart = GetCurrentTimestamp();
+	connection->purpose = CONNECTION_PURPOSE_ANY;
 
 	/*
 	 * To avoid issues with interrupts not getting caught all our connections
@@ -1102,7 +1136,7 @@ ResetConnection(MultiConnection *connection)
 
 	/* reset copy state */
 	connection->copyBytesWrittenSinceLastFlush = 0;
-	connection->isNonDataAccess = false;
+	connection->purpose = CONNECTION_PURPOSE_ANY;
 
 	UnclaimConnection(connection);
 }
