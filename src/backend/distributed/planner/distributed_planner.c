@@ -118,6 +118,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	bool setPartitionedTablesInherited = false;
 	List *rangeTableList = ExtractRangeTableEntryList(parse);
 	int rteIdCounter = 1;
+	bool fastPathRouterQuery = false;
 
 	if (cursorOptions & CURSOR_OPT_FORCE_DISTRIBUTED)
 	{
@@ -141,6 +142,35 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		else
 		{
 			needsDistributedPlanning = ListContainsDistributedTableRTE(rangeTableList);
+
+			if (needsDistributedPlanning)
+			{
+				fastPathRouterQuery = FastPathRouterQuery(parse);
+				if (fastPathRouterQuery)
+				{
+					bool multiShardModifyQuery = false;
+					Const *partitionValueConst = NULL;
+					List *shardIntervalList =
+						TargetShardIntervalForFastPathQuery(parse, &partitionValueConst,
+															&multiShardModifyQuery);
+					if (!multiShardModifyQuery && list_length(shardIntervalList) == 1)
+					{
+						ShardInterval *sh = linitial(shardIntervalList);
+						ShardPlacement *shp = FindShardPlacementOnGroup(GetLocalGroupId(),
+																		sh->shardId);
+
+
+#include "distributed/local_executor.h"
+#include "distributed/placement_connection.h"
+						if (shp != NULL && !ReferenceTableShardId(sh->shardId) && !LocalExecutionHappened  && !AnyConnectionAccessedPlacements())
+						{
+							UpdateReferenceTablesWithShard(parse, sh);
+							LocalExecutionHappened =  true;
+							needsDistributedPlanning = false;
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -197,7 +227,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		 * transformations made by postgres' planner.
 		 */
 
-		if (needsDistributedPlanning && FastPathRouterQuery(originalQuery))
+		if (needsDistributedPlanning && fastPathRouterQuery)
 		{
 			result = FastPathPlanner(originalQuery, parse, boundParams);
 		}
@@ -2021,13 +2051,13 @@ UpdateReferenceTablesWithShard(Node *node, void *context)
 	if (IsA(node, Query))
 	{
 		return query_tree_walker((Query *) node, UpdateReferenceTablesWithShard,
-								 NULL, QTW_EXAMINE_RTES_BEFORE);
+								 context, QTW_EXAMINE_RTES_BEFORE);
 	}
 
 	if (!IsA(node, RangeTblEntry))
 	{
 		return expression_tree_walker(node, UpdateReferenceTablesWithShard,
-									  NULL);
+									  context);
 	}
 
 	RangeTblEntry *newRte = (RangeTblEntry *) node;
@@ -2043,18 +2073,29 @@ UpdateReferenceTablesWithShard(Node *node, void *context)
 		return false;
 	}
 
-	DistTableCacheEntry *cacheEntry = DistributedTableCacheEntry(relationId);
-	if (cacheEntry->partitionMethod != DISTRIBUTE_BY_NONE)
+	ShardInterval *sh = (ShardInterval *) context;
+	if (sh != NULL)
 	{
-		return false;
+		Assert(sh->relationId == relationId);
 	}
 
-	ShardInterval *shardInterval = cacheEntry->sortedShardIntervalArray[0];
+	DistTableCacheEntry *cacheEntry = DistributedTableCacheEntry(relationId);
+
+
+	ShardInterval *shardInterval = NULL;
+	if (sh != NULL)
+	{
+		shardInterval = sh;
+	}
+	else
+	{
+		Assert(cacheEntry->partitionMethod != DISTRIBUTE_BY_NONE);
+		shardInterval = cacheEntry->sortedShardIntervalArray[0];
+	}
 	uint64 shardId = shardInterval->shardId;
 
 	char *relationName = get_rel_name(relationId);
 	AppendShardIdToName(&relationName, shardId);
-
 	Oid schemaId = get_rel_namespace(relationId);
 	newRte->relid = get_relname_relid(relationName, schemaId);
 
