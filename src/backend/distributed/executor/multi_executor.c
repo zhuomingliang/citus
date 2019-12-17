@@ -84,6 +84,10 @@ CitusExecutorStart(QueryDesc *queryDesc, int eflags)
 		if (RelationIsAKnownShard(rel, false))
 		{
 			/*elog(INFO, "found relation"); */
+			if (queryDesc->operation == CMD_UPDATE || queryDesc->operation == CMD_DELETE)
+			{
+				LockRelationOid(rel, RowExclusiveLock);
+			}
 		}
 	}
 

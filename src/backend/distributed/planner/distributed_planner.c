@@ -145,8 +145,9 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 
 			if (needsDistributedPlanning)
 			{
+#include "distributed/insert_select_executor.h"
 				fastPathRouterQuery = FastPathRouterQuery(parse);
-				if (fastPathRouterQuery)
+				if (fastPathRouterQuery && !ExecutingInsertSelect())
 				{
 					parse = (Query *) ResolveExternalParams((Node *) parse, copyParamList(
 																boundParams));
@@ -157,20 +158,24 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 															&multiShardModifyQuery);
 					if (!multiShardModifyQuery && list_length(shardIntervalList) == 1)
 					{
-						ShardInterval *sh = linitial(shardIntervalList);
-						ShardPlacement *shp = FindShardPlacementOnGroup(GetLocalGroupId(),
-																		sh->shardId);
+						if (ModifyQuerySupported(parse, parse, false, NULL) == NULL)
+						{
+							ShardInterval *sh = linitial(shardIntervalList);
+							ShardPlacement *shp = FindShardPlacementOnGroup(
+								GetLocalGroupId(),
+								sh->shardId);
 
 
 #include "distributed/local_executor.h"
 #include "distributed/placement_connection.h"
-						if (shp != NULL && !ReferenceTableShardId(sh->shardId) &&
-							!LocalExecutionHappened &&
-							!AnyConnectionAccessedPlacements())
-						{
-							UpdateReferenceTablesWithShard((Node *) parse, sh);
-							LocalExecutionHappened = true;
-							needsDistributedPlanning = false;
+							if (shp != NULL && !ReferenceTableShardId(sh->shardId) &&
+								!LocalExecutionHappened &&
+								!AnyConnectionAccessedPlacements())
+							{
+								UpdateReferenceTablesWithShard((Node *) parse, sh);
+								LocalExecutionHappened = true;
+								needsDistributedPlanning = false;
+							}
 						}
 					}
 				}
@@ -2097,7 +2102,7 @@ UpdateReferenceTablesWithShard(Node *node, void *context)
 	}
 	else
 	{
-		Assert(cacheEntry->partitionMethod != DISTRIBUTE_BY_NONE);
+		Assert(cacheEntry->partitionMethod == DISTRIBUTE_BY_NONE);
 		shardInterval = cacheEntry->sortedShardIntervalArray[0];
 	}
 	uint64 shardId = shardInterval->shardId;
