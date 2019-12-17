@@ -158,7 +158,8 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 															&multiShardModifyQuery);
 					if (!multiShardModifyQuery && list_length(shardIntervalList) == 1)
 					{
-						if (ModifyQuerySupported(parse, parse, false, NULL) == NULL)
+						if (parse->commandType == CMD_SELECT ||
+							ModifyQuerySupported(parse, parse, false, NULL) == NULL)
 						{
 							ShardInterval *sh = linitial(shardIntervalList);
 							ShardPlacement *shp = FindShardPlacementOnGroup(
