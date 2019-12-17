@@ -148,6 +148,8 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 				fastPathRouterQuery = FastPathRouterQuery(parse);
 				if (fastPathRouterQuery)
 				{
+					parse = (Query *) ResolveExternalParams((Node *) parse, copyParamList(
+																boundParams));
 					bool multiShardModifyQuery = false;
 					Const *partitionValueConst = NULL;
 					List *shardIntervalList =
@@ -162,10 +164,12 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 
 #include "distributed/local_executor.h"
 #include "distributed/placement_connection.h"
-						if (shp != NULL && !ReferenceTableShardId(sh->shardId) && !LocalExecutionHappened  && !AnyConnectionAccessedPlacements())
+						if (shp != NULL && !ReferenceTableShardId(sh->shardId) &&
+							!LocalExecutionHappened &&
+							!AnyConnectionAccessedPlacements())
 						{
-							UpdateReferenceTablesWithShard(parse, sh);
-							LocalExecutionHappened =  true;
+							UpdateReferenceTablesWithShard((Node *) parse, sh);
+							LocalExecutionHappened = true;
 							needsDistributedPlanning = false;
 						}
 					}
@@ -233,6 +237,10 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		}
 		else
 		{
+			if (fastPathRouterQuery)
+			{
+				cursorOptions |= CURSOR_OPT_CUSTOM_PLAN;
+			}
 			result = standard_planner(parse, cursorOptions, boundParams);
 
 			if (needsDistributedPlanning)
@@ -263,7 +271,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 			{
 				result = FinalizePlan(result, delegatePlan);
 			}
-			else if (hasExternParam)
+			else if (hasExternParam || fastPathRouterQuery)
 			{
 				/*
 				 * As in CreateDistributedPlannedStmt, try dissuade planner when planning

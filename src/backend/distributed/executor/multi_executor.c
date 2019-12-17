@@ -78,6 +78,15 @@ CitusExecutorStart(QueryDesc *queryDesc, int eflags)
 {
 	PlannedStmt *plannedStmt = queryDesc->plannedstmt;
 
+	if (list_length(plannedStmt->relationOids) == 1)
+	{
+		Oid rel = linitial_oid(plannedStmt->relationOids);
+		if (RelationIsAKnownShard(rel, false))
+		{
+			/*elog(INFO, "found relation"); */
+		}
+	}
+
 	/*
 	 * We cannot modify XactReadOnly on Windows because it is not
 	 * declared with PGDLLIMPORT.
