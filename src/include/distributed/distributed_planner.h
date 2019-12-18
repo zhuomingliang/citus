@@ -109,6 +109,8 @@ typedef struct RelationRowLock
 	LockClauseStrength rowLockStrength;
 } RelationRowLock;
 
+extern void PopPlannerRestrictionContext(void);
+extern PlannerRestrictionContext * CreateAndPushPlannerRestrictionContext(void);
 
 extern PlannedStmt * distributed_planner(Query *parse, int cursorOptions,
 										 ParamListInfo boundParams);

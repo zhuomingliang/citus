@@ -264,7 +264,7 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 	UpdateRelationToShardNames((Node *) shardQuery, task->relationShardList);
 	ReplaceShardReferencesWalker((Node *) shardQuery, task);
 
-	//CreateAndPushPlannerRestrictionContext();
+	CreateAndPushPlannerRestrictionContext();
 	/*
 		 * We should not consider using CURSOR_OPT_FORCE_DISTRIBUTED in case of
 		 * intermediate results in the query. That'd trigger ExecuteLocalTaskPlan()
@@ -281,12 +281,12 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 	PG_CATCH();
 	{
 		/* TODO: use memory context callback? */
-	//	PopPlannerRestrictionContext();
+		PopPlannerRestrictionContext();
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
 
-//	PopPlannerRestrictionContext();
+	PopPlannerRestrictionContext();
 
 	return localPlan;
 }

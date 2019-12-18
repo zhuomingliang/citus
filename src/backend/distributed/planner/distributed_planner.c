@@ -108,9 +108,7 @@ static void AdjustReadIntermediateResultsCostInternal(RelOptInfo *relOptInfo,
 													  Const *resultFormatConst);
 static List * OuterPlanParamsList(PlannerInfo *root);
 static List * CopyPlanParamList(List *originalPlanParamList);
-static PlannerRestrictionContext * CreateAndPushPlannerRestrictionContext(void);
 static PlannerRestrictionContext * CurrentPlannerRestrictionContext(void);
-static void PopPlannerRestrictionContext(void);
 static void ResetPlannerRestrictionContext(
 	PlannerRestrictionContext *plannerRestrictionContext);
 static bool HasUnresolvedExternParamsWalker(Node *expression, ParamListInfo boundParams);
@@ -1898,7 +1896,7 @@ CopyPlanParamList(List *originalPlanParamList)
  * plannerRestrictionContextList. Finally, the planner restriction context is
  * inserted to the beginning of the plannerRestrictionContextList and it is returned.
  */
-static PlannerRestrictionContext *
+PlannerRestrictionContext *
 CreateAndPushPlannerRestrictionContext(void)
 {
 	PlannerRestrictionContext *plannerRestrictionContext =
@@ -1949,7 +1947,7 @@ CurrentPlannerRestrictionContext(void)
  * PopPlannerRestrictionContext removes the most recently added restriction contexts from
  * the planner restriction context list. The function assumes the list is not empty.
  */
-static void
+void
 PopPlannerRestrictionContext(void)
 {
 	plannerRestrictionContextList = list_delete_first(plannerRestrictionContextList);
@@ -1960,7 +1958,7 @@ PopPlannerRestrictionContext(void)
  * ResetPlannerRestrictionContext resets the element of the given planner
  * restriction context.
  */
-static void
+void
 ResetPlannerRestrictionContext(PlannerRestrictionContext *plannerRestrictionContext)
 {
 	plannerRestrictionContext->relationRestrictionContext =
