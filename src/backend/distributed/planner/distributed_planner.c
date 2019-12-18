@@ -203,7 +203,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	 * Make sure that we hide shard names on the Citus MX worker nodes. See comments in
 	 * ReplaceTableVisibleFunction() for the details.
 	 */
-	ReplaceTableVisibleFunction((Node *) parse);
+	//ReplaceTableVisibleFunction((Node *) parse);
 
 	/* create a restriction context and put it at the end if context list */
 	PlannerRestrictionContext *plannerRestrictionContext =
