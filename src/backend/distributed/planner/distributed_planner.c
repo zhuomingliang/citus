@@ -244,7 +244,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 				elog(LOG, "Fast path: %d", fastPathCount);
 
 			if (nonFastPathCount % 1000  == 0)
-							elog(LOG, "Fast path: %d", nonFastPathCount);
+							elog(LOG, "NontFast path: %d", nonFastPathCount);
 
 			result = CreateDistributedPlannedStmt(planId, result, originalQuery, parse,
 												  boundParams, plannerRestrictionContext);
