@@ -128,8 +128,8 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	bool setPartitionedTablesInherited = false;
 	List *rangeTableList = ExtractRangeTableEntryList(parse);
 	int rteIdCounter = 1;
-	static int fastPathCount = 0;
-	static int nonFastPathCount = 0;
+	static double fastPathCount = 0;
+	static double nonFastPathCount = 0;
 
 
 	if (cursorOptions & CURSOR_OPT_FORCE_DISTRIBUTED)
@@ -240,11 +240,8 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		{
 			uint64 planId = NextPlanId++;
 
-			if (fastPathCount % 1000  == 0)
-				elog(LOG, "Fast path: %d", fastPathCount);
-
-			if (nonFastPathCount % 1000  == 0)
-							elog(LOG, "NontFast path: %d", nonFastPathCount);
+			if ((int)fastPathCount % 1  == 0)
+				elog(LOG, "Fast path: %f", 100  * (fastPathCount / (fastPathCount + nonFastPathCount)));
 
 			result = CreateDistributedPlannedStmt(planId, result, originalQuery, parse,
 												  boundParams, plannerRestrictionContext);
