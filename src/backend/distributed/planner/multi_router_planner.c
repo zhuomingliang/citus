@@ -180,8 +180,12 @@ CreateRouterPlan(Query *originalQuery, Query *query,
 				 PlannerRestrictionContext *plannerRestrictionContext)
 {
 	DistributedPlan *distributedPlan = CitusMakeNode(DistributedPlan);
+	bool fastPath = plannerRestrictionContext->fastPath;
 
-	distributedPlan->planningError = MultiRouterPlannableQuery(query);
+	if (!fastPath)
+	{
+		distributedPlan->planningError = MultiRouterPlannableQuery(query);
+	}
 
 	if (distributedPlan->planningError == NULL)
 	{
@@ -552,6 +556,7 @@ ModifyQuerySupported(Query *queryTree, Query *originalQuery, bool multiShardQuer
 	ListCell *rangeTableCell = NULL;
 	uint32 queryTableCount = 0;
 	CmdType commandType = queryTree->commandType;
+	bool fastPath = plannerRestrictionContext->fastPath;
 
 	Oid distributedTableId = ModifyQueryResultRelationId(queryTree);
 	if (!IsDistributedTable(distributedTableId))
@@ -576,7 +581,7 @@ ModifyQuerySupported(Query *queryTree, Query *originalQuery, bool multiShardQuer
 	 * the rows could be changed before the modification part of
 	 * the query is executed.
 	 */
-	if (ContainsReadIntermediateResultFunction((Node *) originalQuery))
+	if (!fastPath && ContainsReadIntermediateResultFunction((Node *) originalQuery))
 	{
 		bool hasTidColumn = FindNodeCheck((Node *) originalQuery->jointree, IsTidColumn);
 		if (hasTidColumn)
@@ -594,7 +599,7 @@ ModifyQuerySupported(Query *queryTree, Query *originalQuery, bool multiShardQuer
 	 * Reject subqueries which are in SELECT or WHERE clause.
 	 * Queries which include subqueries in FROM clauses are rejected below.
 	 */
-	if (queryTree->hasSubLinks == true)
+	if (!fastPath && queryTree->hasSubLinks == true)
 	{
 		/* we support subqueries for INSERTs only via INSERT INTO ... SELECT */
 		if (!UpdateOrDeleteQuery(queryTree))
@@ -609,7 +614,7 @@ ModifyQuerySupported(Query *queryTree, Query *originalQuery, bool multiShardQuer
 	}
 
 	/* reject queries which include CommonTableExpr which aren't routable */
-	if (queryTree->cteList != NIL)
+	if (!fastPath && queryTree->cteList != NIL)
 	{
 		ListCell *cteCell = NULL;
 
@@ -650,8 +655,14 @@ ModifyQuerySupported(Query *queryTree, Query *originalQuery, bool multiShardQuer
 	}
 
 	/* extract range table entries */
-	ExtractRangeTableEntryWalker((Node *) originalQuery, &rangeTableList);
-
+	if (fastPath)
+	{
+		rangeTableList = NIL;
+	}
+	else
+	{
+		ExtractRangeTableEntryWalker((Node *) originalQuery, &rangeTableList);
+	}
 	foreach(rangeTableCell, rangeTableList)
 	{
 		RangeTblEntry *rangeTableEntry = (RangeTblEntry *) lfirst(rangeTableCell);
@@ -2014,6 +2025,7 @@ PlanRouterQuery(Query *originalQuery,
 	bool shardsPresent = false;
 	uint64 shardId = INVALID_SHARD_ID;
 	CmdType commandType = originalQuery->commandType;
+	bool fastPath = plannerRestrictionContext->fastPath;
 
 	*placementList = NIL;
 
@@ -2022,7 +2034,7 @@ PlanRouterQuery(Query *originalQuery,
 	 * not been called. Thus, restriction information is not avaliable and we do the
 	 * shard pruning based on the distribution column in the quals of the query.
 	 */
-	if (FastPathRouterQuery(originalQuery))
+	if (fastPath)
 	{
 		List *shardIntervalList =
 			TargetShardIntervalForFastPathQuery(originalQuery, partitionValueConst,
@@ -2116,7 +2128,7 @@ PlanRouterQuery(Query *originalQuery,
 	 * We bail out if there are RTEs that prune multiple shards above, but
 	 * there can also be multiple RTEs that reference the same relation.
 	 */
-	if (RelationPrunesToMultipleShards(*relationShardList))
+	if (!fastPath && RelationPrunesToMultipleShards(*relationShardList))
 	{
 		planningError = DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
 									  "cannot run command which targets "

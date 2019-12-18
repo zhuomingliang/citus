@@ -90,6 +90,7 @@ typedef struct PlannerRestrictionContext
 	RelationRestrictionContext *relationRestrictionContext;
 	JoinRestrictionContext *joinRestrictionContext;
 	bool hasSemiJoin;
+	bool fastPath;
 	MemoryContext memoryContext;
 } PlannerRestrictionContext;
 

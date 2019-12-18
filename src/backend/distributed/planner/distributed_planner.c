@@ -224,6 +224,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		{
 			originalQuery = copyObject(parse);
 			result = FastPathPlanner(originalQuery, parse, boundParams);
+			plannerRestrictionContext->fastPath = true;
 		}
 		else
 		{
@@ -572,13 +573,18 @@ CreateDistributedPlannedStmt(uint64 planId, PlannedStmt *localPlan, Query *origi
 	JoinRestrictionContext *joinRestrictionContext =
 		plannerRestrictionContext->joinRestrictionContext;
 
+	bool fastPath = plannerRestrictionContext->fastPath;
+
 	if (HasUnresolvedExternParamsWalker((Node *) originalQuery, boundParams))
 	{
 		hasUnresolvedParams = true;
 	}
 
-	plannerRestrictionContext->joinRestrictionContext =
-		RemoveDuplicateJoinRestrictions(joinRestrictionContext);
+	if (!fastPath)
+	{
+		plannerRestrictionContext->joinRestrictionContext =
+			RemoveDuplicateJoinRestrictions(joinRestrictionContext);
+	}
 
 	DistributedPlan *distributedPlan =
 		CreateDistributedPlan(planId, originalQuery, query, boundParams,
@@ -665,6 +671,7 @@ CreateDistributedPlan(uint64 planId, Query *originalQuery, Query *query, ParamLi
 {
 	DistributedPlan *distributedPlan = NULL;
 	bool hasCtes = originalQuery->cteList != NIL;
+	bool fastPath = plannerRestrictionContext->fastPath;
 
 
 	if (IsModifyCommand(originalQuery))
@@ -674,7 +681,7 @@ CreateDistributedPlan(uint64 planId, Query *originalQuery, Query *query, ParamLi
 		Oid targetRelationId = ModifyQueryResultRelationId(query);
 		EnsurePartitionTableNotReplicated(targetRelationId);
 
-		if (InsertSelectIntoDistributedTable(originalQuery))
+		if (!fastPath && InsertSelectIntoDistributedTable(originalQuery))
 		{
 			if (hasUnresolvedParams)
 			{
