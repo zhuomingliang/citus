@@ -260,7 +260,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 														 setPartitionedTablesInherited);
 			}
 		}
-		else
+		else if (!(cursorOptions & CURSOR_OPT_FORCE_LOCAL))
 		{
 			bool hasExternParam = false;
 			DistributedPlan *delegatePlan = TryToDelegateFunctionCall(parse,
