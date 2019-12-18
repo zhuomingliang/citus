@@ -128,6 +128,9 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	bool setPartitionedTablesInherited = false;
 	List *rangeTableList = ExtractRangeTableEntryList(parse);
 	int rteIdCounter = 1;
+	static int fastPathCount = 0;
+	static int nonFastPathCount = 0;
+
 
 	if (cursorOptions & CURSOR_OPT_FORCE_DISTRIBUTED)
 	{
@@ -218,6 +221,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		if (needsDistributedPlanning && FastPathRouterQuery(originalQuery))
 		{
 			result = FastPathPlanner(originalQuery, parse, boundParams);
+			++fastPathCount;
 		}
 		else
 		{
@@ -228,12 +232,19 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 				/* may've inlined new relation rtes */
 				rangeTableList = ExtractRangeTableEntryList(parse);
 				rteIdCounter = AssignRTEIdentities(rangeTableList, rteIdCounter);
+				++nonFastPathCount;
 			}
 		}
 
 		if (needsDistributedPlanning)
 		{
 			uint64 planId = NextPlanId++;
+
+			if (fastPathCount % 1000  == 0)
+				elog(LOG, "Fast path: %d", fastPathCount);
+
+			if (nonFastPathCount % 1000  == 0)
+							elog(LOG, "Fast path: %d", nonFastPathCount);
 
 			result = CreateDistributedPlannedStmt(planId, result, originalQuery, parse,
 												  boundParams, plannerRestrictionContext);
