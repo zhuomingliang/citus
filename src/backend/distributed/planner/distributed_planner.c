@@ -129,6 +129,8 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	List *rangeTableList = NIL;
 	int rteIdCounter = 1;
 	bool fastPathRouterQuery = false;
+	static double fastPathCount = 0;
+	static double nonFastPathCount = 0;
 
 	if (cursorOptions & CURSOR_OPT_FORCE_DISTRIBUTED)
 	{
@@ -233,6 +235,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 			originalQuery = copyObject(parse);
 			result = FastPathPlanner(originalQuery, parse, boundParams);
 			plannerRestrictionContext->fastPath = true;
+			++fastPathCount;
 		}
 		else
 		{
@@ -243,12 +246,16 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 				/* may've inlined new relation rtes */
 				rangeTableList = ExtractRangeTableEntryList(parse);
 				rteIdCounter = AssignRTEIdentities(rangeTableList, rteIdCounter);
+				++nonFastPathCount;
 			}
 		}
 
 		if (needsDistributedPlanning)
 		{
 			uint64 planId = NextPlanId++;
+
+			if ((int)fastPathCount % 1  == 0)
+				elog(LOG, "Fast path: %f", 100  * (fastPathCount / (fastPathCount + nonFastPathCount)));
 
 			result = CreateDistributedPlannedStmt(planId, result, originalQuery, parse,
 												  boundParams, plannerRestrictionContext);
