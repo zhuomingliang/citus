@@ -1840,9 +1840,11 @@ SingleShardSelectTaskList(Query *query, uint64 jobId, List *relationShardList,
 
 	RowLocksOnRelations((Node *) query, &relationRowLockList);
 
-
+	ShardPlacement *shp = FindShardPlacementOnGroup(
+									GetLocalGroupId(),
+									shardId);
 	/* todo: this should only happen when local fast path*/
-	if (!fastPath)
+	if (!(fastPath && shp != NULL))
 	{
 		pg_get_query_def(query, queryString);
 	}
