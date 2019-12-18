@@ -1840,7 +1840,9 @@ SingleShardSelectTaskList(Query *query, uint64 jobId, List *relationShardList,
 
 	RowLocksOnRelations((Node *) query, &relationRowLockList);
 
-	ShardPlacement *shp = FindShardPlacementOnGroup(
+	ShardPlacement *shp= NULL;
+	if (shardId != INVALID_SHARD_ID)
+	shp = FindShardPlacementOnGroup(
 									GetLocalGroupId(),
 									shardId);
 	/* todo: this should only happen when local fast path*/
