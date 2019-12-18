@@ -159,7 +159,7 @@ static List * TargetShardIntervalForFastPathQuery(Query *query,
 												  bool *isMultiShardQuery);
 static List * SingleShardSelectTaskList(Query *query, uint64 jobId,
 										List *relationShardList, List *placementList,
-										uint64 shardId);
+										uint64 shardId, bool fastPath);
 static bool RowLocksOnRelations(Node *node, List **rtiLockList);
 static List * SingleShardModifyTaskList(Query *query, uint64 jobId,
 										List *relationShardList, List *placementList,
@@ -1629,7 +1629,7 @@ ExtractFirstDistributedTableId(Query *query)
 	ListCell *rangeTableCell = NULL;
 	Oid distributedTableId = InvalidOid;
 
-	Assert(IsModifyCommand(query) || FastPathRouterQuery(query));
+/*	Assert(IsModifyCommand(query) || FastPathRouterQuery(query)); */
 
 	foreach(rangeTableCell, rangeTableList)
 	{
@@ -1700,7 +1700,8 @@ RouterJob(Query *originalQuery, PlannerRestrictionContext *plannerRestrictionCon
 	{
 		job->taskList = SingleShardSelectTaskList(originalQuery, job->jobId,
 												  relationShardList, placementList,
-												  shardId);
+												  shardId,
+												  plannerRestrictionContext->fastPath);
 
 		/*
 		 * Queries to reference tables, or distributed tables with multiple replica's have
@@ -1831,14 +1832,20 @@ RemoveCoordinatorPlacement(List *placementList)
 static List *
 SingleShardSelectTaskList(Query *query, uint64 jobId, List *relationShardList,
 						  List *placementList,
-						  uint64 shardId)
+						  uint64 shardId, bool fastPath)
 {
 	Task *task = CreateTask(SELECT_TASK);
 	StringInfo queryString = makeStringInfo();
 	List *relationRowLockList = NIL;
 
 	RowLocksOnRelations((Node *) query, &relationRowLockList);
-	pg_get_query_def(query, queryString);
+
+
+	/* todo: this should only happen when local fast path*/
+	if (!fastPath)
+	{
+		pg_get_query_def(query, queryString);
+	}
 
 	task->queryString = queryString->data;
 	task->anchorShardId = shardId;
@@ -2036,9 +2043,23 @@ PlanRouterQuery(Query *originalQuery,
 	 */
 	if (fastPath)
 	{
-		List *shardIntervalList =
-			TargetShardIntervalForFastPathQuery(originalQuery, partitionValueConst,
-												&isMultiShardQuery);
+		List *shardIntervalList = NIL;
+		if (plannerRestrictionContext->distKey != NULL)
+		{
+			Oid relationId = ExtractFirstDistributedTableId(originalQuery);
+
+			DistTableCacheEntry *cache = DistributedTableCacheEntry(relationId);
+
+			shardIntervalList = list_make1(FindShardInterval(
+											   (plannerRestrictionContext->distKey->constvalue),
+											   cache));
+		}
+		else
+		{
+			shardIntervalList = TargetShardIntervalForFastPathQuery(originalQuery,
+																	partitionValueConst,
+																	&isMultiShardQuery);
+		}
 
 		/*
 		 * This could only happen when there is a parameter on the distribution key.
@@ -2265,15 +2286,13 @@ TargetShardIntervalForFastPathQuery(Query *query, Const **partitionValueConst,
 
 	Oid relationId = ExtractFirstDistributedTableId(query);
 	Node *quals = query->jointree->quals;
-
 	int relationIndex = 1;
-
 	List *prunedShardIntervalList =
 		PruneShards(relationId, relationIndex, make_ands_implicit((Expr *) quals),
 					&queryPartitionValueConst);
 
 	/* we're only expecting single shard from a single table */
-	Assert(FastPathRouterQuery(query));
+/*	Assert(FastPathRouterQuery(query)); */
 
 	if (list_length(prunedShardIntervalList) > 1)
 	{

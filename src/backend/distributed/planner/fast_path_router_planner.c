@@ -56,8 +56,8 @@
 bool EnableFastPathRouterPlanner = true;
 
 static bool ColumnAppearsMultipleTimes(Node *quals, Var *distributionKey);
-static bool ConjunctionContainsColumnFilter(Node *node, Var *column);
-static bool DistKeyInSimpleOpExpression(Expr *clause, Var *distColumn);
+static bool ConjunctionContainsColumnFilter(Node *node, Var *column, Const **);
+static bool DistKeyInSimpleOpExpression(Expr *clause, Var *distColumn, Const **);
 
 
 /*
@@ -92,8 +92,8 @@ FastPathPlanner(Query *originalQuery, Query *parse, ParamListInfo boundParams)
 	 */
 	parse->targetList =
 		(List *) eval_const_expressions(NULL, (Node *) parse->targetList);
-//	parse->jointree->quals =
-//		(Node *) eval_const_expressions(NULL, (Node *) parse->jointree->quals);
+/*	parse->jointree->quals = */
+/*		(Node *) eval_const_expressions(NULL, (Node *) parse->jointree->quals); */
 
 
 	PlannedStmt *result = GeneratePlaceHolderPlannedStmt(originalQuery);
@@ -121,7 +121,7 @@ GeneratePlaceHolderPlannedStmt(Query *parse)
 	SeqScan *seqScanNode = makeNode(SeqScan);
 	Plan *plan = &seqScanNode->plan;
 
-	AssertArg(FastPathRouterQuery(parse));
+/*	AssertArg(FastPathRouterQuery(parse)); */
 
 	/* there is only a single relation rte */
 	seqScanNode->scanrelid = 1;
@@ -161,7 +161,7 @@ GeneratePlaceHolderPlannedStmt(Query *parse)
  *   - No returning for UPDATE/DELETE queries
  */
 bool
-FastPathRouterQuery(Query *query)
+FastPathRouterQuery(Query *query, Const **partitionKeyValue)
 {
 	FromExpr *joinTree = query->jointree;
 	Node *quals = NULL;
@@ -244,7 +244,7 @@ FastPathRouterQuery(Query *query)
 	 *	This is to simplify both of the individual checks and omit various edge cases
 	 *	that might arise with multiple distribution keys in the quals.
 	 */
-	if (ConjunctionContainsColumnFilter(quals, distributionKey) &&
+	if (ConjunctionContainsColumnFilter(quals, distributionKey, partitionKeyValue) &&
 		!ColumnAppearsMultipleTimes(quals, distributionKey))
 	{
 		return true;
@@ -290,7 +290,7 @@ ColumnAppearsMultipleTimes(Node *quals, Var *distributionKey)
  * if the match expression has an AND relation with the rest of the expression tree.
  */
 static bool
-ConjunctionContainsColumnFilter(Node *node, Var *column)
+ConjunctionContainsColumnFilter(Node *node, Var *column, Const **partitionKeyValue)
 {
 	if (node == NULL)
 	{
@@ -302,7 +302,7 @@ ConjunctionContainsColumnFilter(Node *node, Var *column)
 		OpExpr *opExpr = (OpExpr *) node;
 
 		bool distKeyInSimpleOpExpression =
-			DistKeyInSimpleOpExpression((Expr *) opExpr, column);
+			DistKeyInSimpleOpExpression((Expr *) opExpr, column, partitionKeyValue);
 
 		if (!distKeyInSimpleOpExpression)
 		{
@@ -333,7 +333,7 @@ ConjunctionContainsColumnFilter(Node *node, Var *column)
 		{
 			Node *argumentNode = (Node *) lfirst(argumentCell);
 
-			if (ConjunctionContainsColumnFilter(argumentNode, column))
+			if (ConjunctionContainsColumnFilter(argumentNode, column, partitionKeyValue))
 			{
 				return true;
 			}
@@ -350,7 +350,7 @@ ConjunctionContainsColumnFilter(Node *node, Var *column)
  * operands could be in the reverse order as well.
  */
 static bool
-DistKeyInSimpleOpExpression(Expr *clause, Var *distColumn)
+DistKeyInSimpleOpExpression(Expr *clause, Var *distColumn, Const **partitionKeyValue)
 {
 	Node *leftOperand = NULL;
 	Node *rightOperand = NULL;
@@ -387,11 +387,16 @@ DistKeyInSimpleOpExpression(Expr *clause, Var *distColumn)
 	{
 		constantClause = (Const *) rightOperand;
 		columnInExpr = (Var *) leftOperand;
+
+
+		*partitionKeyValue = constantClause;
 	}
 	else if (IsA(leftOperand, Const) && IsA(rightOperand, Var))
 	{
 		constantClause = (Const *) leftOperand;
 		columnInExpr = (Var *) rightOperand;
+
+		*partitionKeyValue = constantClause;
 	}
 	else
 	{

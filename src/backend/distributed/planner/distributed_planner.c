@@ -127,6 +127,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	List *rangeTableList = NIL;
 	int rteIdCounter = 1;
 	bool fastPathRouterQuery = false;
+	Const *distKey = NULL;
 	static double fastPathCount = 0;
 	static double nonFastPathCount = 0;
 
@@ -164,8 +165,9 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 			{
 #include "optimizer/clauses.h"
 				parse->jointree->quals =
-					(Node *) eval_const_expressions(NULL, (Node *) parse->jointree->quals);
-				fastPathRouterQuery = FastPathRouterQuery(parse);
+					(Node *) eval_const_expressions(NULL,
+													(Node *) parse->jointree->quals);
+				fastPathRouterQuery = FastPathRouterQuery(parse, &distKey);
 			}
 		}
 	}
@@ -206,7 +208,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	 * Make sure that we hide shard names on the Citus MX worker nodes. See comments in
 	 * ReplaceTableVisibleFunction() for the details.
 	 */
-	//ReplaceTableVisibleFunction((Node *) parse);
+	/*ReplaceTableVisibleFunction((Node *) parse); */
 
 	/* create a restriction context and put it at the end if context list */
 	PlannerRestrictionContext *plannerRestrictionContext =
@@ -236,6 +238,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 			originalQuery = copyObject(parse);
 			result = FastPathPlanner(originalQuery, parse, boundParams);
 			plannerRestrictionContext->fastPath = true;
+			plannerRestrictionContext->distKey = distKey;
 			++fastPathCount;
 		}
 		else
@@ -255,8 +258,11 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		{
 			uint64 planId = NextPlanId++;
 
-			if ((int)fastPathCount % 1  == 0)
-				elog(LOG, "Fast path: %f", 100  * (fastPathCount / (fastPathCount + nonFastPathCount)));
+			if ((int) fastPathCount % 1000 == 0)
+			{
+				elog(LOG, "Fast path: %f", 100 * (fastPathCount / (fastPathCount +
+																   nonFastPathCount)));
+			}
 
 			result = CreateDistributedPlannedStmt(planId, result, originalQuery, parse,
 												  boundParams, plannerRestrictionContext);

@@ -109,8 +109,8 @@ static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
 											   Oid **parameterTypes,
 											   const char ***parameterValues);
 
-static PlannedStmt *
-LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParams);
+static PlannedStmt * LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo
+										  boundParams);
 
 
 /*
@@ -146,8 +146,9 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		Task *task = (Task *) lfirst(taskCell);
 
 		const char *shardQueryString = task->queryString;
-		PlannedStmt *localPlan = LocalTaskPlannedStmt(scanState->distributedPlan->workerJob->jobQuery, task, paramListInfo);
-		//Query *shardQuery = ParseQueryString(shardQueryString, parameterTypes, numParams);
+		PlannedStmt *localPlan = LocalTaskPlannedStmt(
+			scanState->distributedPlan->workerJob->jobQuery, task, paramListInfo);
+		/*Query *shardQuery = ParseQueryString(shardQueryString, parameterTypes, numParams); */
 
 
 		/*
@@ -158,7 +159,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		 * implemented. So, let planner to call distributed_planner() which
 		 * eventually calls standard_planner().
 		 */
-		//PlannedStmt *localPlan = planner(shardQuery, cursorOptions, paramListInfo);
+		/*PlannedStmt *localPlan = planner(shardQuery, cursorOptions, paramListInfo); */
 
 		LogLocalCommand(shardQueryString);
 
@@ -168,6 +169,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 
 	return totalRowsProcessed;
 }
+
 
 /*
  * LocalTaskPlannedStmt builds a PlannedStmt for an individual task that can be
@@ -265,14 +267,15 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 	ReplaceShardReferencesWalker((Node *) shardQuery, task);
 
 	CreateAndPushPlannerRestrictionContext();
+
 	/*
-		 * We should not consider using CURSOR_OPT_FORCE_DISTRIBUTED in case of
-		 * intermediate results in the query. That'd trigger ExecuteLocalTaskPlan()
-		 * go through the distributed executor, which we do not want since the
-		 * query is already known to be local.
-		 */
-		int cursorOptions = 0;
-		cursorOptions |= CURSOR_OPT_FORCE_LOCAL;
+	 * We should not consider using CURSOR_OPT_FORCE_DISTRIBUTED in case of
+	 * intermediate results in the query. That'd trigger ExecuteLocalTaskPlan()
+	 * go through the distributed executor, which we do not want since the
+	 * query is already known to be local.
+	 */
+	int cursorOptions = 0;
+	cursorOptions |= CURSOR_OPT_FORCE_LOCAL;
 
 	PG_TRY();
 	{
