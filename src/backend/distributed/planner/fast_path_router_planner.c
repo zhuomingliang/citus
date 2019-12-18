@@ -92,8 +92,8 @@ FastPathPlanner(Query *originalQuery, Query *parse, ParamListInfo boundParams)
 	 */
 	parse->targetList =
 		(List *) eval_const_expressions(NULL, (Node *) parse->targetList);
-	parse->jointree->quals =
-		(Node *) eval_const_expressions(NULL, (Node *) parse->jointree->quals);
+//	parse->jointree->quals =
+//		(Node *) eval_const_expressions(NULL, (Node *) parse->jointree->quals);
 
 
 	PlannedStmt *result = GeneratePlaceHolderPlannedStmt(originalQuery);
@@ -300,6 +300,7 @@ ConjunctionContainsColumnFilter(Node *node, Var *column)
 	if (IsA(node, OpExpr))
 	{
 		OpExpr *opExpr = (OpExpr *) node;
+
 		bool distKeyInSimpleOpExpression =
 			DistKeyInSimpleOpExpression((Expr *) opExpr, column);
 

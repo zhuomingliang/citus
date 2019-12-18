@@ -164,6 +164,9 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 			needsDistributedPlanning = ListContainsDistributedTableRTE(rangeTableList);
 			if (needsDistributedPlanning)
 			{
+#include "optimizer/clauses.h"
+				parse->jointree->quals =
+					(Node *) eval_const_expressions(NULL, (Node *) parse->jointree->quals);
 				fastPathRouterQuery = FastPathRouterQuery(parse);
 			}
 		}
