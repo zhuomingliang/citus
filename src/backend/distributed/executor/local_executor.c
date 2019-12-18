@@ -109,6 +109,9 @@ static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
 											   Oid **parameterTypes,
 											   const char ***parameterValues);
 
+static PlannedStmt *
+LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParams);
+
 
 /*
  * ExecuteLocalTasks gets a CitusScanState node and list of local tasks.
@@ -143,16 +146,10 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		Task *task = (Task *) lfirst(taskCell);
 
 		const char *shardQueryString = task->queryString;
-		Query *shardQuery = ParseQueryString(shardQueryString, parameterTypes, numParams);
+		PlannedStmt *localPlan = LocalTaskPlannedStmt(scanState->distributedPlan->workerJob->jobQuery, task, paramListInfo);
+		//Query *shardQuery = ParseQueryString(shardQueryString, parameterTypes, numParams);
 
-		/*
-		 * We should not consider using CURSOR_OPT_FORCE_DISTRIBUTED in case of
-		 * intermediate results in the query. That'd trigger ExecuteLocalTaskPlan()
-		 * go through the distributed executor, which we do not want since the
-		 * query is already known to be local.
-		 */
-		int cursorOptions = 0;
-		cursorOptions |= CURSOR_OPT_FORCE_LOCAL;
+
 		/*
 		 * Altough the shardQuery is local to this node, we prefer planner()
 		 * over standard_planner(). The primary reason for that is Citus itself
@@ -161,7 +158,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		 * implemented. So, let planner to call distributed_planner() which
 		 * eventually calls standard_planner().
 		 */
-		PlannedStmt *localPlan = planner(shardQuery, cursorOptions, paramListInfo);
+		//PlannedStmt *localPlan = planner(shardQuery, cursorOptions, paramListInfo);
 
 		LogLocalCommand(shardQueryString);
 
@@ -170,6 +167,128 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 	}
 
 	return totalRowsProcessed;
+}
+
+/*
+ * LocalTaskPlannedStmt builds a PlannedStmt for an individual task that can be
+ * executed on the local node.
+ */
+#include "parser/parsetree.h"
+
+#include "distributed/citus_ruleutils.h"
+#include "distributed/deparse_shard_query.h"
+#include "distributed/citus_nodefuncs.h"
+#include "utils/snapmgr.h"
+#include "utils/queryenvironment.h"
+#include "utils/lsyscache.h"
+#include "nodes/nodeFuncs.h"
+#include "parser/parsetree.h"
+#include "optimizer/planner.h"
+#include "distributed/multi_logical_planner.h"
+#include "executor/tstoreReceiver.h"
+#include "catalog/namespace.h"
+#include "nodes/makefuncs.h"
+
+/*
+ *
+ * ReplaceShardReferencesWalker replaces RTE_SHARDs with proper RTEs for the local
+ * shards..
+ */
+static bool
+ReplaceShardReferencesWalker(Node *node, Task *task)
+{
+	if (node == NULL)
+	{
+		return false;
+	}
+
+	if (IsA(node, RangeTblEntry))
+	{
+		RangeTblEntry *rangeTableEntry = (RangeTblEntry *) node;
+
+		if (GetRangeTblKind(rangeTableEntry) == CITUS_RTE_SHARD)
+		{
+			char *schemaName = NULL;
+			char *shardTableName = NULL;
+			RangeVar *rangeVar = NULL;
+			bool failOK = false;
+			Oid shardRelationId = InvalidOid;
+
+			/* job query from the router planner has a shard name */
+			ExtractRangeTblExtraData(rangeTableEntry, NULL, &schemaName,
+									 &shardTableName, NULL);
+
+			rangeVar = makeRangeVar(schemaName, shardTableName, -1);
+			shardRelationId = RangeVarGetRelid(rangeVar, AccessShareLock, failOK);
+
+			/* change citus_extradata_container call into shard */
+			rangeTableEntry->rtekind = RTE_RELATION;
+			rangeTableEntry->relid = shardRelationId;
+			rangeTableEntry->functions = NIL;
+		}
+
+		/* caller will descend into range table entry */
+		return false;
+	}
+	else if (IsA(node, Query))
+	{
+		return query_tree_walker((Query *) node, ReplaceShardReferencesWalker, task,
+								 QTW_EXAMINE_RTES);
+	}
+	else
+	{
+		return expression_tree_walker(node, ReplaceShardReferencesWalker, task);
+	}
+}
+
+
+static PlannedStmt *
+LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParams)
+{
+	Query *shardQuery = copyObject(workerJobQuery);
+	PlannedStmt *localPlan = NULL;
+
+	/* add a RelationShard for the result relation, TODO: move into planner(s) */
+	if (shardQuery->resultRelation != 0)
+	{
+		RangeTblEntry *rangeTableEntry = rt_fetch(shardQuery->resultRelation,
+												  shardQuery->rtable);
+		RelationShard *relationShard = CitusMakeNode(RelationShard);
+
+		relationShard->relationId = rangeTableEntry->relid;
+		relationShard->shardId = task->anchorShardId;
+
+		task->relationShardList = lcons(relationShard, task->relationShardList);
+	}
+
+	UpdateRelationToShardNames((Node *) shardQuery, task->relationShardList);
+	ReplaceShardReferencesWalker((Node *) shardQuery, task);
+
+	//CreateAndPushPlannerRestrictionContext();
+	/*
+		 * We should not consider using CURSOR_OPT_FORCE_DISTRIBUTED in case of
+		 * intermediate results in the query. That'd trigger ExecuteLocalTaskPlan()
+		 * go through the distributed executor, which we do not want since the
+		 * query is already known to be local.
+		 */
+		int cursorOptions = 0;
+		cursorOptions |= CURSOR_OPT_FORCE_LOCAL;
+
+	PG_TRY();
+	{
+		localPlan = standard_planner(shardQuery, cursorOptions, boundParams);
+	}
+	PG_CATCH();
+	{
+		/* TODO: use memory context callback? */
+	//	PopPlannerRestrictionContext();
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+
+//	PopPlannerRestrictionContext();
+
+	return localPlan;
 }
 
 
