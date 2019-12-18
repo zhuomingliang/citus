@@ -708,7 +708,10 @@ CreateDistributedPlan(uint64 planId, Query *originalQuery, Query *query, ParamLi
 
 		if (distributedPlan->planningError == NULL)
 		{
-			FinalizeDistributedPlan(distributedPlan, originalQuery);
+			if (!fastPath)
+			{
+				FinalizeDistributedPlan(distributedPlan, originalQuery);
+			}
 
 			return distributedPlan;
 		}
@@ -730,7 +733,10 @@ CreateDistributedPlan(uint64 planId, Query *originalQuery, Query *query, ParamLi
 										   plannerRestrictionContext);
 		if (distributedPlan->planningError == NULL)
 		{
-			FinalizeDistributedPlan(distributedPlan, originalQuery);
+			if (!fastPath)
+			{
+				FinalizeDistributedPlan(distributedPlan, originalQuery);
+			}
 
 			return distributedPlan;
 		}
