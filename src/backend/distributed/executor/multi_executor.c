@@ -122,6 +122,7 @@ CitusExecutorRun(QueryDesc *queryDesc,
 				 ScanDirection direction, uint64 count, bool execute_once)
 {
 	DestReceiver *dest = queryDesc->dest;
+	bool localQuery = queryDesc->instrument_options & CURSOR_OPT_FORCE_LOCAL;
 
 	PG_TRY();
 	{
@@ -129,7 +130,7 @@ CitusExecutorRun(QueryDesc *queryDesc,
 
 		if (CitusHasBeenLoaded())
 		{
-			if (IsLocalReferenceTableJoinPlan(queryDesc->plannedstmt) &&
+			if (!localQuery && IsLocalReferenceTableJoinPlan(queryDesc->plannedstmt) &&
 				IsMultiStatementTransaction())
 			{
 				/*
@@ -159,7 +160,7 @@ CitusExecutorRun(QueryDesc *queryDesc,
 		 * to not execute the queries and return an empty result set, as if this table has
 		 * no rows, so no constraints will be violated.
 		 */
-		if (AlterTableConstraintCheck(queryDesc))
+		if (!localQuery && AlterTableConstraintCheck(queryDesc))
 		{
 			EState *estate = queryDesc->estate;
 

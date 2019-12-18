@@ -152,7 +152,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		 * query is already known to be local.
 		 */
 		int cursorOptions = 0;
-
+		cursorOptions |= CURSOR_OPT_FORCE_LOCAL;
 		/*
 		 * Altough the shardQuery is local to this node, we prefer planner()
 		 * over standard_planner(). The primary reason for that is Citus itself
@@ -330,7 +330,7 @@ ExecuteLocalTaskPlan(CitusScanState *scanState, PlannedStmt *taskPlan, char *que
 	QueryDesc *queryDesc = CreateQueryDesc(taskPlan, queryString,
 										   GetActiveSnapshot(), InvalidSnapshot,
 										   tupleStoreDestReceiever, paramListInfo,
-										   queryEnv, 0);
+										   queryEnv, CURSOR_OPT_FORCE_LOCAL);
 
 	ExecutorStart(queryDesc, eflags);
 	ExecutorRun(queryDesc, scanDirection, 0L, true);
