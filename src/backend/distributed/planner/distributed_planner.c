@@ -170,7 +170,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 #include "distributed/local_executor.h"
 #include "distributed/placement_connection.h"
 							if (shp != NULL && !ReferenceTableShardId(sh->shardId) &&
-								!LocalExecutionHappened &&
+								//!LocalExecutionHappened &&
 								!AnyConnectionAccessedPlacements())
 							{
 								UpdateReferenceTablesWithShard((Node *) parse, sh);
