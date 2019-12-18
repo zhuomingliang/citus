@@ -128,6 +128,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	bool setPartitionedTablesInherited = false;
 	List *rangeTableList = ExtractRangeTableEntryList(parse);
 	int rteIdCounter = 1;
+	bool fastPathRouterQuery = false;
 
 	if (cursorOptions & CURSOR_OPT_FORCE_DISTRIBUTED)
 	{
@@ -151,10 +152,14 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		else
 		{
 			needsDistributedPlanning = ListContainsDistributedTableRTE(rangeTableList);
+			if (needsDistributedPlanning)
+			{
+				fastPathRouterQuery = FastPathRouterQuery(parse);
+			}
 		}
 	}
 
-	if (needsDistributedPlanning)
+	if (needsDistributedPlanning && !fastPathRouterQuery)
 	{
 		/*
 		 * Inserting into a local table needs to go through the regular postgres
@@ -215,8 +220,9 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		 * transformations made by postgres' planner.
 		 */
 
-		if (needsDistributedPlanning && FastPathRouterQuery(originalQuery))
+		if (needsDistributedPlanning && fastPathRouterQuery)
 		{
+			originalQuery = copyObject(parse);
 			result = FastPathPlanner(originalQuery, parse, boundParams);
 		}
 		else
@@ -238,9 +244,12 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 			result = CreateDistributedPlannedStmt(planId, result, originalQuery, parse,
 												  boundParams, plannerRestrictionContext);
 
-			setPartitionedTablesInherited = true;
-			AdjustPartitioningForDistributedPlanning(rangeTableList,
-													 setPartitionedTablesInherited);
+			if (!fastPathRouterQuery)
+			{
+				setPartitionedTablesInherited = true;
+				AdjustPartitioningForDistributedPlanning(rangeTableList,
+														 setPartitionedTablesInherited);
+			}
 		}
 		else
 		{
