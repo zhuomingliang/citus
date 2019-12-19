@@ -168,7 +168,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		 * don't have a way of doing both things and therefore error out, but do
 		 * have a handy tip for users.
 		 */
-		if (InsertSelectIntoLocalTable(parse))
+		if (!fastPathRouterQuery && InsertSelectIntoLocalTable(parse))
 		{
 			ereport(ERROR, (errmsg("cannot INSERT rows from a distributed query into a "
 								   "local table"),
@@ -183,13 +183,23 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		 * set, which doesn't break our goals, but, prevents us keeping an extra copy
 		 * of the query tree. Note that we copy the query tree once we're sure it's a
 		 * distributed query.
+		 *
+		 * Since fast-path queries do not through standard planner, we skip unnecessary
+		 * parts in that case.
 		 */
-		rteIdCounter = AssignRTEIdentities(rangeTableList, rteIdCounter);
-		originalQuery = copyObject(parse);
+		if (!fastPathRouterQuery)
+		{
+			rteIdCounter = AssignRTEIdentities(rangeTableList, rteIdCounter);
+			originalQuery = copyObject(parse);
 
-		setPartitionedTablesInherited = false;
-		AdjustPartitioningForDistributedPlanning(rangeTableList,
-												 setPartitionedTablesInherited);
+			setPartitionedTablesInherited = false;
+			AdjustPartitioningForDistributedPlanning(rangeTableList,
+													 setPartitionedTablesInherited);
+		}
+		else
+		{
+			originalQuery = copyObject(parse);
+		}
 	}
 
 	/*
@@ -249,9 +259,12 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 			result = CreateDistributedPlannedStmt(planId, result, originalQuery, parse,
 												  boundParams, plannerRestrictionContext);
 
-			setPartitionedTablesInherited = true;
-			AdjustPartitioningForDistributedPlanning(rangeTableList,
-													 setPartitionedTablesInherited);
+			if (!fastPathRouterQuery)
+			{
+				setPartitionedTablesInherited = true;
+				AdjustPartitioningForDistributedPlanning(rangeTableList,
+														 setPartitionedTablesInherited);
+			}
 		}
 		else
 		{
@@ -573,14 +586,20 @@ CreateDistributedPlannedStmt(uint64 planId, PlannedStmt *localPlan, Query *origi
 	bool hasUnresolvedParams = false;
 	JoinRestrictionContext *joinRestrictionContext =
 		plannerRestrictionContext->joinRestrictionContext;
+	bool fastPathRouterQuery =
+		plannerRestrictionContext->fastPathRestrictionContext->fastPathRouterQuery;
 
 	if (HasUnresolvedExternParamsWalker((Node *) originalQuery, boundParams))
 	{
 		hasUnresolvedParams = true;
 	}
 
-	plannerRestrictionContext->joinRestrictionContext =
-		RemoveDuplicateJoinRestrictions(joinRestrictionContext);
+	/* fast-path queries don't have restrictions, just skip */
+	if (!fastPathRouterQuery)
+	{
+		plannerRestrictionContext->joinRestrictionContext =
+			RemoveDuplicateJoinRestrictions(joinRestrictionContext);
+	}
 
 	DistributedPlan *distributedPlan =
 		CreateDistributedPlan(planId, originalQuery, query, boundParams,
@@ -667,7 +686,8 @@ CreateDistributedPlan(uint64 planId, Query *originalQuery, Query *query, ParamLi
 {
 	DistributedPlan *distributedPlan = NULL;
 	bool hasCtes = originalQuery->cteList != NIL;
-
+	bool fastPathRouterQuery =
+		plannerRestrictionContext->fastPathRestrictionContext->fastPathRouterQuery;
 
 	if (IsModifyCommand(originalQuery))
 	{
@@ -703,7 +723,10 @@ CreateDistributedPlan(uint64 planId, Query *originalQuery, Query *query, ParamLi
 
 		if (distributedPlan->planningError == NULL)
 		{
-			FinalizeDistributedPlan(distributedPlan, originalQuery);
+			if (!fastPathRouterQuery)
+			{
+				FinalizeDistributedPlan(distributedPlan, originalQuery);
+			}
 
 			return distributedPlan;
 		}
@@ -725,7 +748,10 @@ CreateDistributedPlan(uint64 planId, Query *originalQuery, Query *query, ParamLi
 										   plannerRestrictionContext);
 		if (distributedPlan->planningError == NULL)
 		{
-			FinalizeDistributedPlan(distributedPlan, originalQuery);
+			if (!fastPathRouterQuery)
+			{
+				FinalizeDistributedPlan(distributedPlan, originalQuery);
+			}
 
 			return distributedPlan;
 		}
