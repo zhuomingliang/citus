@@ -40,13 +40,13 @@
 
 static bool CallFuncExprRemotely(CallStmt *callStmt,
 								 DistObjectCacheEntry *procedure,
-								 FuncExpr *funcExpr, DestReceiver *dest);
+								 FuncExpr *funcExpr, DestReceiver *dest, char *queryString);
 
 /*
  * CallDistributedProcedureRemotely calls a stored procedure on the worker if possible.
  */
 bool
-CallDistributedProcedureRemotely(CallStmt *callStmt, DestReceiver *dest)
+CallDistributedProcedureRemotely(CallStmt *callStmt, DestReceiver *dest, char *queryString)
 {
 	FuncExpr *funcExpr = callStmt->funcexpr;
 	Oid functionId = funcExpr->funcid;
@@ -58,7 +58,7 @@ CallDistributedProcedureRemotely(CallStmt *callStmt, DestReceiver *dest)
 		return false;
 	}
 
-	return CallFuncExprRemotely(callStmt, procedure, funcExpr, dest);
+	return CallFuncExprRemotely(callStmt, procedure, funcExpr, dest, queryString);
 }
 
 
@@ -67,7 +67,7 @@ CallDistributedProcedureRemotely(CallStmt *callStmt, DestReceiver *dest)
  */
 static bool
 CallFuncExprRemotely(CallStmt *callStmt, DistObjectCacheEntry *procedure,
-					 FuncExpr *funcExpr, DestReceiver *dest)
+					 FuncExpr *funcExpr, DestReceiver *dest, char *queryString)
 {
 	if (IsMultiStatementTransaction())
 	{
@@ -155,7 +155,7 @@ CallFuncExprRemotely(CallStmt *callStmt, DistObjectCacheEntry *procedure,
 
 	/* build remote command with fully qualified names */
 	StringInfo callCommand = makeStringInfo();
-	appendStringInfo(callCommand, "CALL %s", pg_get_rule_expr((Node *) funcExpr));
+	appendStringInfo(callCommand, "%s", queryString);
 
 	{
 		Tuplestorestate *tupleStore = tuplestore_begin_heap(true, false, work_mem);

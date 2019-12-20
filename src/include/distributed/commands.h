@@ -25,7 +25,7 @@ extern List * PlanClusterStmt(ClusterStmt *clusterStmt, const char *clusterComma
 
 
 /* call.c */
-extern bool CallDistributedProcedureRemotely(CallStmt *callStmt, DestReceiver *dest);
+extern bool CallDistributedProcedureRemotely(CallStmt *callStmt, DestReceiver *dest, char *queryString);
 
 /* collation.c - forward declarations */
 extern char * CreateCollationDDL(Oid collationId);
