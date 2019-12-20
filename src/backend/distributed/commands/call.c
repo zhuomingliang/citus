@@ -75,7 +75,7 @@ CallFuncExprRemotely(CallStmt *callStmt, DistObjectCacheEntry *procedure,
 		return false;
 	}
 
-	Oid colocatedRelationId = 1;//ColocatedTableId(procedure->colocationId);
+	Oid colocatedRelationId = 16943;
 	if (colocatedRelationId == InvalidOid)
 	{
 		ereport(DEBUG1, (errmsg("stored procedure does not have co-located tables")));
