@@ -2316,7 +2316,7 @@ PlanRouterQuery(Query *originalQuery,
 
 	if (fastPathCount % 10000 == 0)
 	{
-		elog(WARNING, "router planner local path ratio: %f", 100.0 * localFastPathCount / (1.0 * fastPathCount + localFastPathCount));
+		elog(WARNING, "router planner local path ratio: %f", 100.0 * localFastPathCount / (1.0 * fastPathCount));
 		elog(WARNING, "stage0: %d stage1: %d -stage2: %d -stage3: %d -stage4: %d -stage5: %d - stage6:%d", stage0, stage1, stage2, stage3, stage4,stage5, stage6);
 	}
 
