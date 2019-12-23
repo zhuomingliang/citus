@@ -202,7 +202,7 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 		shardQuery = ParseQueryString(task->queryString, parameterTypes, numParams);
 
 		if (nonFastPathCount % 100 == 1000)
-			elog(WARNING, "%s", task->queryString);
+			elog(WARNING, "nonFastPathCount: %s", task->queryString);
 	}
 
 	int cursorOptions = CURSOR_OPT_FORCE_LOCAL;
