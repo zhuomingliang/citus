@@ -4,7 +4,7 @@ SET search_path TO bool_agg;
 CREATE TABLE bool_test (id int, val int, flag bool, kind int);
 SELECT create_distributed_table('bool_agg.bool_test','id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

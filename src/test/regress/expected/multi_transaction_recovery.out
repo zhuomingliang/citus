@@ -18,14 +18,14 @@ SET citus.force_max_query_parallelization TO ON;
 ALTER SYSTEM SET citus.recover_2pc_interval TO -1;
 SELECT pg_reload_conf();
  pg_reload_conf 
-----------------
+---------------------------------------------------------------------
  t
 (1 row)
 
 -- Ensure pg_dist_transaction is empty
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              0
 (1 row)
 
@@ -58,7 +58,7 @@ INSERT INTO pg_dist_transaction VALUES (1, 'citus_0_should_be_forgotten'),
                                        (0, 'citus_0_should_be_forgotten');
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              6
 (1 row)
 
@@ -106,7 +106,7 @@ SET citus.multi_shard_commit_protocol TO '2pc';
 CREATE TABLE test_recovery (x text);
 SELECT create_distributed_table('test_recovery', 'x');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -120,7 +120,7 @@ SELECT count(*) >= 2 FROM pg_dist_transaction;
 CREATE TABLE test_recovery_ref (x text);
 SELECT create_reference_table('test_recovery_ref');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -132,7 +132,7 @@ SELECT count(*) >= 4 FROM pg_dist_transaction;
 
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              0
 (1 row)
 
@@ -164,7 +164,7 @@ SELECT count(*) FROM pg_dist_transaction;
 
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              0
 (1 row)
 
@@ -194,7 +194,7 @@ SELECT count(*) FROM pg_dist_transaction;
 
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              0
 (1 row)
 
@@ -208,7 +208,7 @@ SELECT count(*) FROM pg_dist_transaction;
 
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              0
 (1 row)
 
@@ -222,7 +222,7 @@ SELECT count(*) FROM pg_dist_transaction;
 
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              0
 (1 row)
 
@@ -233,7 +233,7 @@ CREATE TABLE test_recovery_single (LIKE test_recovery);
 -- one connection/transaction per node
 SELECT create_distributed_table('test_recovery_single', 'x');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -252,7 +252,7 @@ SELECT count(*) FROM pg_dist_transaction;
 
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              0
 (1 row)
 
@@ -271,7 +271,7 @@ SELECT count(*) FROM pg_dist_transaction;
 
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              0
 (1 row)
 
@@ -302,7 +302,7 @@ SELECT count(*) FROM pg_dist_transaction;
 
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              0
 (1 row)
 
@@ -335,7 +335,7 @@ SELECT count(*) FROM pg_dist_transaction;
 ALTER SYSTEM SET citus.recover_2pc_interval TO 10;
 SELECT pg_reload_conf();
  pg_reload_conf 
-----------------
+---------------------------------------------------------------------
  t
 (1 row)
 
@@ -355,7 +355,7 @@ SELECT count(*) FROM pg_dist_transaction;
 ALTER SYSTEM RESET citus.recover_2pc_interval;
 SELECT pg_reload_conf();
  pg_reload_conf 
-----------------
+---------------------------------------------------------------------
  t
 (1 row)
 

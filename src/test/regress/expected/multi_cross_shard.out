@@ -11,7 +11,7 @@ CREATE TABLE multi_task_table
 );
 SELECT create_distributed_table('multi_task_table', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -21,7 +21,7 @@ INSERT INTO multi_task_table VALUES(3, 'elem_3');
 -- Shouldn't log anything when the log level is 'off'
 SHOW citus.multi_task_query_log_level;
  citus.multi_task_query_log_level 
-----------------------------------
+---------------------------------------------------------------------
  off
 (1 row)
 
@@ -49,7 +49,7 @@ SELECT AVG(id) AS avg_id FROM multi_task_table;
 NOTICE:  multi-task query about to be executed
 HINT:  Queries are split to multiple tasks if they have to be split into several queries on the workers.
        avg_id       
---------------------
+---------------------------------------------------------------------
  2.0000000000000000
 (1 row)
 
@@ -71,13 +71,13 @@ CREATE TABLE summary_table
 );
 SELECT create_distributed_table('raw_table', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('summary_table', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -139,7 +139,7 @@ SET citus.multi_task_query_log_level TO notice;
 -- Shouldn't log since it is a router select query
 SELECT * FROM raw_table WHERE ID = 1;
  id | order_count 
-----+-------------
+---------------------------------------------------------------------
   1 |          15
   1 |          20
 (2 rows)
@@ -158,13 +158,13 @@ CREATE TABLE tt2
 );
 SELECT create_distributed_table('tt1', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('tt2', 'name');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

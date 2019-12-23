@@ -34,13 +34,13 @@ CREATE TABLE authors_reference ( name varchar(20), id bigint );
 CREATE TABLE articles_single_shard_hash (LIKE articles_hash);
 SELECT master_create_distributed_table('articles_hash', 'author_id', 'hash');
  master_create_distributed_table 
----------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT master_create_distributed_table('articles_single_shard_hash', 'author_id', 'hash');
  master_create_distributed_table 
----------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -53,19 +53,19 @@ SELECT count(*) from articles_hash;
 
 SELECT master_create_worker_shards('articles_hash', 2, 1);
  master_create_worker_shards 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT master_create_worker_shards('articles_single_shard_hash', 1, 1);
  master_create_worker_shards 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_reference_table('authors_reference');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -190,7 +190,7 @@ SELECT title, author_id FROM articles_hash
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
     title    | author_id 
--------------+-----------
+---------------------------------------------------------------------
  aseptic     |         7
  auriga      |         7
  arsenous    |         7
@@ -209,7 +209,7 @@ SELECT title, author_id FROM articles_hash
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
     title    | author_id 
--------------+-----------
+---------------------------------------------------------------------
  aseptic     |         7
  agatized    |         8
  auriga      |         7
@@ -232,7 +232,7 @@ SELECT author_id, sum(word_count) AS corpus_size FROM articles_hash
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  author_id | corpus_size 
------------+-------------
+---------------------------------------------------------------------
         10 |       59955
          8 |       55410
          7 |       36756
@@ -249,7 +249,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  author_id | corpus_size 
------------+-------------
+---------------------------------------------------------------------
          1 |       35894
 (1 row)
 
@@ -258,7 +258,7 @@ DETAIL:  distribution column value: 1
 SELECT * FROM articles_hash WHERE author_id <= 1 ORDER BY id;
 DEBUG:  Router planner cannot handle multi-shard select queries
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -270,7 +270,7 @@ SELECT * FROM articles_hash WHERE author_id IN (1, 3) ORDER BY id;
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
   3 |         3 | asternal     |      10480
  11 |         1 | alamo        |       1347
@@ -288,7 +288,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -318,7 +318,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
     title     
---------------
+---------------------------------------------------------------------
  arsenous
  alamo
  arcading
@@ -334,7 +334,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id | id |    title     
-----+-----------+----+--------------
+---------------------------------------------------------------------
   1 |         1 |  1 | arsenous
  11 |         1 | 11 | alamo
  21 |         1 | 21 | arcading
@@ -375,13 +375,13 @@ DEBUG:  Plan is router executable
 CREATE TABLE company_employees (company_id int, employee_id int, manager_id int);
 SELECT master_create_distributed_table('company_employees', 'company_id', 'hash');
  master_create_distributed_table 
----------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT master_create_worker_shards('company_employees', 4, 1);
  master_create_worker_shards 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -433,7 +433,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  company_id | employee_id | manager_id | level 
-------------+-------------+------------+-------
+---------------------------------------------------------------------
           1 |           1 |          0 |     1
           1 |           2 |          1 |     2
           1 |           3 |          1 |     2
@@ -527,8 +527,6 @@ WITH new_article AS (
 )
 SELECT * FROM new_article;
 ERROR:  WITH clause containing a data-modifying statement must be at the top level
-LINE 2:     WITH nested_cte AS (
-                 ^
 -- Modifying statement in a CTE in subquery is also covered by PostgreSQL
 SELECT * FROM (
     WITH new_article AS (
@@ -537,8 +535,6 @@ SELECT * FROM (
     SELECT * FROM new_article
 ) AS subquery_cte;
 ERROR:  WITH clause containing a data-modifying statement must be at the top level
-LINE 2:     WITH new_article AS (
-                 ^
 -- grouping sets are supported on single shard
 SELECT
 	id, substring(title, 2, 1) AS subtitle, count(*)
@@ -586,7 +582,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count | position 
-----+-----------+--------------+------------+----------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572 |        3
  11 |         1 | alamo        |       1347 |        3
  21 |         1 | arcading     |       5890 |        3
@@ -598,7 +594,7 @@ SELECT * FROM articles_hash, position('om' in 'Thomas') WHERE author_id = 1 or a
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  id | author_id |    title     | word_count | position 
-----+-----------+--------------+------------+----------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572 |        3
   3 |         3 | asternal     |      10480 |        3
  11 |         1 | alamo        |       1347 |        3
@@ -694,7 +690,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -709,7 +705,7 @@ SELECT *
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -725,7 +721,7 @@ SELECT *
 ORDER BY 4 DESC, 3 DESC, 2 DESC, 1 DESC;
 DEBUG:  Router planner cannot handle multi-shard select queries
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
  41 |         1 | aznavour     |      11814
   1 |         1 | arsenous     |       9572
  31 |         1 | athwartships |       7271
@@ -741,7 +737,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  article_id | random_value 
-------------+--------------
+---------------------------------------------------------------------
           1 |         9572
          11 |        14817
          21 |       123690
@@ -758,7 +754,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 10
  first_author | second_word_count 
---------------+-------------------
+---------------------------------------------------------------------
            10 |             17277
            10 |              1820
            10 |              6363
@@ -774,7 +770,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 10
  first_author | second_word_count 
---------------+-------------------
+---------------------------------------------------------------------
            10 |             19519
            10 |             19519
            10 |             19519
@@ -798,7 +794,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 2
  first_author | second_word_count 
---------------+-------------------
+---------------------------------------------------------------------
 (0 rows)
 
 -- single shard select with limit is router plannable
@@ -842,7 +838,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
  31 |         1 | athwartships |       7271
  21 |         1 | arcading     |       5890
 (2 rows)
@@ -890,7 +886,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 2
         avg         
---------------------
+---------------------------------------------------------------------
  12356.400000000000
 (1 row)
 
@@ -930,7 +926,7 @@ ORDER BY id;
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
   3 |         3 | asternal     |      10480
  11 |         1 | alamo        |       1347
@@ -990,7 +986,7 @@ UNION
 (SELECT * FROM articles_hash WHERE author_id = 2)
 ORDER BY 1,2,3;
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
   2 |         2 | abducing     |      13642
   3 |         3 | asternal     |      10480
@@ -1037,7 +1033,7 @@ SELECT *
 	WHERE a.id = b.id  AND a.author_id = 1
 ORDER BY 1 DESC;
  id | author_id |    title     | word_count | id | author_id |    title     | word_count 
-----+-----------+--------------+------------+----+-----------+--------------+------------
+---------------------------------------------------------------------
  41 |         1 | aznavour     |      11814 | 41 |         1 | aznavour     |      11814
  31 |         1 | athwartships |       7271 | 31 |         1 | athwartships |       7271
  21 |         1 | arcading     |       5890 | 21 |         1 | arcading     |       5890
@@ -1053,7 +1049,7 @@ SELECT *
 	WHERE author_id >= 1 AND author_id <= 3
 ORDER BY 1,2,3,4;
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
   2 |         2 | abducing     |      13642
   3 |         3 | asternal     |      10480
@@ -1083,7 +1079,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1097,7 +1093,7 @@ SELECT *
 	WHERE author_id = 1 or id = 1;
 DEBUG:  Router planner cannot handle multi-shard select queries
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1135,7 +1131,7 @@ SELECT *
 	WHERE author_id = (random()::int  * 0 + 1);
 DEBUG:  Router planner cannot handle multi-shard select queries
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1149,7 +1145,7 @@ SELECT *
 	WHERE author_id = 1 or id = 1;
 DEBUG:  Router planner cannot handle multi-shard select queries
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1165,7 +1161,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1179,7 +1175,7 @@ SELECT *
 	WHERE 1 = abs(author_id);
 DEBUG:  Router planner cannot handle multi-shard select queries
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1193,7 +1189,7 @@ SELECT *
 	WHERE author_id = abs(author_id - 2);
 DEBUG:  Router planner cannot handle multi-shard select queries
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1219,7 +1215,7 @@ SELECT *
 	WHERE (author_id = 1) is true;
 DEBUG:  Router planner cannot handle multi-shard select queries
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1235,7 +1231,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1264,7 +1260,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  31 |         1 | athwartships |       7271
 (2 rows)
@@ -1277,7 +1273,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  31 |         1 | athwartships |       7271
 (2 rows)
@@ -1290,7 +1286,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1366,7 +1362,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | word_count |          avg          
-----+------------+-----------------------
+---------------------------------------------------------------------
  11 |       1347 | 1347.0000000000000000
  21 |       5890 | 3618.5000000000000000
  31 |       7271 | 4836.0000000000000000
@@ -1436,7 +1432,7 @@ SELECT a.author_id as first_author, b.word_count as second_word_count
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  first_author | second_word_count 
---------------+-------------------
+---------------------------------------------------------------------
 (0 rows)
 
 SELECT *
@@ -1474,7 +1470,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 10
  first_author | second_word_count 
---------------+-------------------
+---------------------------------------------------------------------
            10 |             19519
            10 |             19519
            10 |             19519
@@ -1488,7 +1484,7 @@ SELECT a.author_id as first_author, b.word_count as second_word_count
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  first_author | second_word_count 
---------------+-------------------
+---------------------------------------------------------------------
 (0 rows)
 
 -- partition_column is null clause does not prune out any shards,
@@ -1529,7 +1525,7 @@ SELECT a.author_id as first_author, b.word_count as second_word_count
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  first_author | second_word_count 
---------------+-------------------
+---------------------------------------------------------------------
 (0 rows)
 
 -- union/difference /intersection with where false
@@ -1545,7 +1541,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1563,7 +1559,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -1618,7 +1614,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  company_id | employee_id | manager_id | level 
-------------+-------------+------------+-------
+---------------------------------------------------------------------
 (0 rows)
 
 WITH RECURSIVE hierarchy as (
@@ -1636,7 +1632,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  company_id | employee_id | manager_id | level 
-------------+-------------+------------+-------
+---------------------------------------------------------------------
           1 |           1 |          0 |     1
 (1 row)
 
@@ -1655,7 +1651,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  company_id | employee_id | manager_id | level 
-------------+-------------+------------+-------
+---------------------------------------------------------------------
 (0 rows)
 
 -- window functions with where false
@@ -1701,13 +1697,13 @@ DEBUG:  Plan is router executable
 SET citus.shard_replication_factor TO 1;
 SELECT master_create_distributed_table('authors_range', 'id', 'range');
  master_create_distributed_table 
----------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT master_create_distributed_table('articles_range', 'author_id', 'range');
  master_create_distributed_table 
----------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1929,7 +1925,7 @@ DEBUG:  Router planner cannot handle multi-shard select queries
 -- need to use a append distributed table here
 SELECT master_create_distributed_table('articles_append', 'author_id', 'append');
  master_create_distributed_table 
----------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2008,7 +2004,7 @@ SELECT * FROM articles_hash
 		author_id, id
 	LIMIT 5;
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -2093,7 +2089,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -2113,7 +2109,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -2140,7 +2136,7 @@ FETCH test_cursor;
 
 FETCH ALL test_cursor;
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
  31 |         1 | athwartships |       7271
@@ -2214,7 +2210,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -2232,7 +2228,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -2262,7 +2258,7 @@ CONTEXT:  SQL statement "SELECT MAX(id) FROM articles_hash ah
 		WHERE author_id = 1"
 PL/pgSQL function author_articles_max_id() line 5 at SQL statement
  author_articles_max_id 
-------------------------
+---------------------------------------------------------------------
                      41
 (1 row)
 
@@ -2306,7 +2302,7 @@ DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
 SELECT * FROM mv_articles_hash_empty;
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
  11 |         1 | alamo        |       1347
  21 |         1 | arcading     |       5890
@@ -2319,7 +2315,7 @@ CREATE MATERIALIZED VIEW mv_articles_hash_data AS
 DEBUG:  Router planner cannot handle multi-shard select queries
 SELECT * FROM mv_articles_hash_data ORDER BY 1, 2, 3, 4;
  id | author_id |    title     | word_count 
-----+-----------+--------------+------------
+---------------------------------------------------------------------
   1 |         1 | arsenous     |       9572
   2 |         2 | abducing     |      13642
  11 |         1 | alamo        |       1347
@@ -2377,13 +2373,13 @@ SET citus.shard_replication_factor TO 2;
 CREATE TABLE failure_test (a int, b int);
 SELECT master_create_distributed_table('failure_test', 'a', 'hash');
  master_create_distributed_table 
----------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT master_create_worker_shards('failure_test', 2);
  master_create_worker_shards 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2402,7 +2398,7 @@ GRANT INSERT ON ALL TABLES IN SCHEMA public TO router_user;
 -- we will fail to connect to worker 2, since the user does not exist
 BEGIN;
 INSERT INTO failure_test VALUES (1, 1);
-WARNING:  connection error: localhost:57638
+WARNING:  connection error: localhost:xxxxx
 DETAIL:  FATAL:  role "router_user" does not exist
 SELECT shardid, shardstate, nodename, nodeport FROM pg_dist_shard_placement
 	WHERE shardid IN (
@@ -2420,7 +2416,7 @@ SELECT shardid, shardstate, nodename, nodeport FROM pg_dist_shard_placement
 
 ROLLBACK;
 INSERT INTO failure_test VALUES (2, 1);
-WARNING:  connection error: localhost:57638
+WARNING:  connection error: localhost:xxxxx
 DETAIL:  FATAL:  role "router_user" does not exist
 SELECT shardid, shardstate, nodename, nodeport FROM pg_dist_shard_placement
 	WHERE shardid IN (

@@ -18,7 +18,7 @@ FROM
 	GROUP BY
 		l_orderkey) AS unit_prices;
            avg           
--------------------------
+---------------------------------------------------------------------
  142158.8766934673366834
 (1 row)
 
@@ -45,7 +45,7 @@ FROM
 DEBUG:  generating subplan 2_1 for subquery SELECT l_suppkey, count(*) AS order_count FROM public.lineitem_subquery GROUP BY l_suppkey
 DEBUG:  Plan 2 query after replacing subqueries and CTEs: SELECT avg(order_count) AS avg FROM (SELECT intermediate_result.l_suppkey, intermediate_result.order_count FROM read_intermediate_result('2_1'::text, 'binary'::citus_copy_format) intermediate_result(l_suppkey integer, order_count bigint)) order_counts
         avg         
---------------------
+---------------------------------------------------------------------
  1.7199369356456930
 (1 row)
 
@@ -151,7 +151,7 @@ FROM
 		WHERE
 			lineitem_quantities.l_orderkey = o_orderkey) orders_price ON true;
           avg           
-------------------------
+---------------------------------------------------------------------
  17470.0940725222668915
 (1 row)
 
@@ -669,7 +669,7 @@ ORDER BY
 	o_custkey ASC
 LIMIT 10;
  o_custkey | total_order_count 
------------+-------------------
+---------------------------------------------------------------------
       1462 |                 9
        619 |                 8
        643 |                 8
@@ -699,7 +699,7 @@ WHERE
 	unit_price > 1000 AND
 	unit_price < 10000;
           avg          
------------------------
+---------------------------------------------------------------------
  4968.4946466804019323
 (1 row)
 
@@ -827,7 +827,7 @@ CREATE TABLE subquery_pruning_varchar_test_table
 SET citus.shard_replication_factor TO 1;
 SELECT create_distributed_table('subquery_pruning_varchar_test_table', 'a', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -911,7 +911,7 @@ FROM
 		tenant_id,
 		user_id) AS subquery;
    event_average    
---------------------
+---------------------------------------------------------------------
  3.6666666666666667
 (1 row)
 
@@ -980,7 +980,7 @@ GROUP BY
 ORDER BY
     event_average DESC;
    event_average    |       hasdone       
---------------------+---------------------
+---------------------------------------------------------------------
  4.0000000000000000 | Has not done paying
  2.5000000000000000 | Has done paying
 (2 rows)
@@ -1056,7 +1056,7 @@ GROUP BY
 ORDER BY
 	count_pay;
    event_average    | count_pay 
---------------------+-----------
+---------------------------------------------------------------------
  3.0000000000000000 |         0
 (1 row)
 
@@ -1113,7 +1113,7 @@ ORDER BY
 LIMIT
 	10;
  tenant_id | user_id | user_lastseen |        event_array         
------------+---------+---------------+----------------------------
+---------------------------------------------------------------------
          1 |    1003 |    1472807315 | {click,click,click,submit}
          1 |    1002 |    1472807215 | {click,click,submit,pay}
          1 |    1001 |    1472807115 | {click,submit,pay}

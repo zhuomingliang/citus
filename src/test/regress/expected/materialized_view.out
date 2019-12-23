@@ -10,7 +10,7 @@ CREATE VIEW air_shipped_lineitems AS SELECT * FROM lineitem_hash_part WHERE l_sh
 CREATE TABLE temp_lineitem(LIKE lineitem_hash_part);
 SELECT create_distributed_table('temp_lineitem', 'l_orderkey', 'hash', 'lineitem_hash_part');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -139,14 +139,14 @@ WHERE lineitem_local_to_hash_part.l_orderkey=orders_local_to_hash_part.o_orderke
 SELECT create_distributed_table('lineitem_local_to_hash_part', 'l_orderkey');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('orders_local_to_hash_part', 'o_orderkey');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -206,13 +206,13 @@ CREATE TABLE large (id int, tenant_id int);
 CREATE TABLE small (id int, tenant_id int);
 SELECT create_distributed_table('large','tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('small','tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -268,13 +268,13 @@ CREATE TABLE large_partitioned_p2 PARTITION OF large_partitioned FOR VALUES FROM
 CREATE TABLE large_partitioned_p3 PARTITION OF large_partitioned FOR VALUES FROM (20) TO (100);
 SELECT create_distributed_table('large_partitioned','tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('small','tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

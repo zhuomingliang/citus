@@ -36,7 +36,7 @@ insert into gen2 (id, val1) values (1,4),(3,6),(5,2),(7,2);
 select create_distributed_table('gen1', 'id');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -80,7 +80,7 @@ vacuum (index_cleanup 1) gen1;
 create table cptest (id int, val int);
 select create_distributed_table('cptest', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -95,20 +95,18 @@ ERROR:  Citus does not support COPY FROM with WHERE
 invalid command \.
 select sum(id), sum(val) from cptest;
 ERROR:  syntax error at or near "1"
-LINE 1: 1,6
-        ^
 -- CTE materialized/not materialized
 CREATE TABLE single_hash_repartition_first (id int, sum int, avg float);
 CREATE TABLE single_hash_repartition_second (id int primary key, sum int, avg float);
 SELECT create_distributed_table('single_hash_repartition_first', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('single_hash_repartition_second', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -132,7 +130,7 @@ FROM cte1, single_hash_repartition_second
 WHERE cte1.id = single_hash_repartition_second.id AND single_hash_repartition_second.id = 45;
 $Q$);
        coordinator_plan       
-------------------------------
+---------------------------------------------------------------------
  Custom Scan (Citus Adaptive)
    Task Count: 1
 (2 rows)
@@ -151,7 +149,7 @@ FROM cte1, single_hash_repartition_second
 WHERE cte1.id = single_hash_repartition_second.id AND single_hash_repartition_second.id = 45;
 $Q$);
        coordinator_plan       
-------------------------------
+---------------------------------------------------------------------
  Custom Scan (Citus Adaptive)
    Task Count: 1
 (2 rows)
@@ -171,7 +169,7 @@ FROM cte1, single_hash_repartition_second
 WHERE cte1.id = single_hash_repartition_second.id AND single_hash_repartition_second.id = 45;
 $Q$);
              coordinator_plan             
-------------------------------------------
+---------------------------------------------------------------------
  Custom Scan (Citus Adaptive)
    ->  Distributed Subplan 7_1
          ->  Custom Scan (Citus Adaptive)
@@ -194,7 +192,7 @@ FROM cte1, single_hash_repartition_second
 WHERE cte1.id = single_hash_repartition_second.id AND single_hash_repartition_second.id = 45;
 $Q$);
        coordinator_plan       
-------------------------------
+---------------------------------------------------------------------
  Custom Scan (Citus Adaptive)
    Task Count: 1
 (2 rows)
@@ -215,7 +213,7 @@ FROM cte1, single_hash_repartition_second
 WHERE cte1.id = single_hash_repartition_second.id AND single_hash_repartition_second.sum = 45;
 $Q$);
                 coordinator_plan                
-------------------------------------------------
+---------------------------------------------------------------------
  Aggregate
    ->  Custom Scan (Citus Adaptive)
          ->  Distributed Subplan 10_1
@@ -236,7 +234,7 @@ FROM cte1, single_hash_repartition_second
 WHERE cte1.id = single_hash_repartition_second.id AND single_hash_repartition_second.sum = 45;
 $Q$);
                 coordinator_plan                
-------------------------------------------------
+---------------------------------------------------------------------
  Aggregate
    ->  Custom Scan (Citus Adaptive)
          ->  Distributed Subplan 12_1
@@ -271,14 +269,14 @@ DETAIL:  Key (key, collection_id)=(1, 1000) is not present in table "collections
 SELECT create_distributed_table('collections_list', 'key');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('collection_users', 'key');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -286,7 +284,7 @@ NOTICE:  Copying data from local table...
 INSERT INTO collection_users VALUES (1, 1000, 1);
 ERROR:  insert or update on table "collection_users_60028" violates foreign key constraint "collection_users_fkey_60028"
 DETAIL:  Key (key, collection_id)=(1, 1000) is not present in table "collections_list_60016".
-CONTEXT:  while executing command on localhost:57637
+CONTEXT:  while executing command on localhost:xxxxx
 -- whereas new record with partition should go through
 INSERT INTO collections_list VALUES (2, 1, '1.2');
 INSERT INTO collection_users VALUES (5, 1, 2);
@@ -296,7 +294,7 @@ INSERT INTO test (x,y) SELECT i,i*3 from generate_series(1, 100) i;
 SELECT create_distributed_table('test', 'x');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -383,7 +381,7 @@ ERROR:  Hash distributed partition columns may not use a non deterministic colla
 select create_distributed_table('col_test', 'id');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

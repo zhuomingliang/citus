@@ -10,21 +10,21 @@ WHERE name = 'hll'
 \gset
 :create_cmd;
  hll_present 
--------------
+---------------------------------------------------------------------
  f
 (1 row)
 
 \c - - - :worker_1_port
 :create_cmd;
  hll_present 
--------------
+---------------------------------------------------------------------
  f
 (1 row)
 
 \c - - - :worker_2_port
 :create_cmd;
  hll_present 
--------------
+---------------------------------------------------------------------
  f
 (1 row)
 
@@ -98,7 +98,7 @@ CREATE TABLE test_count_distinct_schema.nation_hash(
 );
 SELECT create_distributed_table('test_count_distinct_schema.nation_hash', 'n_nationkey', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

@@ -20,7 +20,7 @@ SELECT create_distributed_table('partitioning_test', 'id');
 NOTICE:  Copying data from local table...
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -220,7 +220,7 @@ DEBUG:  generating subplan 16_3 for subquery SELECT count(*) AS cnt FROM (SELECT
 DEBUG:  Plan 16 query after replacing subqueries and CTEs: SELECT cnt, user_id, "time", value_1, value_2, value_3, value_4 FROM (SELECT foo.cnt, users_table.user_id, users_table."time", users_table.value_1, users_table.value_2, users_table.value_3, users_table.value_4 FROM (SELECT intermediate_result.cnt FROM read_intermediate_result('16_3'::text, 'binary'::citus_copy_format) intermediate_result(cnt bigint)) foo, public.users_table WHERE (foo.cnt OPERATOR(pg_catalog.>) users_table.value_2)) subquery_and_ctes ORDER BY "time" DESC, cnt DESC, user_id DESC, value_1 DESC LIMIT 5
 DEBUG:  push down of limit count: 5
  cnt | user_id |              time               | value_1 | value_2 | value_3 | value_4 
------+---------+---------------------------------+---------+---------+---------+---------
+---------------------------------------------------------------------
  105 |       1 | Thu Nov 23 17:30:34.635085 2017 |       3 |       4 |       4 |        
  105 |       1 | Thu Nov 23 17:23:03.441394 2017 |       5 |       4 |       3 |        
  105 |       3 | Thu Nov 23 17:18:51.048758 2017 |       1 |       5 |       5 |        

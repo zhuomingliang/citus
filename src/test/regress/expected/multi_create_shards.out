@@ -51,8 +51,6 @@ ERROR:  column "bad_column" of relation "table_to_distribute" does not exist
 -- use unrecognized partition type
 SELECT create_distributed_table('table_to_distribute', 'name', 'unrecognized');
 ERROR:  invalid input value for enum citus.distribution_type: "unrecognized"
-LINE 1: ..._distributed_table('table_to_distribute', 'name', 'unrecogni...
-                                                             ^
 -- use a partition column of a type lacking any default operator class
 SELECT create_distributed_table('table_to_distribute', 'json_data', 'hash');
 ERROR:  data type json has no default operator class for specified partition method
@@ -64,14 +62,14 @@ DETAIL:  Partition column types must have a hash function defined to use hash pa
 -- distribute table and inspect side effects
 SELECT master_create_distributed_table('table_to_distribute', 'name', 'hash');
  master_create_distributed_table 
----------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT partmethod, partkey FROM pg_dist_partition
 	WHERE logicalrelid = 'table_to_distribute'::regclass;
  partmethod |                                                         partkey                                                          
-------------+--------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  h          | {VAR :varno 1 :varattno 1 :vartype 25 :vartypmod -1 :varcollid 100 :varlevelsup 0 :varnoold 1 :varoattno 1 :location -1}
 (1 row)
 
@@ -88,7 +86,7 @@ HINT:  Add more worker nodes or try again with a lower replication factor.
 -- finally, create shards and inspect metadata
 SELECT master_create_worker_shards('table_to_distribute', 16, 1);
  master_create_worker_shards 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -96,7 +94,7 @@ SELECT shardstorage, shardminvalue, shardmaxvalue FROM pg_dist_shard
 	WHERE logicalrelid = 'table_to_distribute'::regclass
 	ORDER BY (shardminvalue::integer) ASC;
  shardstorage | shardminvalue | shardmaxvalue 
---------------+---------------+---------------
+---------------------------------------------------------------------
  t            | -2147483648   | -1879048193
  t            | -1879048192   | -1610612737
  t            | -1610612736   | -1342177281
@@ -122,7 +120,7 @@ SELECT count(*) AS shard_count,
 	WHERE logicalrelid='table_to_distribute'::regclass
 	GROUP BY shard_size;
  shard_count | shard_size 
--------------+------------
+---------------------------------------------------------------------
           16 |  268435455
 (1 row)
 
@@ -163,7 +161,7 @@ SET citus.shard_replication_factor TO 1;
 SELECT create_distributed_table('foreign_table_to_distribute', 'id', 'hash');
 NOTICE:  foreign-data wrapper "fake_fdw" does not have an extension defined
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -171,7 +169,7 @@ SELECT shardstorage, shardminvalue, shardmaxvalue FROM pg_dist_shard
 	WHERE logicalrelid = 'foreign_table_to_distribute'::regclass
 	ORDER BY (shardminvalue::integer) ASC;
  shardstorage | shardminvalue | shardmaxvalue 
---------------+---------------+---------------
+---------------------------------------------------------------------
  f            | -2147483648   | -1879048193
  f            | -1879048192   | -1610612737
  f            | -1610612736   | -1342177281
@@ -199,7 +197,7 @@ CREATE TABLE weird_shard_count
 SET citus.shard_count TO 7;
 SELECT create_distributed_table('weird_shard_count', 'id', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

@@ -102,7 +102,7 @@ SELECT count(DISTINCT l_orderkey) as distinct_order_count, l_quantity FROM linei
 	ORDER BY distinct_order_count ASC, l_quantity ASC
 	LIMIT 10;
  distinct_order_count | l_quantity 
-----------------------+------------
+---------------------------------------------------------------------
                   210 |      29.00
                   216 |      13.00
                   217 |      16.00
@@ -128,7 +128,7 @@ CREATE TABLE test_count_distinct_schema.nation_hash(
 );
 SELECT create_distributed_table('test_count_distinct_schema.nation_hash', 'n_nationkey', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -166,7 +166,7 @@ SELECT l_returnflag, count(DISTINCT l_shipdate) as count_distinct, count(*) as t
 	ORDER BY total
 	LIMIT 10;
  l_returnflag | count_distinct | total 
---------------+----------------+-------
+---------------------------------------------------------------------
  R            |           1103 |  2901
  A            |           1108 |  2944
  N            |           1265 |  6155

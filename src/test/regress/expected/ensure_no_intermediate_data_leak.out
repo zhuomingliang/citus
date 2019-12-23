@@ -13,7 +13,7 @@ SELECT pg_ls_dir('base/pgsql_job_cache') WHERE citus_version() NOT ILIKE '%windo
 
 SELECT run_command_on_workers($$SELECT pg_ls_dir('base/pgsql_job_cache') WHERE citus_version() NOT ILIKE '%windows%'$$);
  run_command_on_workers 
-------------------------
+---------------------------------------------------------------------
  (localhost,57637,t,"")
  (localhost,57638,t,"")
 (2 rows)

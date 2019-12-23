@@ -3,14 +3,14 @@ SET search_path TO recursive_union, public;
 CREATE TABLE recursive_union.test (x int, y int);
 SELECT create_distributed_table('test', 'x');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE recursive_union.ref (a int, b int);
 SELECT create_reference_table('ref');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -868,7 +868,7 @@ DEBUG:  Plan 158 query after replacing subqueries and CTEs: SELECT avg(DISTINCT 
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
           avg           
-------------------------
+---------------------------------------------------------------------
  1.50000000000000000000
 (1 row)
 

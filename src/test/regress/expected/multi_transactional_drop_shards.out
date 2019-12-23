@@ -8,7 +8,7 @@ SET citus.shard_count TO 4;
 CREATE TABLE transactional_drop_shards(column1 int);
 SELECT create_distributed_table('transactional_drop_shards', 'column1');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -49,7 +49,7 @@ ORDER BY
 \dt transactional_drop_shards
                    List of relations
  Schema |           Name            | Type  |  Owner   
---------+---------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_shards | table | postgres
 (1 row)
 
@@ -58,7 +58,7 @@ ORDER BY
 \dt transactional_drop_shards_*
                        List of relations
  Schema |               Name                | Type  |  Owner   
---------+-----------------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_shards_1410000 | table | postgres
  public | transactional_drop_shards_1410001 | table | postgres
  public | transactional_drop_shards_1410002 | table | postgres
@@ -108,20 +108,20 @@ ORDER BY
 CREATE TABLE transactional_drop_shards(column1 int);
 SELECT create_distributed_table('transactional_drop_shards', 'column1', 'append');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT master_create_empty_shard('transactional_drop_shards');
  master_create_empty_shard 
----------------------------
+---------------------------------------------------------------------
                    1410004
 (1 row)
 
 BEGIN;
 SELECT master_apply_delete_command('DELETE FROM transactional_drop_shards');
  master_apply_delete_command 
------------------------------
+---------------------------------------------------------------------
                            1
 (1 row)
 
@@ -152,7 +152,7 @@ ORDER BY
 \dt transactional_drop_shards_*
                        List of relations
  Schema |               Name                | Type  |  Owner   
---------+-----------------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_shards_1410004 | table | postgres
 (1 row)
 
@@ -161,7 +161,7 @@ ORDER BY
 BEGIN;
 SELECT master_apply_delete_command('DELETE FROM transactional_drop_shards');
  master_apply_delete_command 
------------------------------
+---------------------------------------------------------------------
                            1
 (1 row)
 
@@ -196,7 +196,7 @@ ORDER BY
 -- test DROP table in a transaction after insertion
 SELECT master_create_empty_shard('transactional_drop_shards');
  master_create_empty_shard 
----------------------------
+---------------------------------------------------------------------
                    1410005
 (1 row)
 
@@ -229,7 +229,7 @@ ORDER BY
 \dt transactional_drop_shards
                    List of relations
  Schema |           Name            | Type  |  Owner   
---------+---------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_shards | table | postgres
 (1 row)
 
@@ -238,7 +238,7 @@ ORDER BY
 \dt transactional_drop_shards_*
                        List of relations
  Schema |               Name                | Type  |  Owner   
---------+-----------------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_shards_1410005 | table | postgres
 (1 row)
 
@@ -248,7 +248,7 @@ BEGIN;
 INSERT INTO transactional_drop_shards VALUES (1);
 SELECT master_apply_delete_command('DELETE FROM transactional_drop_shards');
  master_apply_delete_command 
------------------------------
+---------------------------------------------------------------------
                            1
 (1 row)
 
@@ -279,7 +279,7 @@ ORDER BY
 \dt transactional_drop_shards_*
                        List of relations
  Schema |               Name                | Type  |  Owner   
---------+-----------------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_shards_1410005 | table | postgres
 (1 row)
 
@@ -320,7 +320,7 @@ ORDER BY
 \dt transactional_drop_shards
                    List of relations
  Schema |           Name            | Type  |  Owner   
---------+---------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_shards | table | postgres
 (1 row)
 
@@ -329,7 +329,7 @@ ORDER BY
 \dt transactional_drop_shards_*
                        List of relations
  Schema |               Name                | Type  |  Owner   
---------+-----------------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_shards_1410005 | table | postgres
 (1 row)
 
@@ -338,7 +338,7 @@ ORDER BY
 CREATE TABLE transactional_drop_reference(column1 int);
 SELECT create_reference_table('transactional_drop_reference');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -371,7 +371,7 @@ ORDER BY
 \dt transactional_drop_reference
                     List of relations
  Schema |             Name             | Type  |  Owner   
---------+------------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_reference | table | postgres
 (1 row)
 
@@ -380,7 +380,7 @@ ORDER BY
 \dt transactional_drop_reference*
                         List of relations
  Schema |                 Name                 | Type  |  Owner   
---------+--------------------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_reference_1410006 | table | postgres
 (1 row)
 
@@ -416,7 +416,7 @@ ORDER BY
 \dt transactional_drop_shards_*
                        List of relations
  Schema |               Name                | Type  |  Owner   
---------+-----------------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_shards_1410005 | table | postgres
 (1 row)
 
@@ -427,7 +427,7 @@ SET citus.shard_count TO 8;
 CREATE TABLE transactional_drop_serial(column1 int, column2 SERIAL);
 SELECT create_distributed_table('transactional_drop_serial', 'column1');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -481,7 +481,7 @@ ORDER BY
 \dt transactional_drop_serial
                    List of relations
  Schema |           Name            | Type  |  Owner   
---------+---------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_serial | table | postgres
 (1 row)
 
@@ -490,7 +490,7 @@ ORDER BY
 \dt transactional_drop_serial_*
                        List of relations
  Schema |               Name                | Type  |  Owner   
---------+-----------------------------------+-------+----------
+---------------------------------------------------------------------
  public | transactional_drop_serial_1410007 | table | postgres
  public | transactional_drop_serial_1410008 | table | postgres
  public | transactional_drop_serial_1410009 | table | postgres
@@ -558,7 +558,7 @@ SET citus.shard_count TO 4;
 CREATE TABLE transactional_drop_mx(column1 int);
 SELECT create_distributed_table('transactional_drop_mx', 'column1');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -566,7 +566,7 @@ UPDATE pg_dist_partition SET repmodel='s' WHERE logicalrelid='transactional_drop
 -- make worker 1 receive metadata changes
 SELECT start_metadata_sync_to_node('localhost', :worker_1_port);
  start_metadata_sync_to_node 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -655,7 +655,7 @@ ORDER BY
 \c - - - :master_port
 -- try using the coordinator as a worker and then dropping the table
 SELECT 1 FROM master_add_node('localhost', :master_port);
-NOTICE:  Replicating reference table "transactional_drop_reference" to the node localhost:57636
+NOTICE:  Replicating reference table "transactional_drop_reference" to the node localhost:xxxxx
  ?column? 
 ----------
         1
@@ -664,7 +664,7 @@ NOTICE:  Replicating reference table "transactional_drop_reference" to the node 
 CREATE TABLE citus_local (id serial, k int);
 SELECT create_distributed_table('citus_local', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -672,7 +672,7 @@ INSERT INTO citus_local (k) VALUES (2);
 DROP TABLE citus_local;
 SELECT master_remove_node('localhost', :master_port);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -680,7 +680,7 @@ SELECT master_remove_node('localhost', :master_port);
 DROP TABLE transactional_drop_shards, transactional_drop_reference;
 SELECT stop_metadata_sync_to_node('localhost', :worker_1_port);
  stop_metadata_sync_to_node 
-----------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -691,14 +691,14 @@ HINT:  Connect to worker nodes directly to manually create all necessary users a
 GRANT ALL ON SCHEMA public TO try_drop_table;
 SELECT run_command_on_workers('CREATE USER try_drop_table WITH LOGIN');
       run_command_on_workers       
------------------------------------
+---------------------------------------------------------------------
  (localhost,57637,t,"CREATE ROLE")
  (localhost,57638,t,"CREATE ROLE")
 (2 rows)
 
 SELECT run_command_on_workers('GRANT ALL ON SCHEMA public TO try_drop_table');
   run_command_on_workers   
----------------------------
+---------------------------------------------------------------------
  (localhost,57637,t,GRANT)
  (localhost,57638,t,GRANT)
 (2 rows)
@@ -708,7 +708,7 @@ BEGIN;
 CREATE TABLE temp_dist_table (x int, y int);
 SELECT create_distributed_table('temp_dist_table','x');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

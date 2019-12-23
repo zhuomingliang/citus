@@ -5,14 +5,14 @@ SET citus.next_shard_id TO 590000;
 CREATE TABLE lineitem_hash (LIKE lineitem);
 SELECT create_distributed_table('lineitem_hash', 'l_orderkey', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE orders_hash (LIKE orders);
 SELECT create_distributed_table('orders_hash', 'o_orderkey', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -23,7 +23,7 @@ EXPLAIN (COSTS FALSE)
     GROUP BY l_orderkey HAVING sum(l_quantity) > 24
     ORDER BY 2 DESC, 1 ASC LIMIT 3;
                                                QUERY PLAN                                               
---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (sum(remote_scan.revenue)) DESC, remote_scan.l_orderkey
@@ -34,7 +34,7 @@ EXPLAIN (COSTS FALSE)
                      Task Count: 4
                      Tasks Shown: One of 4
                      ->  Task
-                           Node: host=localhost port=57637 dbname=regression
+                           Node: host=localhost port=xxxxx dbname=regression
                            ->  Limit
                                  ->  Sort
                                        Sort Key: (sum((l_extendedprice * l_discount))) DESC, l_orderkey
@@ -51,7 +51,7 @@ EXPLAIN (COSTS FALSE)
     GROUP BY l_orderkey HAVING sum(l_quantity) > 24
     ORDER BY 2 DESC, 1 ASC LIMIT 3;
                                  QUERY PLAN                                  
------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (sum(remote_scan.revenue)) DESC, remote_scan.l_orderkey
@@ -62,7 +62,7 @@ EXPLAIN (COSTS FALSE)
                      Task Count: 2
                      Tasks Shown: One of 2
                      ->  Task
-                           Node: host=localhost port=57638 dbname=regression
+                           Node: host=localhost port=xxxxx dbname=regression
                            ->  HashAggregate
                                  Group Key: l_orderkey
                                  ->  Seq Scan on lineitem_290000 lineitem
@@ -75,7 +75,7 @@ EXPLAIN (COSTS FALSE)
     GROUP BY l_shipmode HAVING sum(l_quantity) > 24
     ORDER BY 2 DESC, 1 ASC LIMIT 3;
                                      QUERY PLAN                                     
-------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (sum(remote_scan.revenue)) DESC, remote_scan.l_shipmode
@@ -86,7 +86,7 @@ EXPLAIN (COSTS FALSE)
                      Task Count: 4
                      Tasks Shown: One of 4
                      ->  Task
-                           Node: host=localhost port=57637 dbname=regression
+                           Node: host=localhost port=xxxxx dbname=regression
                            ->  HashAggregate
                                  Group Key: l_shipmode
                                  ->  Seq Scan on lineitem_hash_590000 lineitem_hash
@@ -99,7 +99,7 @@ EXPLAIN (COSTS FALSE)
     GROUP BY l_shipmode, l_orderkey HAVING sum(l_quantity) > 24
     ORDER BY 3 DESC, 1, 2 LIMIT 3;
                                                      QUERY PLAN                                                     
---------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (sum(remote_scan.revenue)) DESC, remote_scan.l_shipmode, remote_scan.l_orderkey
@@ -110,7 +110,7 @@ EXPLAIN (COSTS FALSE)
                      Task Count: 4
                      Tasks Shown: One of 4
                      ->  Task
-                           Node: host=localhost port=57637 dbname=regression
+                           Node: host=localhost port=xxxxx dbname=regression
                            ->  Limit
                                  ->  Sort
                                        Sort Key: (sum((l_extendedprice * l_discount))) DESC, l_shipmode, l_orderkey
@@ -128,7 +128,7 @@ EXPLAIN (COSTS FALSE)
     GROUP BY l_orderkey, o_orderkey, l_shipmode HAVING sum(l_quantity) > 24
     ORDER BY 1 DESC LIMIT 3;
                                                             QUERY PLAN                                                             
------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (sum(remote_scan.revenue)) DESC
@@ -139,7 +139,7 @@ EXPLAIN (COSTS FALSE)
                      Task Count: 4
                      Tasks Shown: One of 4
                      ->  Task
-                           Node: host=localhost port=57637 dbname=regression
+                           Node: host=localhost port=xxxxx dbname=regression
                            ->  Limit
                                  ->  Sort
                                        Sort Key: (sum((lineitem_hash.l_extendedprice * lineitem_hash.l_discount))) DESC
@@ -160,7 +160,7 @@ EXPLAIN (COSTS FALSE)
     GROUP BY l_shipmode, o_clerk HAVING sum(l_quantity) > 24
     ORDER BY 1 DESC LIMIT 3;
                                               QUERY PLAN                                              
-------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (sum(remote_scan.revenue)) DESC
@@ -171,7 +171,7 @@ EXPLAIN (COSTS FALSE)
                      Task Count: 4
                      Tasks Shown: One of 4
                      ->  Task
-                           Node: host=localhost port=57637 dbname=regression
+                           Node: host=localhost port=xxxxx dbname=regression
                            ->  HashAggregate
                                  Group Key: lineitem_hash.l_shipmode, orders_hash.o_clerk
                                  ->  Hash Join

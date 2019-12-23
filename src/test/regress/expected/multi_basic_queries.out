@@ -11,13 +11,13 @@ SELECT count(*) FROM lineitem;
 
 SELECT sum(l_extendedprice) FROM lineitem;
      sum      
---------------
+---------------------------------------------------------------------
  457702024.50
 (1 row)
 
 SELECT avg(l_extendedprice) FROM lineitem;
         avg         
---------------------
+---------------------------------------------------------------------
  38141.835375000000
 (1 row)
 

@@ -10,7 +10,7 @@ SET citus.shard_replication_factor TO 1;
 CREATE TABLE modify_fast_path(key int, value_1 int, value_2 text);
 SELECT create_distributed_table('modify_fast_path', 'key');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -18,14 +18,14 @@ SET citus.shard_replication_factor TO 2;
 CREATE TABLE modify_fast_path_replication_2(key int, value_1 int, value_2 text);
 SELECT create_distributed_table('modify_fast_path_replication_2', 'key');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE modify_fast_path_reference(key int, value_1 int, value_2 text);
 SELECT create_reference_table('modify_fast_path_reference');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -253,7 +253,7 @@ DETAIL:  distribution column value: 1
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql 
--------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -269,7 +269,7 @@ DETAIL:  distribution column value: 2
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql 
--------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -285,7 +285,7 @@ DETAIL:  distribution column value: 3
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql 
--------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -301,7 +301,7 @@ DETAIL:  distribution column value: 4
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql 
--------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -317,7 +317,7 @@ DETAIL:  distribution column value: 5
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql 
--------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -336,7 +336,7 @@ DETAIL:  distribution column value: 6
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql 
--------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -352,7 +352,7 @@ DETAIL:  distribution column value: 6
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql 
--------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

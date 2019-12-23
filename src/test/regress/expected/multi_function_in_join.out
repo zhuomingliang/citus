@@ -15,7 +15,7 @@ SET citus.next_shard_id TO 2500000;
 CREATE TABLE table1 (id int, data int);
 SELECT create_distributed_table('table1','id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

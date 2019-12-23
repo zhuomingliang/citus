@@ -6,14 +6,14 @@ SET citus.next_placement_id TO 800000;
 CREATE TABLE with_transactions.raw_table (tenant_id int, income float, created_at timestamptz);
 SELECT create_distributed_table('raw_table', 'tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE with_transactions.second_raw_table (tenant_id int, income float, created_at timestamptz);
 SELECT create_distributed_table('second_raw_table', 'tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

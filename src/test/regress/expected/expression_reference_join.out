@@ -14,14 +14,14 @@ INSERT INTO test VALUES
 SELECT create_reference_table('ref');
 NOTICE:  Copying data from local table...
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('test', 'x');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

@@ -8,7 +8,7 @@ SET citus.multi_shard_modify_mode to 'parallel';
 CREATE TABLE users_test_table(user_id int, value_1 int, value_2 int, value_3 int);
 SELECT create_distributed_table('users_test_table', 'user_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -16,7 +16,7 @@ SELECT create_distributed_table('users_test_table', 'user_id');
 CREATE TABLE events_test_table (user_id int, value_1 int, value_2 int, value_3 int);
 SELECT create_distributed_table('events_test_table', 'user_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -24,7 +24,7 @@ SELECT create_distributed_table('events_test_table', 'user_id');
 CREATE TABLE events_reference_copy_table (like events_test_table);
 SELECT create_reference_table('events_reference_copy_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -32,7 +32,7 @@ INSERT INTO events_reference_copy_table SELECT * FROM events_test_table;
 CREATE TABLE users_reference_copy_table (like users_test_table);
 SELECT create_reference_table('users_reference_copy_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -119,8 +119,6 @@ UPDATE users_test_table SET value_3 = 0;
 END;
 SELECT SUM(value_3) FROM users_copy_table;
 ERROR:  relation "users_copy_table" does not exist
-LINE 1: SELECT SUM(value_3) FROM users_copy_table;
-                                 ^
 -- Run multiple multi shard updates (with parallel executor)
 SET citus.multi_shard_modify_mode to 'parallel';
 UPDATE users_test_table SET value_3 = 5;
@@ -177,31 +175,31 @@ INSERT INTO append_stage_table_2 VALUES(10,4);
 CREATE TABLE test_append_table(id int, col_2 int);
 SELECT create_distributed_table('test_append_table','id','append');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT master_create_empty_shard('test_append_table');
  master_create_empty_shard 
----------------------------
+---------------------------------------------------------------------
                    1440010
 (1 row)
 
 SELECT * FROM master_append_table_to_shard(1440010, 'append_stage_table', 'localhost', :master_port);
  master_append_table_to_shard 
-------------------------------
+---------------------------------------------------------------------
                    0.00533333
 (1 row)
 
 SELECT master_create_empty_shard('test_append_table') AS new_shard_id;
  new_shard_id 
---------------
+---------------------------------------------------------------------
       1440011
 (1 row)
 
 SELECT * FROM master_append_table_to_shard(1440011, 'append_stage_table_2', 'localhost', :master_port);
  master_append_table_to_shard 
-------------------------------
+---------------------------------------------------------------------
                    0.00533333
 (1 row)
 
@@ -230,7 +228,7 @@ INSERT INTO tt1 VALUES (1,11), (3,15), (5,17), (6,19), (8,17), (2,12);
 SELECT create_distributed_table('tt1','id');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -282,7 +280,7 @@ DROP TABLE tt1;
 CREATE TABLE tt2(id int, col_2 int);
 SELECT create_distributed_table('tt2','id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -330,7 +328,7 @@ SET citus.shard_count to 6;
 CREATE TABLE events_test_table_2 (user_id int, value_1 int, value_2 int, value_3 int);
 SELECT create_distributed_table('events_test_table_2', 'user_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -344,7 +342,7 @@ INSERT INTO test_table_1 VALUES(3, '2111-01-12 08:35:19', 9);
 SELECT create_distributed_table('test_table_1', 'id');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -514,7 +512,7 @@ CREATE SCHEMA sec_schema;
 CREATE TABLE sec_schema.tt1(id int, value_1 int);
 SELECT create_distributed_table('sec_schema.tt1','id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -615,7 +613,7 @@ UPDATE users_test_table as utt
 SET    value_1 = 3
 WHERE value_2 > (SELECT value_3 FROM events_test_table as ett WHERE utt.user_id = ett.user_id);
 ERROR:  more than one row returned by a subquery used as an expression
-CONTEXT:  while executing command on localhost:57637
+CONTEXT:  while executing command on localhost:xxxxx
 -- We can not pushdown a query if the target relation is reference table
 UPDATE users_reference_copy_table
 SET    value_2 = 5
@@ -765,7 +763,7 @@ ROLLBACK;
 -- Stable functions are supported
 SELECT * FROM test_table_1 ORDER BY 1 DESC, 2 DESC, 3 DESC;
  id |           date_col           | col_3 
-----+------------------------------+-------
+---------------------------------------------------------------------
   3 | Mon Jan 12 08:35:19 2111 PST |     9
   2 | Sun Feb 01 08:31:16 2015 PST |     7
   1 | Sat Apr 05 08:32:12 2014 PDT |     5
@@ -774,7 +772,7 @@ SELECT * FROM test_table_1 ORDER BY 1 DESC, 2 DESC, 3 DESC;
 UPDATE test_table_1 SET col_3 = 3 WHERE date_col < now();
 SELECT * FROM test_table_1 ORDER BY 1 DESC, 2 DESC, 3 DESC;
  id |           date_col           | col_3 
-----+------------------------------+-------
+---------------------------------------------------------------------
   3 | Mon Jan 12 08:35:19 2111 PST |     9
   2 | Sun Feb 01 08:31:16 2015 PST |     3
   1 | Sat Apr 05 08:32:12 2014 PDT |     3
@@ -783,7 +781,7 @@ SELECT * FROM test_table_1 ORDER BY 1 DESC, 2 DESC, 3 DESC;
 DELETE FROM test_table_1 WHERE date_col < current_timestamp;
 SELECT * FROM test_table_1 ORDER BY 1 DESC, 2 DESC, 3 DESC;
  id |           date_col           | col_3 
-----+------------------------------+-------
+---------------------------------------------------------------------
   3 | Mon Jan 12 08:35:19 2111 PST |     9
 (1 row)
 
@@ -796,7 +794,7 @@ INSERT INTO test_table_2 VALUES(3, random());
 SELECT create_distributed_table('test_table_2', 'id');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -850,7 +848,7 @@ SET citus.shard_replication_factor to 2;
 CREATE TABLE users_test_table(user_id int, value_1 int, value_2 int, value_3 int);
 SELECT create_distributed_table('users_test_table', 'user_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

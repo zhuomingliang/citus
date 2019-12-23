@@ -74,7 +74,7 @@ FROM
 DEBUG:  generating subplan 5_1 for subquery SELECT users_table.value_2, avg(users_table.value_1) AS avg FROM public.users_table, public.events_table WHERE ((users_table.user_id OPERATOR(pg_catalog.=) events_table.user_id) AND (events_table.event_type OPERATOR(pg_catalog.=) ANY (ARRAY[1, 2, 3, 4]))) GROUP BY users_table.value_2 ORDER BY users_table.value_2 DESC
 DEBUG:  Plan 5 query after replacing subqueries and CTEs: SELECT value_2, avg FROM (SELECT intermediate_result.value_2, intermediate_result.avg FROM read_intermediate_result('5_1'::text, 'binary'::citus_copy_format) intermediate_result(value_2 integer, avg numeric)) foo ORDER BY avg DESC, value_2
  value_2 |        avg         
----------+--------------------
+---------------------------------------------------------------------
        4 | 2.8453608247422680
        2 | 2.6833855799373041
        5 | 2.6238938053097345
@@ -339,7 +339,7 @@ DEBUG:  push down of limit count: 5
 DEBUG:  generating subplan 24_1 for subquery SELECT user_id FROM public.users_table WHERE ((value_2 OPERATOR(pg_catalog.>=) 5) AND (EXISTS (SELECT events_table.user_id FROM public.events_table WHERE ((events_table.event_type OPERATOR(pg_catalog.>) 1) AND (events_table.event_type OPERATOR(pg_catalog.<=) 3) AND (events_table.value_3 OPERATOR(pg_catalog.>) (1)::double precision) AND (events_table.user_id OPERATOR(pg_catalog.=) users_table.user_id)))) AND (NOT (EXISTS (SELECT events_table.user_id FROM public.events_table WHERE ((events_table.event_type OPERATOR(pg_catalog.>) 3) AND (events_table.event_type OPERATOR(pg_catalog.<=) 4) AND (events_table.value_3 OPERATOR(pg_catalog.>) (1)::double precision) AND (events_table.user_id OPERATOR(pg_catalog.=) users_table.user_id)))))) LIMIT 5
 DEBUG:  Plan 24 query after replacing subqueries and CTEs: SELECT user_id, array_length(events_table, 1) AS array_length FROM (SELECT t.user_id, array_agg(t.event ORDER BY t."time") AS events_table FROM (SELECT u.user_id, (e.event_type)::text AS event, e."time" FROM public.users_table u, public.events_table e WHERE ((u.user_id OPERATOR(pg_catalog.=) e.user_id) AND (u.user_id OPERATOR(pg_catalog.=) ANY (SELECT intermediate_result.user_id FROM read_intermediate_result('24_1'::text, 'binary'::citus_copy_format) intermediate_result(user_id integer))))) t GROUP BY t.user_id) q ORDER BY (array_length(events_table, 1)) DESC, user_id
  user_id | array_length 
----------+--------------
+---------------------------------------------------------------------
        5 |          364
 (1 row)
 

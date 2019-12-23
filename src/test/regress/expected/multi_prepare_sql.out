@@ -147,13 +147,13 @@ EXECUTE prepared_test_6(1555);
 
 EXECUTE prepared_test_7('UNITED KINGDOM', 'CHINA');
         supp_nation        |        cust_nation        | l_year |  revenue   
----------------------------+---------------------------+--------+------------
+---------------------------------------------------------------------
  UNITED KINGDOM            | CHINA                     |   1996 | 18560.2200
 (1 row)
 
 EXECUTE prepared_test_7('FRANCE', 'GERMANY');
         supp_nation        |        cust_nation        | l_year |  revenue  
----------------------------+---------------------------+--------+-----------
+---------------------------------------------------------------------
  GERMANY                   | FRANCE                    |   1995 | 2399.2948
 (1 row)
 
@@ -172,7 +172,7 @@ EXECUTE prepared_test_3;
 
 EXECUTE prepared_test_7('FRANCE', 'GERMANY');
         supp_nation        |        cust_nation        | l_year |  revenue  
----------------------------+---------------------------+--------+-----------
+---------------------------------------------------------------------
  GERMANY                   | FRANCE                    |   1995 | 2399.2948
 (1 row)
 
@@ -202,7 +202,7 @@ EXECUTE prepared_test_4;
 
 EXECUTE prepared_test_7('UNITED KINGDOM', 'CHINA');
         supp_nation        |        cust_nation        | l_year |  revenue   
----------------------------+---------------------------+--------+------------
+---------------------------------------------------------------------
  UNITED KINGDOM            | CHINA                     |   1996 | 18560.2200
 (1 row)
 
@@ -216,7 +216,7 @@ EXECUTE prepared_test_2;
 CREATE TEMP TABLE prepared_sql_test_7 AS EXECUTE prepared_test_7('UNITED KINGDOM', 'CHINA');
 SELECT * from prepared_sql_test_7;
         supp_nation        |        cust_nation        | l_year |  revenue   
----------------------------+---------------------------+--------+------------
+---------------------------------------------------------------------
  UNITED KINGDOM            | CHINA                     |   1996 | 18560.2200
 (1 row)
 
@@ -262,7 +262,7 @@ CREATE TABLE router_executor_table (
 SET citus.shard_count TO 2;
 SELECT create_distributed_table('router_executor_table', 'id', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -349,7 +349,7 @@ SET citus.shard_count TO 4;
 SET citus.shard_replication_factor TO 1;
 SELECT create_distributed_table('prepare_table','key','hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -871,7 +871,7 @@ CREATE TABLE prepare_func_table (
 );
 SELECT create_distributed_table('prepare_func_table', 'key');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -925,7 +925,7 @@ CREATE TABLE text_partition_column_table (
 );
 SELECT create_distributed_table('text_partition_column_table', 'key');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -955,7 +955,7 @@ SELECT run_command_on_workers($$
   CREATE DOMAIN test_key AS text CHECK(VALUE ~ '^test-\d$')
 $$);
        run_command_on_workers        
--------------------------------------
+---------------------------------------------------------------------
  (localhost,57637,t,"CREATE DOMAIN")
  (localhost,57638,t,"CREATE DOMAIN")
 (2 rows)
@@ -966,7 +966,7 @@ CREATE TABLE domain_partition_column_table (
 );
 SELECT create_distributed_table('domain_partition_column_table', 'key');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1002,7 +1002,7 @@ CREATE TABLE http_request (
 );
 SELECT create_distributed_table('http_request', 'site_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1045,7 +1045,7 @@ SET citus.shard_count TO 2;
 SET citus.shard_replication_factor TO 2;
 SELECT create_distributed_table('test_table', 'test_id', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1094,7 +1094,7 @@ WHERE shardid IN (
         SELECT shardid FROM pg_dist_shard WHERE logicalrelid = 'test_table'::regclass)
     AND nodeport = :worker_1_port;
  master_copy_shard_placement 
------------------------------
+---------------------------------------------------------------------
  
  
 (2 rows)

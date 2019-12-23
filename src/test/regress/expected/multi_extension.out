@@ -115,7 +115,7 @@ ALTER EXTENSION citus UPDATE TO '9.2-1';
 -- show running version
 SHOW citus.version;
  citus.version 
----------------
+---------------------------------------------------------------------
  9.2devel
 (1 row)
 
@@ -169,7 +169,7 @@ SELECT d.datname as "Name",
 FROM pg_catalog.pg_database d
 ORDER BY 1;
     Name    |  Owner   |   Access privileges   
-------------+----------+-----------------------
+---------------------------------------------------------------------
  postgres   | postgres | 
  regression | postgres | 
  template0  | postgres | =c/postgres          +
@@ -309,7 +309,7 @@ SELECT
 FROM
     test_deamon.maintenance_deamon_died('another');
  maintenance_deamon_died 
--------------------------
+---------------------------------------------------------------------
  t
 (1 row)
 

@@ -22,14 +22,14 @@ CREATE VIEW priority_orders AS SELECT * FROM orders_hash_part WHERE o_orderprior
 -- aggregate pushdown
 SELECT o_orderpriority, count(*)  FROM priority_orders GROUP BY 1 ORDER BY 2, 1;
  o_orderpriority | count 
------------------+-------
+---------------------------------------------------------------------
  2-HIGH          |   593
  1-URGENT        |   604
 (2 rows)
 
 SELECT o_orderpriority, count(*) FROM orders_hash_part  WHERE o_orderpriority < '3-MEDIUM' GROUP BY 1 ORDER BY 2,1;
  o_orderpriority | count 
------------------+-------
+---------------------------------------------------------------------
  2-HIGH          |   593
  1-URGENT        |   604
 (2 rows)
@@ -37,7 +37,7 @@ SELECT o_orderpriority, count(*) FROM orders_hash_part  WHERE o_orderpriority < 
 -- filters
 SELECT o_orderpriority, count(*) as all, count(*) FILTER (WHERE o_orderstatus ='F') as fullfilled  FROM priority_orders GROUP BY 1 ORDER BY 2, 1;
  o_orderpriority | all | fullfilled 
------------------+-----+------------
+---------------------------------------------------------------------
  2-HIGH          | 593 |        271
  1-URGENT        | 604 |        280
 (2 rows)
@@ -45,7 +45,7 @@ SELECT o_orderpriority, count(*) as all, count(*) FILTER (WHERE o_orderstatus ='
 -- having
 SELECT o_orderdate, count(*) from priority_orders group by 1 having (count(*) > 3)  order by 2 desc, 1 desc;
  o_orderdate | count 
--------------+-------
+---------------------------------------------------------------------
  08-20-1996  |     5
  10-10-1994  |     4
  05-05-1994  |     4
@@ -56,7 +56,7 @@ SELECT o_orderdate, count(*) from priority_orders group by 1 having (count(*) > 
 -- having with filters
 SELECT o_orderdate, count(*) as all, count(*) FILTER(WHERE o_orderstatus = 'F') from priority_orders group by 1 having (count(*) > 3)  order by 2 desc, 1 desc;
  o_orderdate | all | count 
--------------+-----+-------
+---------------------------------------------------------------------
  08-20-1996  |   5 |     0
  10-10-1994  |   4 |     4
  05-05-1994  |   4 |     4
@@ -67,7 +67,7 @@ SELECT o_orderdate, count(*) as all, count(*) FILTER(WHERE o_orderstatus = 'F') 
 -- limit
 SELECT o_orderkey, o_totalprice from orders_hash_part order by 2 desc, 1 asc limit 5 ;
  o_orderkey | o_totalprice 
-------------+--------------
+---------------------------------------------------------------------
        4421 |    401055.62
       10209 |    400191.77
       11142 |    395039.05
@@ -77,7 +77,7 @@ SELECT o_orderkey, o_totalprice from orders_hash_part order by 2 desc, 1 asc lim
 
 SELECT o_orderkey, o_totalprice from priority_orders order by 2 desc, 1 asc limit 1 ;
  o_orderkey | o_totalprice 
-------------+--------------
+---------------------------------------------------------------------
       14179 |    384265.43
 (1 row)
 
@@ -171,7 +171,7 @@ SELECT count(*) FROM lineitem_hash_part right join priority_orders ON (o_orderke
 SELECT o_orderkey, l_linenumber FROM priority_orders left join air_shipped_lineitems ON (o_orderkey = l_orderkey)
 	WHERE o_orderkey = 2;
  o_orderkey | l_linenumber 
-------------+--------------
+---------------------------------------------------------------------
           2 |             
 (1 row)
 
@@ -183,7 +183,7 @@ DEBUG:  generating subplan 22_1 for subquery SELECT lineitem_hash_part.l_orderke
 DEBUG:  Plan 22 query after replacing subqueries and CTEs: SELECT priority_orders.o_orderkey, priority_orders.o_custkey, priority_orders.o_orderstatus, priority_orders.o_totalprice, priority_orders.o_orderdate, priority_orders.o_orderpriority, priority_orders.o_clerk, priority_orders.o_shippriority, priority_orders.o_comment, air_shipped_lineitems.l_orderkey, air_shipped_lineitems.l_partkey, air_shipped_lineitems.l_suppkey, air_shipped_lineitems.l_linenumber, air_shipped_lineitems.l_quantity, air_shipped_lineitems.l_extendedprice, air_shipped_lineitems.l_discount, air_shipped_lineitems.l_tax, air_shipped_lineitems.l_returnflag, air_shipped_lineitems.l_linestatus, air_shipped_lineitems.l_shipdate, air_shipped_lineitems.l_commitdate, air_shipped_lineitems.l_receiptdate, air_shipped_lineitems.l_shipinstruct, air_shipped_lineitems.l_shipmode, air_shipped_lineitems.l_comment FROM ((SELECT orders_hash_part.o_orderkey, orders_hash_part.o_custkey, orders_hash_part.o_orderstatus, orders_hash_part.o_totalprice, orders_hash_part.o_orderdate, orders_hash_part.o_orderpriority, orders_hash_part.o_clerk, orders_hash_part.o_shippriority, orders_hash_part.o_comment FROM public.orders_hash_part WHERE (orders_hash_part.o_orderpriority OPERATOR(pg_catalog.<) '3-MEDIUM'::bpchar)) priority_orders JOIN (SELECT intermediate_result.l_orderkey, intermediate_result.l_partkey, intermediate_result.l_suppkey, intermediate_result.l_linenumber, intermediate_result.l_quantity, intermediate_result.l_extendedprice, intermediate_result.l_discount, intermediate_result.l_tax, intermediate_result.l_returnflag, intermediate_result.l_linestatus, intermediate_result.l_shipdate, intermediate_result.l_commitdate, intermediate_result.l_receiptdate, intermediate_result.l_shipinstruct, intermediate_result.l_shipmode, intermediate_result.l_comment FROM read_intermediate_result('22_1'::text, 'binary'::citus_copy_format) intermediate_result(l_orderkey bigint, l_partkey integer, l_suppkey integer, l_linenumber integer, l_quantity numeric(15,2), l_extendedprice numeric(15,2), l_discount numeric(15,2), l_tax numeric(15,2), l_returnflag character(1), l_linestatus character(1), l_shipdate date, l_commitdate date, l_receiptdate date, l_shipinstruct character(25), l_shipmode character(10), l_comment character varying(44))) air_shipped_lineitems ON ((priority_orders.o_custkey OPERATOR(pg_catalog.=) air_shipped_lineitems.l_suppkey))) ORDER BY priority_orders.o_orderkey DESC, priority_orders.o_custkey DESC, priority_orders.o_orderpriority DESC LIMIT 5
 DEBUG:  push down of limit count: 5
  o_orderkey | o_custkey | o_orderstatus | o_totalprice | o_orderdate | o_orderpriority |     o_clerk     | o_shippriority |                       o_comment                       | l_orderkey | l_partkey | l_suppkey | l_linenumber | l_quantity | l_extendedprice | l_discount | l_tax | l_returnflag | l_linestatus | l_shipdate | l_commitdate | l_receiptdate |      l_shipinstruct       | l_shipmode |                 l_comment                 
-------------+-----------+---------------+--------------+-------------+-----------------+-----------------+----------------+-------------------------------------------------------+------------+-----------+-----------+--------------+------------+-----------------+------------+-------+--------------+--------------+------------+--------------+---------------+---------------------------+------------+-------------------------------------------
+---------------------------------------------------------------------
       14821 |      1435 | O             |    322002.95 | 06-12-1998  | 2-HIGH          | Clerk#000000630 |              0 | n packages are furiously ironic ideas. d              |       1607 |    118923 |      1435 |            2 |      37.00 |        71851.04 |       0.05 |  0.02 | N            | O            | 02-27-1996 | 02-18-1996   | 03-16-1996    | NONE                      | AIR        | alongside 
       14790 |       613 | O             |    270163.54 | 08-21-1996  | 2-HIGH          | Clerk#000000347 |              0 | p. regular deposits wake. final n                     |       2629 |    123076 |       613 |            2 |      31.00 |        34071.17 |       0.08 |  0.03 | N            | O            | 05-24-1998 | 05-26-1998   | 06-10-1998    | COLLECT COD               | AIR        | ate blithely bold, regular deposits. bold
       14758 |      1225 | F             |     37812.49 | 10-27-1993  | 2-HIGH          | Clerk#000000687 |              0 | ages nag about the furio                              |       9156 |    176190 |      1225 |            2 |      22.00 |        27856.18 |       0.03 |  0.00 | R            | F            | 02-08-1994 | 04-01-1994   | 02-24-1994    | DELIVER IN PERSON         | AIR        | equests dete
@@ -304,7 +304,7 @@ CREATE VIEW recent_users AS
 	HAVING max(time) > '2017-11-23 16:20:33.264457'::timestamp order by 2 DESC;
 SELECT * FROM recent_users ORDER BY 2 DESC, 1 DESC;
  user_id |            lastseen             
----------+---------------------------------
+---------------------------------------------------------------------
        1 | Thu Nov 23 17:30:34.635085 2017
        3 | Thu Nov 23 17:18:51.048758 2017
        5 | Thu Nov 23 16:48:32.08896 2017
@@ -421,7 +421,7 @@ SELECT count(*)
 -- users who has recent activity and they have an entry with value_1 is less than 3
 SELECT ut.* FROM recent_users ru JOIN users_table ut USING (user_id) WHERE ut.value_1 < 3 ORDER BY 1,2;
  user_id |              time               | value_1 | value_2 | value_3 | value_4 
----------+---------------------------------+---------+---------+---------+---------
+---------------------------------------------------------------------
        1 | Thu Nov 23 09:26:42.145043 2017 |       1 |       3 |       3 |        
        3 | Wed Nov 22 18:43:51.450263 2017 |       1 |       1 |       4 |        
        3 | Wed Nov 22 20:43:31.008625 2017 |       1 |       3 |       2 |        
@@ -498,7 +498,7 @@ SELECT user_id FROM recent_selected_users GROUP BY 1 ORDER BY 1;
 -- this would be supported when we implement where partition_key in (subquery) support
 SELECT et.user_id, et.time FROM events_table et WHERE et.user_id IN (SELECT user_id FROM recent_selected_users) GROUP BY 1,2 ORDER BY 1 DESC,2 DESC LIMIT 5;
  user_id |              time               
----------+---------------------------------
+---------------------------------------------------------------------
        5 | Thu Nov 23 16:11:02.929469 2017
        5 | Thu Nov 23 14:40:40.467511 2017
        5 | Thu Nov 23 14:28:51.833214 2017
@@ -639,7 +639,7 @@ CREATE VIEW cte_view_1 AS
 WITH c1 AS (SELECT * FROM users_table WHERE value_1 = 3) SELECT * FROM c1 WHERE value_2 < 4 AND EXISTS (SELECT * FROM c1);
 SELECT * FROM cte_view_1 ORDER BY 1,2,3,4,5 LIMIT 5;
  user_id |              time               | value_1 | value_2 | value_3 | value_4 
----------+---------------------------------+---------+---------+---------+---------
+---------------------------------------------------------------------
        1 | Thu Nov 23 03:32:50.803031 2017 |       3 |       2 |       1 |        
        2 | Thu Nov 23 13:52:54.83829 2017  |       3 |       1 |       4 |        
        3 | Wed Nov 22 23:24:32.080584 2017 |       3 |       2 |       5 |        
@@ -651,7 +651,7 @@ SELECT * FROM cte_view_1 ORDER BY 1,2,3,4,5 LIMIT 5;
 -- router planner can't detect it
 SELECT * FROM cte_view_1 WHERE user_id = 2 ORDER BY 1,2,3,4,5;
  user_id |              time              | value_1 | value_2 | value_3 | value_4 
----------+--------------------------------+---------+---------+---------+---------
+---------------------------------------------------------------------
        2 | Thu Nov 23 13:52:54.83829 2017 |       3 |       1 |       4 |        
 (1 row)
 
@@ -660,7 +660,7 @@ CREATE VIEW cte_view_2 AS
 WITH c1 AS (SELECT * FROM users_table WHERE user_id = 2) SELECT * FROM c1 WHERE value_1 = 3;
 SELECT * FROM cte_view_2;
  user_id |              time               | value_1 | value_2 | value_3 | value_4 
----------+---------------------------------+---------+---------+---------+---------
+---------------------------------------------------------------------
        2 | Thu Nov 23 00:19:14.138058 2017 |       3 |       4 |       0 |        
        2 | Thu Nov 23 13:52:54.83829 2017  |       3 |       1 |       4 |        
        2 | Wed Nov 22 18:19:49.944985 2017 |       3 |       5 |       1 |        
@@ -678,13 +678,13 @@ SELECT user_id FROM router_view GROUP BY 1;
 -- join a router view
  SELECT * FROM (SELECT user_id FROM router_view GROUP BY 1) rv JOIN recent_events USING (user_id) ORDER BY 2 LIMIT 3;
  user_id |              time               
----------+---------------------------------
+---------------------------------------------------------------------
        2 | Thu Nov 23 17:26:14.563216 2017
 (1 row)
 
  SELECT * FROM (SELECT user_id FROM router_view GROUP BY 1) rv JOIN (SELECT * FROM recent_events) re USING (user_id) ORDER BY 2 LIMIT 3;
  user_id |              time               
----------+---------------------------------
+---------------------------------------------------------------------
        2 | Thu Nov 23 17:26:14.563216 2017
 (1 row)
 
@@ -697,7 +697,7 @@ CREATE VIEW recent_10_users AS
 -- this is not supported since it has limit in it and subquery_pushdown is not set
 SELECT * FROM recent_10_users;
  user_id |            lastseen             
----------+---------------------------------
+---------------------------------------------------------------------
        1 | Thu Nov 23 17:30:34.635085 2017
        3 | Thu Nov 23 17:18:51.048758 2017
        5 | Thu Nov 23 16:48:32.08896 2017
@@ -719,7 +719,7 @@ DETAIL:  Limit in subquery without limit in the outermost query is unsupported
 -- now both are supported when there is a limit on the outer most query
 SELECT * FROM recent_10_users ORDER BY lastseen DESC LIMIT 10;
  user_id |            lastseen             
----------+---------------------------------
+---------------------------------------------------------------------
        1 | Thu Nov 23 17:30:34.635085 2017
        3 | Thu Nov 23 17:18:51.048758 2017
        5 | Thu Nov 23 16:48:32.08896 2017
@@ -730,7 +730,7 @@ SELECT * FROM recent_10_users ORDER BY lastseen DESC LIMIT 10;
 
 SELECT et.* FROM recent_10_users JOIN events_table et USING(user_id) ORDER BY et.time DESC LIMIT 10;
  user_id |              time               | event_type | value_2 | value_3 | value_4 
----------+---------------------------------+------------+---------+---------+---------
+---------------------------------------------------------------------
        1 | Thu Nov 23 21:54:46.924477 2017 |          6 |       4 |       5 |        
        4 | Thu Nov 23 18:10:21.338399 2017 |          1 |       2 |       4 |        
        3 | Thu Nov 23 18:08:26.550729 2017 |          2 |       4 |       3 |        
@@ -748,7 +748,7 @@ VACUUM ANALYZE users_table;
 -- explain tests
 EXPLAIN (COSTS FALSE) SELECT user_id FROM recent_selected_users GROUP BY 1 ORDER BY 1;
                                                                  QUERY PLAN                                                                  
----------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Sort
    Sort Key: remote_scan.user_id
    ->  HashAggregate
@@ -757,7 +757,7 @@ EXPLAIN (COSTS FALSE) SELECT user_id FROM recent_selected_users GROUP BY 1 ORDER
                Task Count: 4
                Tasks Shown: One of 4
                ->  Task
-                     Node: host=localhost port=57637 dbname=regression
+                     Node: host=localhost port=xxxxx dbname=regression
                      ->  HashAggregate
                            Group Key: users_table.user_id
                            ->  Nested Loop
@@ -780,14 +780,14 @@ EXPLAIN (COSTS FALSE) SELECT *
 	WHERE user_id < 4 AND user_id > 1
 	ORDER BY user_id;
                                                                    QUERY PLAN                                                                    
--------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Sort
    Sort Key: remote_scan.user_id
    ->  Custom Scan (Citus Adaptive)
          Task Count: 4
          Tasks Shown: One of 4
          ->  Task
-               Node: host=localhost port=57637 dbname=regression
+               Node: host=localhost port=xxxxx dbname=regression
                ->  Unique
                      ->  Sort
                            Sort Key: recent_users.user_id
@@ -808,7 +808,7 @@ EXPLAIN (COSTS FALSE) SELECT *
 
 EXPLAIN (COSTS FALSE) SELECT et.* FROM recent_10_users JOIN events_table et USING(user_id) ORDER BY et.time DESC LIMIT 10;
                                                      QUERY PLAN                                                      
----------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: remote_scan."time" DESC
@@ -823,7 +823,7 @@ EXPLAIN (COSTS FALSE) SELECT et.* FROM recent_10_users JOIN events_table et USIN
                                              Task Count: 4
                                              Tasks Shown: One of 4
                                              ->  Task
-                                                   Node: host=localhost port=57637 dbname=regression
+                                                   Node: host=localhost port=xxxxx dbname=regression
                                                    ->  Limit
                                                          ->  Sort
                                                                Sort Key: (max("time")) DESC
@@ -833,7 +833,7 @@ EXPLAIN (COSTS FALSE) SELECT et.* FROM recent_10_users JOIN events_table et USIN
                Task Count: 4
                Tasks Shown: One of 4
                ->  Task
-                     Node: host=localhost port=57637 dbname=regression
+                     Node: host=localhost port=xxxxx dbname=regression
                      ->  Limit
                            ->  Sort
                                  Sort Key: et."time" DESC
@@ -847,7 +847,7 @@ EXPLAIN (COSTS FALSE) SELECT et.* FROM recent_10_users JOIN events_table et USIN
 SET citus.subquery_pushdown to ON;
 EXPLAIN (COSTS FALSE) SELECT et.* FROM recent_10_users JOIN events_table et USING(user_id) ORDER BY et.time DESC LIMIT 10;
                                                      QUERY PLAN                                                      
----------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: remote_scan."time" DESC
@@ -855,7 +855,7 @@ EXPLAIN (COSTS FALSE) SELECT et.* FROM recent_10_users JOIN events_table et USIN
                Task Count: 4
                Tasks Shown: One of 4
                ->  Task
-                     Node: host=localhost port=57637 dbname=regression
+                     Node: host=localhost port=xxxxx dbname=regression
                      ->  Limit
                            ->  Sort
                                  Sort Key: et."time" DESC
@@ -890,13 +890,13 @@ CREATE TABLE large (id int, tenant_id int);
 CREATE TABLE small (id int, tenant_id int, unique(tenant_id));
 SELECT create_distributed_table('large','tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('small','tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1051,13 +1051,13 @@ CREATE TABLE large_partitioned_p2 PARTITION OF large_partitioned FOR VALUES FROM
 CREATE TABLE large_partitioned_p3 PARTITION OF large_partitioned FOR VALUES FROM (20) TO (100);
 SELECT create_distributed_table('large_partitioned','tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('small','tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1137,13 +1137,13 @@ CREATE TABLE large (id int, tenant_id int);
 CREATE TABLE small (id int, tenant_id int, unique(tenant_id));
 SELECT create_distributed_table('large','tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('small','tenant_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

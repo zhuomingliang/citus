@@ -25,7 +25,7 @@ CREATE TABLE orders_hash_partitioned (
 	o_comment varchar(79) );
 SELECT create_distributed_table('orders_hash_partitioned', 'o_orderkey');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

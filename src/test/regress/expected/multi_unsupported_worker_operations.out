@@ -17,21 +17,21 @@ SET citus.shard_count TO 5;
 CREATE TABLE mx_table (col_1 int, col_2 text, col_3 BIGSERIAL);
 SELECT create_distributed_table('mx_table', 'col_1');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE mx_table_2 (col_1 int, col_2 text, col_3 BIGSERIAL);
 SELECT create_distributed_table('mx_table_2', 'col_1');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE mx_ref_table (col_1 int, col_2 text);
 SELECT create_reference_table('mx_ref_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -41,14 +41,14 @@ FROM pg_dist_partition
 WHERE logicalrelid IN ('mx_table'::regclass, 'mx_table_2'::regclass)
 ORDER BY logicalrelid;
  logicalrelid | repmodel | colocationid 
---------------+----------+--------------
+---------------------------------------------------------------------
  mx_table     | s        |       150000
  mx_table_2   | s        |       150000
 (2 rows)
 
 SELECT start_metadata_sync_to_node('localhost', :worker_1_port);
  start_metadata_sync_to_node 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -122,7 +122,7 @@ HINT:  Connect to the coordinator and run it again.
 -- DDL commands
 SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='public.mx_table'::regclass;
  Column |  Type   |                        Modifiers                         
---------+---------+----------------------------------------------------------
+---------------------------------------------------------------------
  col_1  | integer | 
  col_2  | text    | 
  col_3  | bigint  | not null default nextval('mx_table_col_3_seq'::regclass)
@@ -139,7 +139,7 @@ ERROR:  operation is not allowed on this node
 HINT:  Connect to the coordinator and run it again.
 SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='public.mx_table'::regclass;
  Column |  Type   |                        Modifiers                         
---------+---------+----------------------------------------------------------
+---------------------------------------------------------------------
  col_1  | integer | 
  col_2  | text    | 
  col_3  | bigint  | not null default nextval('mx_table_col_3_seq'::regclass)
@@ -198,7 +198,7 @@ SELECT count(1) FROM pg_dist_node WHERE nodename='localhost' AND nodeport=5432;
 \c - - - :master_port
 SELECT master_remove_node('localhost', 5432);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -210,7 +210,7 @@ ERROR:  operation is not allowed on this node
 HINT:  Connect to the coordinator and run it again.
 SELECT colocationid FROM pg_dist_partition WHERE logicalrelid='mx_table_2'::regclass;
  colocationid 
---------------
+---------------------------------------------------------------------
             0
 (1 row)
 
@@ -226,7 +226,7 @@ ERROR:  operation is not allowed on this node
 HINT:  Connect to the coordinator and run it again.
 SELECT hasmetadata FROM pg_dist_node WHERE nodeport=:worker_2_port;
  hasmetadata 
--------------
+---------------------------------------------------------------------
  f
 (1 row)
 
@@ -234,7 +234,7 @@ SELECT hasmetadata FROM pg_dist_node WHERE nodeport=:worker_2_port;
 \c - - - :master_port
 SELECT start_metadata_sync_to_node('localhost', :worker_2_port);
  start_metadata_sync_to_node 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -245,26 +245,26 @@ HINT:  Connect to the coordinator and run it again.
 \c - - - :master_port
 SELECT hasmetadata FROM pg_dist_node WHERE nodeport=:worker_2_port;
  hasmetadata 
--------------
+---------------------------------------------------------------------
  t
 (1 row)
 
 SELECT stop_metadata_sync_to_node('localhost', :worker_2_port);
  stop_metadata_sync_to_node 
-----------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT hasmetadata FROM pg_dist_node WHERE nodeport=:worker_2_port;
  hasmetadata 
--------------
+---------------------------------------------------------------------
  f
 (1 row)
 
 \c - - - :worker_2_port
 SELECT worker_drop_distributed_table(logicalrelid::regclass::text) FROM pg_dist_partition;
  worker_drop_distributed_table 
--------------------------------
+---------------------------------------------------------------------
  
  
 (2 rows)
@@ -332,7 +332,7 @@ DROP SEQUENCE some_sequence;
 BEGIN;
 SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='public.mx_table'::regclass;
  Column |  Type   |                        Modifiers                         
---------+---------+----------------------------------------------------------
+---------------------------------------------------------------------
  col_1  | integer | 
  col_2  | text    | 
  col_3  | bigint  | not null default nextval('mx_table_col_3_seq'::regclass)
@@ -357,7 +357,7 @@ DROP TABLE mx_table;
 DROP TABLE mx_table_2;
 SELECT stop_metadata_sync_to_node('localhost', :worker_1_port);
  stop_metadata_sync_to_node 
-----------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -365,7 +365,7 @@ SELECT stop_metadata_sync_to_node('localhost', :worker_1_port);
 DELETE FROM pg_dist_node;
 SELECT worker_drop_distributed_table(logicalrelid::regclass::text) FROM pg_dist_partition;
  worker_drop_distributed_table 
--------------------------------
+---------------------------------------------------------------------
 (0 rows)
 
 \c - - - :master_port

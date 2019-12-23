@@ -17,7 +17,7 @@ SELECT run_command_on_coordinator_and_workers($cf$
     RETURNS NULL ON NULL INPUT;
 $cf$);
  run_command_on_coordinator_and_workers 
-----------------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -29,7 +29,7 @@ SELECT run_command_on_coordinator_and_workers($cf$
     RETURNS NULL ON NULL INPUT;
 $cf$);
  run_command_on_coordinator_and_workers 
-----------------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -43,7 +43,7 @@ SELECT run_command_on_coordinator_and_workers($co$
     );
 $co$);
  run_command_on_coordinator_and_workers 
-----------------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -75,7 +75,7 @@ CREATE TABLE composite_type_partitioned_table
 SET citus.shard_replication_factor TO 1;
 SELECT create_distributed_table('composite_type_partitioned_table', 'col', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -106,7 +106,7 @@ CREATE TABLE bugs (
 );
 SELECT create_distributed_table('bugs', 'status', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -140,7 +140,7 @@ CREATE TABLE varchar_hash_partitioned_table
 );
 SELECT create_distributed_table('varchar_hash_partitioned_table', 'name', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

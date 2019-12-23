@@ -12,21 +12,21 @@ SET citus.shard_replication_factor = 2;
 CREATE TABLE raw_events_first (user_id int, time timestamp, value_1 int, value_2 int, value_3 float, value_4 bigint, UNIQUE(user_id, value_1));
 SELECT create_distributed_table('raw_events_first', 'user_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE raw_events_second (user_id int, time timestamp, value_1 int, value_2 int, value_3 float, value_4 bigint, UNIQUE(user_id, value_1));
 SELECT create_distributed_table('raw_events_second', 'user_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE agg_events (user_id int, value_1_agg int, value_2_agg int, value_3_agg float, value_4_agg bigint, agg_time timestamp, UNIQUE(user_id, value_1_agg));
 SELECT create_distributed_table('agg_events', 'user_id');;
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -34,14 +34,14 @@ SELECT create_distributed_table('agg_events', 'user_id');;
 CREATE TABLE reference_table (user_id int);
 SELECT create_reference_table('reference_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE insert_select_varchar_test (key varchar, value int);
 SELECT create_distributed_table('insert_select_varchar_test', 'key', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -91,7 +91,7 @@ ORDER BY
 -- see that we get unique vialitons
 \set VERBOSITY TERSE
 INSERT INTO raw_events_second  SELECT * FROM raw_events_first;
-ERROR:  duplicate key value violates unique constraint "raw_events_second_user_id_value_1_key_13300004"
+ERROR:  duplicate key value violates unique constraint "raw_events_second_user_id_value_1_key_xxxxxxx"
 \set VERBOSITY DEFAULT
 -- stable functions should be allowed
 INSERT INTO raw_events_second (user_id, time)
@@ -238,7 +238,7 @@ DEBUG:  distributed statement: INSERT INTO public.raw_events_second_13300005 AS 
 DEBUG:  Skipping target shard interval 13300006 since SELECT query for it pruned away
 DEBUG:  distributed statement: INSERT INTO public.raw_events_second_13300007 AS citus_table_alias (user_id, value_1, value_3) SELECT user_id, value_1, value_3 FROM public.raw_events_first_13300003 raw_events_first WHERE (((user_id OPERATOR(pg_catalog.=) 9) OR (user_id OPERATOR(pg_catalog.=) 16)) AND ((worker_hash(user_id) OPERATOR(pg_catalog.>=) 1073741824) AND (worker_hash(user_id) OPERATOR(pg_catalog.<=) 2147483647))) RETURNING citus_table_alias.user_id, citus_table_alias."time", citus_table_alias.value_1, citus_table_alias.value_2, citus_table_alias.value_3, citus_table_alias.value_4
 DEBUG:  Plan is router executable
-ERROR:  duplicate key value violates unique constraint "raw_events_second_user_id_value_1_key_13300007"
+ERROR:  duplicate key value violates unique constraint "raw_events_second_user_id_value_1_key_xxxxxxx"
 -- now do some aggregations
 INSERT INTO agg_events
 SELECT
@@ -266,7 +266,7 @@ DEBUG:  distributed statement: INSERT INTO public.agg_events_13300009 AS citus_t
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300010 AS citus_table_alias (user_id, value_1_agg, value_3_agg, value_4_agg) SELECT user_id, sum(value_1) AS sum, sum(value_3) AS sum, count(value_4) AS count FROM public.raw_events_first_13300002 raw_events_first WHERE ((worker_hash(user_id) OPERATOR(pg_catalog.>=) 0) AND (worker_hash(user_id) OPERATOR(pg_catalog.<=) 1073741823)) GROUP BY value_2, user_id RETURNING citus_table_alias.user_id, citus_table_alias.value_1_agg, citus_table_alias.value_2_agg, citus_table_alias.value_3_agg, citus_table_alias.value_4_agg, citus_table_alias.agg_time
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300011 AS citus_table_alias (user_id, value_1_agg, value_3_agg, value_4_agg) SELECT user_id, sum(value_1) AS sum, sum(value_3) AS sum, count(value_4) AS count FROM public.raw_events_first_13300003 raw_events_first WHERE ((worker_hash(user_id) OPERATOR(pg_catalog.>=) 1073741824) AND (worker_hash(user_id) OPERATOR(pg_catalog.<=) 2147483647)) GROUP BY value_2, user_id RETURNING citus_table_alias.user_id, citus_table_alias.value_1_agg, citus_table_alias.value_2_agg, citus_table_alias.value_3_agg, citus_table_alias.value_4_agg, citus_table_alias.agg_time
 DEBUG:  Plan is router executable
-ERROR:  duplicate key value violates unique constraint "agg_events_user_id_value_1_agg_key_13300008"
+ERROR:  duplicate key value violates unique constraint "agg_events_user_id_value_1_agg_key_xxxxxxx"
 -- some subquery tests
 INSERT INTO agg_events
             (value_1_agg,
@@ -285,7 +285,7 @@ DEBUG:  distributed statement: INSERT INTO public.agg_events_13300009 AS citus_t
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300010 AS citus_table_alias (user_id, value_1_agg) SELECT id, sum(value_1) AS sum FROM (SELECT raw_events_second.user_id AS id, raw_events_second.value_1 FROM public.raw_events_first_13300002 raw_events_first, public.raw_events_second_13300006 raw_events_second WHERE (raw_events_first.user_id OPERATOR(pg_catalog.=) raw_events_second.user_id)) foo WHERE ((worker_hash(id) OPERATOR(pg_catalog.>=) 0) AND (worker_hash(id) OPERATOR(pg_catalog.<=) 1073741823)) GROUP BY id ORDER BY id
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300011 AS citus_table_alias (user_id, value_1_agg) SELECT id, sum(value_1) AS sum FROM (SELECT raw_events_second.user_id AS id, raw_events_second.value_1 FROM public.raw_events_first_13300003 raw_events_first, public.raw_events_second_13300007 raw_events_second WHERE (raw_events_first.user_id OPERATOR(pg_catalog.=) raw_events_second.user_id)) foo WHERE ((worker_hash(id) OPERATOR(pg_catalog.>=) 1073741824) AND (worker_hash(id) OPERATOR(pg_catalog.<=) 2147483647)) GROUP BY id ORDER BY id
 DEBUG:  Plan is router executable
-ERROR:  duplicate key value violates unique constraint "agg_events_user_id_value_1_agg_key_13300008"
+ERROR:  duplicate key value violates unique constraint "agg_events_user_id_value_1_agg_key_xxxxxxx"
 -- subquery one more level depth
 INSERT INTO agg_events
             (value_4_agg,
@@ -307,7 +307,7 @@ DEBUG:  distributed statement: INSERT INTO public.agg_events_13300009 AS citus_t
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300010 AS citus_table_alias (user_id, value_1_agg, value_4_agg) SELECT id, v1, v4 FROM (SELECT sum(raw_events_second.value_4) AS v4, sum(raw_events_first.value_1) AS v1, raw_events_second.user_id AS id FROM public.raw_events_first_13300002 raw_events_first, public.raw_events_second_13300006 raw_events_second WHERE (raw_events_first.user_id OPERATOR(pg_catalog.=) raw_events_second.user_id) GROUP BY raw_events_second.user_id) foo WHERE ((worker_hash(id) OPERATOR(pg_catalog.>=) 0) AND (worker_hash(id) OPERATOR(pg_catalog.<=) 1073741823)) ORDER BY id
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300011 AS citus_table_alias (user_id, value_1_agg, value_4_agg) SELECT id, v1, v4 FROM (SELECT sum(raw_events_second.value_4) AS v4, sum(raw_events_first.value_1) AS v1, raw_events_second.user_id AS id FROM public.raw_events_first_13300003 raw_events_first, public.raw_events_second_13300007 raw_events_second WHERE (raw_events_first.user_id OPERATOR(pg_catalog.=) raw_events_second.user_id) GROUP BY raw_events_second.user_id) foo WHERE ((worker_hash(id) OPERATOR(pg_catalog.>=) 1073741824) AND (worker_hash(id) OPERATOR(pg_catalog.<=) 2147483647)) ORDER BY id
 DEBUG:  Plan is router executable
-ERROR:  duplicate key value violates unique constraint "agg_events_user_id_value_1_agg_key_13300008"
+ERROR:  duplicate key value violates unique constraint "agg_events_user_id_value_1_agg_key_xxxxxxx"
 \set VERBOSITY DEFAULT
 -- join between subqueries
 INSERT INTO agg_events
@@ -492,7 +492,7 @@ DEBUG:  distributed statement: INSERT INTO public.agg_events_13300010 AS ae (use
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300011 AS ae (user_id, value_1_agg, agg_time) SELECT user_id, value_1, "time" FROM public.raw_events_first_13300003 raw_events_first WHERE ((worker_hash(user_id) OPERATOR(pg_catalog.>=) 1073741824) AND (worker_hash(user_id) OPERATOR(pg_catalog.<=) 2147483647)) ON CONFLICT(user_id, value_1_agg) DO UPDATE SET agg_time = excluded.agg_time WHERE (ae.agg_time OPERATOR(pg_catalog.<) excluded.agg_time) RETURNING ae.user_id, ae.value_1_agg
 DEBUG:  Plan is router executable
  user_id | value_1_agg 
----------+-------------
+---------------------------------------------------------------------
        7 |            
 (1 row)
 
@@ -591,7 +591,7 @@ FROM
 ORDER BY
   user_id, value_1_agg;
  user_id | value_1_agg 
----------+-------------
+---------------------------------------------------------------------
        1 |           1
        2 |            
        3 |           3
@@ -636,7 +636,7 @@ DEBUG:  Router planner cannot handle multi-shard select queries
 SELECT user_id, value_1_agg FROM agg_events ORDER BY 1,2;
 DEBUG:  Router planner cannot handle multi-shard select queries
  user_id | value_1_agg 
----------+-------------
+---------------------------------------------------------------------
        1 |          10
        2 |          20
        3 |          30
@@ -667,7 +667,7 @@ DEBUG:  Plan is router executable
 SELECT user_id, value_1_agg FROM agg_events ORDER BY 1,2;
 DEBUG:  Router planner cannot handle multi-shard select queries
  user_id | value_1_agg 
----------+-------------
+---------------------------------------------------------------------
        1 |          10
        2 |          20
        3 |          30
@@ -1834,11 +1834,11 @@ SET client_min_messages TO DEBUG2;
 -- this should fail
 INSERT INTO raw_events_first SELECT * FROM raw_events_second;
 ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Insert query cannot be executed on all placements for shard 13300000
+DETAIL:  Insert query cannot be executed on all placements for shard xxxxx
 -- this should also fail
 INSERT INTO raw_events_first SELECT * FROM raw_events_second WHERE user_id = 5;
 ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Insert query cannot be executed on all placements for shard 13300000
+DETAIL:  Insert query cannot be executed on all placements for shard xxxxx
 -- but this should work given that it hits different shard
 INSERT INTO raw_events_first SELECT * FROM raw_events_second WHERE user_id = 6;
 DEBUG:  Skipping target shard interval 13300000 since SELECT query for it pruned away
@@ -1912,7 +1912,7 @@ CREATE TABLE table_with_defaults
 SET citus.shard_count = 2;
 SELECT create_distributed_table('table_with_defaults', 'store_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2045,7 +2045,7 @@ CREATE TABLE table_with_serial (
 );
 SELECT create_distributed_table('table_with_serial', 'store_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2065,19 +2065,19 @@ CREATE TABLE char_table (part_col char[], val int);
 create table table_with_starts_with_defaults (a int DEFAULT 5, b int, c int);
 SELECT create_distributed_table('text_table', 'part_col');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('char_table','part_col');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('table_with_starts_with_defaults', 'c');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2160,13 +2160,13 @@ CREATE TABLE summary_table
 );
 SELECT create_distributed_table('raw_table', 'time');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('summary_table', 'time');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2431,7 +2431,7 @@ SELECT * FROM numbers;
 CREATE TABLE "CaseSensitiveTable" ("UserID" int, "Value1" int);
 SELECT create_distributed_table('"CaseSensitiveTable"', 'UserID');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2457,7 +2457,7 @@ DROP TABLE "CaseSensitiveTable";
 CREATE TABLE dist_table_with_sequence (user_id serial, value_1 serial);
 SELECT create_distributed_table('dist_table_with_sequence', 'user_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2492,7 +2492,7 @@ SELECT * FROM dist_table_with_sequence ORDER BY user_id;
 CREATE TABLE ref_table (user_id int, value_1 int);
 SELECT create_reference_table('ref_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2513,14 +2513,14 @@ DROP TABLE ref_table;
 CREATE TABLE ref1 (d timestamptz);
 SELECT create_reference_table('ref1');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE ref2 (d date);
 SELECT create_reference_table('ref2');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2546,7 +2546,7 @@ DROP TABLE ref2;
 CREATE TABLE insert_append_table (user_id int, value_4 bigint);
 SELECT create_distributed_table('insert_append_table', 'user_id', 'append');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2596,7 +2596,7 @@ DROP VIEW test_view;
 CREATE TABLE drop_col_table (col1 text, col2 text, col3 text);
 SELECT create_distributed_table('drop_col_table', 'col2');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2625,14 +2625,14 @@ RESET client_min_messages;
 CREATE TABLE coerce_events(user_id int, time timestamp, value_1 numeric);
 SELECT create_distributed_table('coerce_events', 'user_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE coerce_agg (user_id int, value_1_agg int);
 SELECT create_distributed_table('coerce_agg', 'user_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -2657,7 +2657,7 @@ FROM (
 LIMIT 5;
 SELECT * FROM coerce_agg ORDER BY 1 DESC, 2 DESC;
  user_id | value_1_agg 
----------+-------------
+---------------------------------------------------------------------
       10 | 10
       10 | 10
        2 | 2
@@ -2679,7 +2679,7 @@ LIMIT 5;
 ERROR:  value too long for type character(1)
 SELECT * FROM coerce_agg ORDER BY 1 DESC, 2 DESC;
  user_id | value_1_agg 
----------+-------------
+---------------------------------------------------------------------
 (0 rows)
 
 TRUNCATE coerce_agg;
@@ -2707,7 +2707,7 @@ FROM (
 LIMIT 5;
 SELECT * FROM coerce_agg ORDER BY 1 DESC, 2 DESC;
  user_id | value_1_agg 
----------+-------------
+---------------------------------------------------------------------
        2 | b    
        1 | a    
 (2 rows)
@@ -2730,7 +2730,7 @@ ERROR:  new row for relation "coerce_agg_13300060" violates check constraint "sm
 \set VERBOSITY DEFAULT
 SELECT * FROM coerce_agg ORDER BY 1 DESC, 2 DESC;
  user_id | value_1_agg 
----------+-------------
+---------------------------------------------------------------------
 (0 rows)
 
 -- integer[3] -> text[3]
@@ -2748,7 +2748,7 @@ FROM (
 LIMIT 5;
 SELECT * FROM coerce_agg ORDER BY 1 DESC, 2 DESC;
  user_id | value_1_agg 
----------+-------------
+---------------------------------------------------------------------
        2 | {2,2,2}
        1 | {1,1,1}
 (2 rows)

@@ -24,7 +24,7 @@ END;
 $BODY$ LANGUAGE plpgsql;
 SHOW log_error_verbosity;
  log_error_verbosity 
----------------------
+---------------------------------------------------------------------
  terse
 (1 row)
 

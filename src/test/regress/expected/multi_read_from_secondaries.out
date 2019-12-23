@@ -9,13 +9,13 @@ DETAIL:  citus.use_secondary_nodes is set to 'always'
 \c "dbname=regression options='-c\ citus.use_secondary_nodes=never'"
 SELECT create_distributed_table('dest_table', 'a');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('source_table', 'a');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -25,7 +25,7 @@ INSERT INTO source_table (a, b) VALUES (10, 10);
 -- simluate actually having secondary nodes
 SELECT nodeid, groupid, nodename, nodeport, noderack, isactive, noderole, nodecluster FROM pg_dist_node;
  nodeid | groupid | nodename  | nodeport | noderack | isactive | noderole | nodecluster 
---------+---------+-----------+----------+----------+----------+----------+-------------
+---------------------------------------------------------------------
       1 |       1 | localhost |    57637 | default  | t        | primary  | default
       2 |       2 | localhost |    57638 | default  | t        | primary  | default
 (2 rows)

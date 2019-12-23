@@ -9,7 +9,7 @@ SET citus.shard_replication_factor to 1;
 CREATE TABLE test_table_1_rf1(id int, val_1 int);
 SELECT create_distributed_table('test_table_1_rf1','id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -17,7 +17,7 @@ INSERT INTO test_table_1_rf1 values(1,2),(2,3),(3,4),(15,16);
 CREATE TABLE test_table_2_rf1(id int, val_1 int);
 SELECT create_distributed_table('test_table_2_rf1','id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -25,7 +25,7 @@ INSERT INTO test_table_2_rf1 values(1,2),(2,3),(3,4);
 CREATE TABLE ref_table(id int, val_1 int);
 SELECT create_reference_table('ref_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -33,7 +33,7 @@ INSERT INTO ref_table values(1,2),(3,4),(5,6);
 CREATE TABLE ref_table_2(id int, val_1 int);
 SELECT create_reference_table('ref_table_2');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -42,7 +42,7 @@ SET citus.shard_replication_factor to 2;
 CREATE TABLE test_table_3_rf2(id int, val_1 int);
 SELECT create_distributed_table('test_table_3_rf2','id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -50,7 +50,7 @@ INSERT INTO test_table_3_rf2 values(1,2),(2,3),(3,4);
 CREATE TABLE test_table_4_rf2(id int, val_1 int);
 SELECT create_distributed_table('test_table_4_rf2','id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

@@ -6,7 +6,7 @@ CREATE TABLE users_table_local AS SELECT * FROM users_table;
 CREATE TABLE dist_table (id int, value int);
 SELECT create_distributed_table('dist_table', 'id', colocate_with => 'users_table');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -382,7 +382,7 @@ DEBUG:  generating subplan 37_3 for subquery SELECT DISTINCT cte.user_id FROM su
 DEBUG:  Plan 37 query after replacing subqueries and CTEs: SELECT foo.user_id, events_table.user_id, events_table."time", events_table.event_type, events_table.value_2, events_table.value_3, events_table.value_4 FROM (SELECT intermediate_result.user_id FROM read_intermediate_result('37_3'::text, 'binary'::citus_copy_format) intermediate_result(user_id integer)) foo, subquery_and_ctes.events_table WHERE (foo.user_id OPERATOR(pg_catalog.=) events_table.value_2) ORDER BY events_table."time" DESC, events_table.user_id DESC, foo.user_id DESC LIMIT 5
 DEBUG:  push down of limit count: 5
  user_id | user_id |              time               | event_type | value_2 | value_3 | value_4 
----------+---------+---------------------------------+------------+---------+---------+---------
+---------------------------------------------------------------------
        4 |       1 | Thu Nov 23 21:54:46.924477 2017 |          6 |       4 |       5 |        
        2 |       4 | Thu Nov 23 18:10:21.338399 2017 |          1 |       2 |       4 |        
        4 |       3 | Thu Nov 23 18:08:26.550729 2017 |          2 |       4 |       3 |        
@@ -489,7 +489,7 @@ DEBUG:  generating subplan 48_3 for subquery SELECT count(*) AS cnt FROM (SELECT
 DEBUG:  Plan 48 query after replacing subqueries and CTEs: SELECT foo.cnt, users_table.user_id, users_table."time", users_table.value_1, users_table.value_2, users_table.value_3, users_table.value_4 FROM (SELECT intermediate_result.cnt FROM read_intermediate_result('48_3'::text, 'binary'::citus_copy_format) intermediate_result(cnt bigint)) foo, subquery_and_ctes.users_table WHERE (foo.cnt OPERATOR(pg_catalog.>) users_table.value_2) ORDER BY users_table."time" DESC, foo.cnt DESC, users_table.user_id DESC, users_table.value_1 DESC LIMIT 5
 DEBUG:  push down of limit count: 5
  cnt | user_id |              time               | value_1 | value_2 | value_3 | value_4 
------+---------+---------------------------------+---------+---------+---------+---------
+---------------------------------------------------------------------
  432 |       1 | Thu Nov 23 17:30:34.635085 2017 |       3 |       4 |       4 |        
  432 |       1 | Thu Nov 23 17:23:03.441394 2017 |       5 |       4 |       3 |        
  432 |       3 | Thu Nov 23 17:18:51.048758 2017 |       1 |       5 |       5 |        

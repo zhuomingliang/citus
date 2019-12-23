@@ -11,7 +11,7 @@ SET search_path TO multi_truncate;
 CREATE TABLE test_truncate_append(a int);
 SELECT create_distributed_table('test_truncate_append', 'a', 'append');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -36,13 +36,13 @@ SELECT count(*) FROM test_truncate_append;
 -- create some more shards
 SELECT master_create_empty_shard('test_truncate_append');
  master_create_empty_shard 
----------------------------
+---------------------------------------------------------------------
                    1210001
 (1 row)
 
 SELECT master_create_empty_shard('test_truncate_append');
  master_create_empty_shard 
----------------------------
+---------------------------------------------------------------------
                    1210002
 (1 row)
 
@@ -79,7 +79,7 @@ DROP TABLE test_truncate_append;
 CREATE TABLE test_truncate_range(a int);
 SELECT create_distributed_table('test_truncate_range', 'a', 'range');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -153,7 +153,7 @@ DROP TABLE test_truncate_range;
 CREATE TABLE test_truncate_hash(a int);
 SELECT master_create_distributed_table('test_truncate_hash', 'a', 'hash');
  master_create_distributed_table 
----------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -196,7 +196,7 @@ SELECT shardid FROM pg_dist_shard where logicalrelid = 'test_truncate_hash'::reg
 TRUNCATE TABLE test_truncate_hash;
 SELECT master_create_worker_shards('test_truncate_hash', 4, 1);
  master_create_worker_shards 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -243,7 +243,7 @@ SET citus.shard_replication_factor TO 1;
 CREATE TABLE "a b hash" (a int, b int);
 SELECT create_distributed_table('"a b hash"', 'a', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -265,7 +265,7 @@ DROP TABLE "a b hash";
 CREATE TABLE "a b append" (a int, b int);
 SELECT create_distributed_table('"a b append"', 'a', 'append');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -298,7 +298,7 @@ INSERT INTO test_local_truncate VALUES (1,2);
 SELECT create_distributed_table('test_local_truncate', 'x', colocate_with => 'none');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -316,7 +316,7 @@ SELECT * FROM test_local_truncate;
 -- Undistribute table
 SELECT master_drop_all_shards('test_local_truncate', 'pubic', 'test_local_truncate');
  master_drop_all_shards 
-------------------------
+---------------------------------------------------------------------
                       4
 (1 row)
 
@@ -334,7 +334,7 @@ INSERT INTO test_local_truncate VALUES (1,2);
 SELECT create_distributed_table('test_local_truncate', 'x', colocate_with => 'none');
 NOTICE:  Copying data from local table...
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -352,7 +352,7 @@ SELECT * FROM test_local_truncate;
 -- Undistribute table
 SELECT master_drop_all_shards('test_local_truncate', 'pubic', 'test_local_truncate');
  master_drop_all_shards 
-------------------------
+---------------------------------------------------------------------
                       4
 (1 row)
 

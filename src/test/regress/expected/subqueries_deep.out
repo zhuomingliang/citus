@@ -80,7 +80,7 @@ DEBUG:  generating subplan 5_3 for subquery SELECT DISTINCT ON ((e.event_type)::
 DEBUG:  generating subplan 5_4 for subquery SELECT t.event, array_agg(t.user_id) AS events_table FROM (SELECT intermediate_result.event, intermediate_result."time", intermediate_result.user_id FROM read_intermediate_result('5_3'::text, 'binary'::citus_copy_format) intermediate_result(event text, "time" timestamp without time zone, user_id integer)) t, public.users_table WHERE (users_table.value_1 OPERATOR(pg_catalog.=) (t.event)::integer) GROUP BY t.event
 DEBUG:  Plan 5 query after replacing subqueries and CTEs: SELECT event, array_length(events_table, 1) AS array_length FROM (SELECT intermediate_result.event, intermediate_result.events_table FROM read_intermediate_result('5_4'::text, 'binary'::citus_copy_format) intermediate_result(event text, events_table integer[])) q ORDER BY (array_length(events_table, 1)) DESC, event
  event | array_length 
--------+--------------
+---------------------------------------------------------------------
  3     |           26
  4     |           21
  2     |           18

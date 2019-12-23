@@ -10,7 +10,7 @@ SET search_path TO disabled_object_propagation;
 CREATE TABLE t1 (a int PRIMARY KEY , b int);
 SELECT create_distributed_table('t1','a');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -19,7 +19,7 @@ CREATE TYPE tt1 AS (a int , b int);
 CREATE TABLE t2 (a int PRIMARY KEY, b tt1);
 SELECT create_distributed_table('t2', 'a');
 ERROR:  type "disabled_object_propagation.tt1" does not exist
-CONTEXT:  while executing command on localhost:57637
+CONTEXT:  while executing command on localhost:xxxxx
 SELECT 1 FROM run_command_on_workers($$
     BEGIN;
     SET LOCAL citus.enable_ddl_propagation TO off;
@@ -34,7 +34,7 @@ $$);
 
 SELECT create_distributed_table('t2', 'a');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -43,7 +43,7 @@ CREATE TYPE tt2 AS ENUM ('a', 'b');
 CREATE TABLE t3 (a int PRIMARY KEY, b tt2);
 SELECT create_distributed_table('t3', 'a');
 ERROR:  type "disabled_object_propagation.tt2" does not exist
-CONTEXT:  while executing command on localhost:57637
+CONTEXT:  while executing command on localhost:xxxxx
 SELECT 1 FROM  run_command_on_workers($$
     BEGIN;
     SET LOCAL citus.enable_ddl_propagation TO off;
@@ -58,7 +58,7 @@ $$);
 
 SELECT create_distributed_table('t3', 'a');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -70,7 +70,7 @@ CREATE TYPE tt3 AS (a int, b int);
 CREATE TABLE t4 (a int PRIMARY KEY, b tt3);
 SELECT create_distributed_table('t4','a');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -98,7 +98,7 @@ SELECT row(nspname, typname, usename)
  WHERE typname = 'tt3';
 $$);
                       run_command_on_workers                      
-------------------------------------------------------------------
+---------------------------------------------------------------------
  (localhost,57637,t,"(disabled_object_propagation,tt3,postgres)")
  (localhost,57638,t,"(disabled_object_propagation,tt3,postgres)")
 (2 rows)
@@ -113,7 +113,7 @@ SELECT run_command_on_workers($$
 GROUP BY pg_type.typname;
 $$);
              run_command_on_workers             
-------------------------------------------------
+---------------------------------------------------------------------
  (localhost,57637,t,"(tt3,""a int4, b int4"")")
  (localhost,57638,t,"(tt3,""a int4, b int4"")")
 (2 rows)

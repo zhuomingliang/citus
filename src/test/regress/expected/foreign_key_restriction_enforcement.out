@@ -11,28 +11,28 @@ SET citus.shard_replication_factor TO 1;
 CREATE TABLE transitive_reference_table(id int PRIMARY KEY);
 SELECT create_reference_table('transitive_reference_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE reference_table(id int PRIMARY KEY, value_1 int);
 SELECT create_reference_table('reference_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE on_update_fkey_table(id int PRIMARY KEY, value_1 int);
 SELECT create_distributed_table('on_update_fkey_table', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE unrelated_dist_table(id int PRIMARY KEY, value_1 int);
 SELECT create_distributed_table('unrelated_dist_table', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -471,9 +471,9 @@ BEGIN;
 DEBUG:  switching to sequential query execution mode
 DETAIL:  Reference relation "transitive_reference_table" is modified, which might lead to data inconsistencies or distributed deadlocks via parallel accesses to hash distributed relations due to foreign keys. Any parallel modification to those hash distributed relations in the same transaction can only be executed in sequential query execution mode
 	UPDATE on_update_fkey_table SET value_1 = 101 WHERE id = 1;
-ERROR:  insert or update on table "on_update_fkey_table_2380002" violates foreign key constraint "fkey_2380002"
+ERROR:  insert or update on table "on_update_fkey_table_xxxxxxx" violates foreign key constraint "fkey_xxxxxxx"
 DETAIL:  Key (value_1)=(101) is not present in table "reference_table_2380001".
-CONTEXT:  while executing command on localhost:57637
+CONTEXT:  while executing command on localhost:xxxxx
 	UPDATE on_update_fkey_table SET value_1 = 101 WHERE id = 2;
 ERROR:  current transaction is aborted, commands ignored until end of transaction block
 	UPDATE on_update_fkey_table SET value_1 = 101 WHERE id = 3;
@@ -525,7 +525,7 @@ BEGIN;
 DEBUG:  switching to sequential query execution mode
 DETAIL:  Reference relation "transitive_reference_table" is modified, which might lead to data inconsistencies or distributed deadlocks via parallel accesses to hash distributed relations due to foreign keys. Any parallel modification to those hash distributed relations in the same transaction can only be executed in sequential query execution mode
 	COPY on_update_fkey_table FROM STDIN WITH CSV;
-ERROR:  insert or update on table "on_update_fkey_table_2380004" violates foreign key constraint "fkey_2380004"
+ERROR:  insert or update on table "on_update_fkey_table_xxxxxxx" violates foreign key constraint "fkey_xxxxxxx"
 DETAIL:  Key (value_1)=(101) is not present in table "reference_table_2380001".
 ROLLBACK;
 -- case 2.8: UPDATE to a reference table is followed by TRUNCATE
@@ -1034,14 +1034,14 @@ BEGIN;
 	CREATE TABLE test_table_1(id int PRIMARY KEY);
 	SELECT create_reference_table('test_table_1');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 	CREATE TABLE test_table_2(id int PRIMARY KEY, value_1 int, FOREIGN KEY(value_1) REFERENCES test_table_1(id));
 	SELECT create_distributed_table('test_table_2', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1055,14 +1055,14 @@ BEGIN;
 	CREATE TABLE test_table_1(id int PRIMARY KEY);
 	SELECT create_reference_table('test_table_1');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 	CREATE TABLE tt4(id int PRIMARY KEY, value_1 int, FOREIGN KEY(id) REFERENCES tt4(id));
 	SELECT create_distributed_table('tt4', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1084,21 +1084,21 @@ BEGIN;
 	CREATE TABLE test_table_1(id int PRIMARY KEY);
 	SELECT create_reference_table('test_table_1');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 	CREATE TABLE tt4(id int PRIMARY KEY, value_1 int, FOREIGN KEY(id) REFERENCES tt4(id));
 	SELECT create_distributed_table('tt4', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 	CREATE TABLE test_table_2(id int PRIMARY KEY, value_1 int, FOREIGN KEY(value_1) REFERENCES test_table_1(id), FOREIGN KEY(id) REFERENCES tt4(id));
 	SELECT create_distributed_table('test_table_2', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1113,14 +1113,14 @@ BEGIN;
 	CREATE TABLE test_table_1(id int PRIMARY KEY);
 	SELECT create_reference_table('test_table_1');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 	CREATE TABLE test_table_2(id int PRIMARY KEY, value_1 int);
 	SELECT create_distributed_table('test_table_2', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1140,14 +1140,14 @@ BEGIN;
 	CREATE TABLE test_table_1(id int PRIMARY KEY);
 	SELECT create_reference_table('test_table_1');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 	CREATE TABLE test_table_2(id int PRIMARY KEY, value_1 int);
 	SELECT create_distributed_table('test_table_2', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1163,14 +1163,14 @@ BEGIN;
 	CREATE TABLE test_table_2(id int PRIMARY KEY, value_1 int);
 	SELECT create_distributed_table('test_table_2', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 	CREATE TABLE test_table_1(id int PRIMARY KEY);
 	SELECT create_reference_table('test_table_1');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1190,14 +1190,14 @@ BEGIN;
 	CREATE TABLE test_table_2(id int PRIMARY KEY, value_1 int);
 	SELECT create_distributed_table('test_table_2', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 	CREATE TABLE test_table_1(id int PRIMARY KEY);
 	SELECT create_reference_table('test_table_1');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1244,7 +1244,7 @@ BEGIN;
 	SELECT create_reference_table('test_table_1');
 NOTICE:  Copying data from local table...
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1268,7 +1268,7 @@ BEGIN;
 	SELECT create_reference_table('test_table_1');
 NOTICE:  Copying data from local table...
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1288,13 +1288,13 @@ BEGIN;
 	CREATE TABLE test_table_2(id int PRIMARY KEY, value_1 int, FOREIGN KEY(value_1) REFERENCES test_table_1(id));
 	SELECT create_reference_table('test_table_1');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 	SELECT create_distributed_table('test_table_2', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1328,7 +1328,7 @@ DEBUG:  CREATE TABLE / PRIMARY KEY will create implicit index "reference_table_p
 DEBUG:  building index "reference_table_pkey" on table "reference_table" serially
 SELECT create_reference_table('reference_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1337,7 +1337,7 @@ DEBUG:  CREATE TABLE / PRIMARY KEY will create implicit index "distributed_table
 DEBUG:  building index "distributed_table_pkey" on table "distributed_table" serially
 SELECT create_distributed_table('distributed_table', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

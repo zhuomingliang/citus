@@ -23,7 +23,7 @@ SELECT 1 FROM master_add_node('localhost', :worker_2_port);
 -- get the active nodes
 SELECT master_get_active_worker_nodes();
  master_get_active_worker_nodes 
---------------------------------
+---------------------------------------------------------------------
  (localhost,57638)
  (localhost,57637)
 (2 rows)
@@ -31,14 +31,14 @@ SELECT master_get_active_worker_nodes();
 -- try to add a node that is already in the cluster
 SELECT * FROM master_add_node('localhost', :worker_1_port);
  master_add_node 
------------------
+---------------------------------------------------------------------
                1
 (1 row)
 
 -- get the active nodes
 SELECT master_get_active_worker_nodes();
  master_get_active_worker_nodes 
---------------------------------
+---------------------------------------------------------------------
  (localhost,57638)
  (localhost,57637)
 (2 rows)
@@ -46,14 +46,14 @@ SELECT master_get_active_worker_nodes();
 -- try to remove a node (with no placements)
 SELECT master_remove_node('localhost', :worker_2_port);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 -- verify that the node has been deleted
 SELECT master_get_active_worker_nodes();
  master_get_active_worker_nodes 
---------------------------------
+---------------------------------------------------------------------
  (localhost,57637)
 (1 row)
 
@@ -66,13 +66,13 @@ SELECT 1 FROM master_add_node('localhost', :worker_2_port);
 
 SELECT master_disable_node('localhost', :worker_2_port);
  master_disable_node 
----------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT master_get_active_worker_nodes();
  master_get_active_worker_nodes 
---------------------------------
+---------------------------------------------------------------------
  (localhost,57637)
 (1 row)
 
@@ -81,14 +81,14 @@ SET citus.shard_count TO 16;
 SET citus.shard_replication_factor TO 1;
 SELECT * FROM master_activate_node('localhost', :worker_2_port);
  master_activate_node 
-----------------------
+---------------------------------------------------------------------
                     3
 (1 row)
 
 CREATE TABLE cluster_management_test (col_1 text, col_2 int);
 SELECT create_distributed_table('cluster_management_test', 'col_1', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -111,7 +111,7 @@ SELECT master_remove_node('localhost', :worker_2_port);
 ERROR:  you cannot remove the primary node of a node group which has shard placements
 SELECT master_get_active_worker_nodes();
  master_get_active_worker_nodes 
---------------------------------
+---------------------------------------------------------------------
  (localhost,57638)
  (localhost,57637)
 (2 rows)
@@ -121,15 +121,15 @@ INSERT INTO test_reference_table VALUES (1, '1');
 -- try to disable a node with active placements see that node is removed
 -- observe that a notification is displayed
 SELECT master_disable_node('localhost', :worker_2_port);
-NOTICE:  Node localhost:57638 has active shard placements. Some queries may fail after this operation. Use SELECT master_activate_node('localhost', 57638) to activate this node back.
+NOTICE:  Node localhost:xxxxx has active shard placements. Some queries may fail after this operation. Use SELECT master_activate_node('localhost', 57638) to activate this node back.
  master_disable_node 
----------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT master_get_active_worker_nodes();
  master_get_active_worker_nodes 
---------------------------------
+---------------------------------------------------------------------
  (localhost,57637)
 (1 row)
 
@@ -206,7 +206,7 @@ SELECT 1 FROM master_add_secondary_node('localhost', :worker_2_port + 2, 'localh
 
 SELECT master_update_node(nodeid, 'localhost', :worker_2_port + 3) FROM pg_dist_node WHERE nodeport = :worker_2_port;
  master_update_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -223,14 +223,14 @@ ABORT;
 \c - postgres - :master_port
 SELECT master_get_active_worker_nodes();
  master_get_active_worker_nodes 
---------------------------------
+---------------------------------------------------------------------
  (localhost,57637)
 (1 row)
 
 -- restore the node for next tests
 SELECT * FROM master_activate_node('localhost', :worker_2_port);
  master_activate_node 
-----------------------
+---------------------------------------------------------------------
                     3
 (1 row)
 
@@ -258,7 +258,7 @@ SELECT master_remove_node('localhost', :worker_2_port);
 ERROR:  you cannot remove the primary node of a node group which has shard placements
 SELECT master_get_active_worker_nodes();
  master_get_active_worker_nodes 
---------------------------------
+---------------------------------------------------------------------
  (localhost,57638)
  (localhost,57637)
 (2 rows)
@@ -294,7 +294,7 @@ SELECT master_remove_node('localhost', :worker_2_port);
 ERROR:  you cannot remove the primary node of a node group which has shard placements
 SELECT master_remove_node('localhost', 9990);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -303,13 +303,13 @@ DROP TABLE cluster_management_test;
 -- check that adding/removing nodes are propagated to nodes with metadata
 SELECT master_remove_node('localhost', :worker_2_port);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT start_metadata_sync_to_node('localhost', :worker_1_port);
  start_metadata_sync_to_node 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -329,7 +329,7 @@ SELECT nodename, nodeport FROM pg_dist_node WHERE nodename='localhost' AND nodep
 \c - - - :master_port
 SELECT master_remove_node('localhost', :worker_2_port);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -343,7 +343,7 @@ SELECT nodename, nodeport FROM pg_dist_node WHERE nodename='localhost' AND nodep
 -- check that added nodes are not propagated to nodes without metadata
 SELECT stop_metadata_sync_to_node('localhost', :worker_1_port);
  stop_metadata_sync_to_node 
-----------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -365,7 +365,7 @@ SELECT
 	master_remove_node('localhost', :worker_1_port),
 	master_remove_node('localhost', :worker_2_port);
  master_remove_node | master_remove_node 
---------------------+--------------------
+---------------------------------------------------------------------
                     | 
 (1 row)
 
@@ -380,13 +380,13 @@ SELECT
 	master_add_node('localhost', :worker_1_port),
 	master_add_node('localhost', :worker_2_port);
  master_add_node | master_add_node 
------------------+-----------------
+---------------------------------------------------------------------
               11 |              12
 (1 row)
 
 SELECT * FROM pg_dist_node ORDER BY nodeid;
  nodeid | groupid | nodename  | nodeport | noderack | hasmetadata | isactive | noderole | nodecluster | metadatasynced | shouldhaveshards 
---------+---------+-----------+----------+----------+-------------+----------+----------+-------------+----------------+------------------
+---------------------------------------------------------------------
      11 |       9 | localhost |    57637 | default  | f           | t        | primary  | default     | f              | t
      12 |      10 | localhost |    57638 | default  | f           | t        | primary  | default     | f              | t
 (2 rows)
@@ -395,7 +395,7 @@ SELECT * FROM pg_dist_node ORDER BY nodeid;
 BEGIN;
 SELECT master_remove_node('localhost', :worker_2_port);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -407,7 +407,7 @@ SELECT 1 FROM master_add_node('localhost', :worker_2_port);
 
 SELECT master_remove_node('localhost', :worker_2_port);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -419,7 +419,7 @@ SELECT nodename, nodeport FROM pg_dist_node WHERE nodename='localhost' AND nodep
 
 SELECT start_metadata_sync_to_node('localhost', :worker_1_port);
  start_metadata_sync_to_node 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -432,7 +432,7 @@ SELECT 1 FROM master_add_node('localhost', :worker_2_port);
 
 SELECT master_remove_node('localhost', :worker_2_port);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -459,7 +459,7 @@ SELECT nodename, nodeport FROM pg_dist_node WHERE nodename='localhost' AND nodep
 \c - - - :master_port
 SELECT master_remove_node(nodename, nodeport) FROM pg_dist_node;
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
  
 (2 rows)
@@ -480,7 +480,7 @@ SELECT 1 FROM master_add_node('localhost', :worker_2_port);
 SET citus.shard_count TO 4;
 SELECT master_remove_node('localhost', :worker_2_port);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -494,7 +494,7 @@ SELECT 1 FROM master_add_node('localhost', :worker_2_port);
 CREATE TABLE temp(col1 text, col2 int);
 SELECT create_distributed_table('temp', 'col1');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -530,13 +530,13 @@ DELETE FROM pg_dist_node;
 \c - - - :master_port
 SELECT stop_metadata_sync_to_node('localhost', :worker_1_port);
  stop_metadata_sync_to_node 
-----------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT stop_metadata_sync_to_node('localhost', :worker_2_port);
  stop_metadata_sync_to_node 
-----------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -571,25 +571,25 @@ SELECT 1 FROM master_add_inactive_node('localhost', 9996, groupid => :worker_2_g
 -- check that you can add a seconary to a non-default cluster, and activate it, and remove it
 SELECT master_add_inactive_node('localhost', 9999, groupid => :worker_2_group, nodecluster => 'olap', noderole => 'secondary');
  master_add_inactive_node 
---------------------------
+---------------------------------------------------------------------
                        22
 (1 row)
 
 SELECT master_activate_node('localhost', 9999);
  master_activate_node 
-----------------------
+---------------------------------------------------------------------
                    22
 (1 row)
 
 SELECT master_disable_node('localhost', 9999);
  master_disable_node 
----------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT master_remove_node('localhost', 9999);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -615,7 +615,7 @@ DETAIL:  Failing row contains (16, 14, localhost, 57637, default, f, t, primary,
 SELECT groupid AS worker_2_group FROM pg_dist_node WHERE nodeport = :worker_2_port \gset
 SELECT master_add_node('localhost', 8888, groupid => :worker_1_group, noderole => 'secondary', nodecluster=> 'olap');
  master_add_node 
------------------
+---------------------------------------------------------------------
               25
 (1 row)
 
@@ -628,13 +628,13 @@ SELECT master_add_node('localhost', 8887, groupid => :worker_1_group, noderole =
 	'overflow'
 );
  master_add_node 
------------------
+---------------------------------------------------------------------
               26
 (1 row)
 
 SELECT * FROM pg_dist_node WHERE nodeport=8887;
  nodeid | groupid | nodename  | nodeport | noderack | hasmetadata | isactive | noderole  |                           nodecluster                           | metadatasynced | shouldhaveshards 
---------+---------+-----------+----------+----------+-------------+----------+-----------+-----------------------------------------------------------------+----------------+------------------
+---------------------------------------------------------------------
      26 |      14 | localhost |     8887 | default  | f           | t        | secondary | thisisasixtyfourcharacterstringrepeatedfourtimestomake256chars. | f              | t
 (1 row)
 
@@ -643,21 +643,21 @@ SELECT * FROM pg_dist_node WHERE nodeport=8887;
 -- master_add_secondary_node lets you skip looking up the groupid
 SELECT master_add_secondary_node('localhost', 9995, 'localhost', :worker_1_port);
  master_add_secondary_node 
----------------------------
+---------------------------------------------------------------------
                         27
 (1 row)
 
 SELECT master_add_secondary_node('localhost', 9994, primaryname => 'localhost', primaryport => :worker_2_port);
  master_add_secondary_node 
----------------------------
+---------------------------------------------------------------------
                         28
 (1 row)
 
 SELECT master_add_secondary_node('localhost', 9993, 'localhost', 2000);
-ERROR:  node at "localhost:2000" does not exist
+ERROR:  node at "localhost:xxxxx" does not exist
 SELECT master_add_secondary_node('localhost', 9992, 'localhost', :worker_1_port, nodecluster => 'second-cluster');
  master_add_secondary_node 
----------------------------
+---------------------------------------------------------------------
                         29
 (1 row)
 
@@ -671,26 +671,26 @@ ERROR:  there is already another node with the specified hostname and port
 -- master_update_node moves a node
 SELECT master_update_node(:worker_1_node, 'somehost', 9000);
  master_update_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT * FROM pg_dist_node WHERE nodeid = :worker_1_node;
  nodeid | groupid | nodename | nodeport | noderack | hasmetadata | isactive | noderole | nodecluster | metadatasynced | shouldhaveshards 
---------+---------+----------+----------+----------+-------------+----------+----------+-------------+----------------+------------------
+---------------------------------------------------------------------
      16 |      14 | somehost |     9000 | default  | f           | t        | primary  | default     | f              | t
 (1 row)
 
 -- cleanup
 SELECT master_update_node(:worker_1_node, 'localhost', :worker_1_port);
  master_update_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT * FROM pg_dist_node WHERE nodeid = :worker_1_node;
  nodeid | groupid | nodename  | nodeport | noderack | hasmetadata | isactive | noderole | nodecluster | metadatasynced | shouldhaveshards 
---------+---------+-----------+----------+----------+-------------+----------+----------+-------------+----------------+------------------
+---------------------------------------------------------------------
      16 |      14 | localhost |    57637 | default  | f           | t        | primary  | default     | f              | t
 (1 row)
 
@@ -698,14 +698,14 @@ SET citus.shard_replication_factor TO 1;
 CREATE TABLE test_dist (x int, y int);
 SELECT create_distributed_table('test_dist', 'x');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 -- testing behaviour when setting shouldhaveshards to false on partially empty node
 SELECT * from master_set_node_property('localhost', :worker_2_port, 'shouldhaveshards', false);
  master_set_node_property 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -715,25 +715,25 @@ CREATE TABLE test_dist_colocated_with_non_colocated (x int, y int);
 CREATE TABLE test_ref (a int, b int);
 SELECT create_distributed_table('test_dist_colocated', 'x');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('test_dist_non_colocated', 'x', colocate_with => 'none');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('test_dist_colocated_with_non_colocated', 'x', colocate_with => 'test_dist_non_colocated');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_reference_table('test_ref');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -781,7 +781,7 @@ DROP TABLE test_dist, test_ref, test_dist_colocated, test_dist_non_colocated, te
 -- testing behaviour when setting shouldhaveshards to false on fully empty node
 SELECT * from master_set_node_property('localhost', :worker_2_port, 'shouldhaveshards', false);
  master_set_node_property 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -791,13 +791,13 @@ CREATE TABLE test_dist_non_colocated (x int, y int);
 CREATE TABLE test_ref (a int, b int);
 SELECT create_distributed_table('test_dist', 'x');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_reference_table('test_ref');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -822,7 +822,7 @@ WHERE logicalrelid = 'test_ref'::regclass GROUP BY nodeport ORDER BY nodeport;
 
 SELECT * from master_set_node_property('localhost', :worker_2_port, 'shouldhaveshards', true);
  master_set_node_property 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -848,13 +848,13 @@ WHERE logicalrelid = 'test_ref'::regclass GROUP BY nodeport ORDER BY nodeport;
 
 SELECT create_distributed_table('test_dist_colocated', 'x');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT create_distributed_table('test_dist_non_colocated', 'x', colocate_with => 'none');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

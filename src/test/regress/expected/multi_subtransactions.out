@@ -4,7 +4,7 @@ CREATE TABLE artists (
 );
 SELECT create_distributed_table('artists', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -132,7 +132,7 @@ INSERT INTO artists VALUES (9, 'Mohsen Namjoo');
 COMMIT;
 SELECT * FROM artists WHERE id IN (7, 8, 9) ORDER BY id;
  id |     name      
-----+---------------
+---------------------------------------------------------------------
   8 | Sogand
   9 | Mohsen Namjoo
 (2 rows)
@@ -149,7 +149,7 @@ INSERT INTO artists VALUES (10, 'Mahmoud Farshchian');
 COMMIT;
 SELECT * FROM artists WHERE id IN (9, 10) ORDER BY id;
  id |        name        
-----+--------------------
+---------------------------------------------------------------------
  10 | Mahmoud Farshchian
 (1 row)
 
@@ -165,7 +165,7 @@ INSERT INTO artists VALUES (11, 'Egon Schiele');
 COMMIT;
 SELECT * FROM artists WHERE id IN (10, 11) ORDER BY id;
  id |     name     
-----+--------------
+---------------------------------------------------------------------
  11 | Egon Schiele
 (1 row)
 
@@ -181,7 +181,7 @@ INSERT INTO artists VALUES (12, 'Marc Chagall');
 COMMIT;
 SELECT * FROM artists WHERE id IN (11, 12) ORDER BY id;
  id |     name     
-----+--------------
+---------------------------------------------------------------------
  12 | Marc Chagall
 (1 row)
 
@@ -192,7 +192,7 @@ ALTER SEQUENCE pg_catalog.pg_dist_shardid_seq RESTART 1190000;
 select create_distributed_table('t1', 'a'),
        create_distributed_table('t2', 'a');
  create_distributed_table | create_distributed_table 
---------------------------+--------------------------
+---------------------------------------------------------------------
                           | 
 (1 row)
 
@@ -207,28 +207,28 @@ with r AS (
     update t1 set b = b - 10
     returning *
 ) insert into t2 select * from r;
-ERROR:  new row for relation "t2_1190005" violates check constraint "t2_b_check"
+ERROR:  new row for relation "t2_xxxxxxx" violates check constraint "t2_b_check"
 rollback to savepoint s1;
 savepoint s2;
 with r AS (
     update t2 set b = b - 10
     returning *
 ) insert into t1 select * from r;
-ERROR:  new row for relation "t2_1190004" violates check constraint "t2_b_check"
+ERROR:  new row for relation "t2_xxxxxxx" violates check constraint "t2_b_check"
 rollback to savepoint s2;
 savepoint s3;
 with r AS (
     insert into t2 select i, i+1 from generate_series(-10,-5) i
     returning *
 ) insert into t1 select * from r;
-ERROR:  new row for relation "t2_1190004" violates check constraint "t2_b_check"
+ERROR:  new row for relation "t2_xxxxxxx" violates check constraint "t2_b_check"
 rollback to savepoint s3;
 savepoint s4;
 with r AS (
     insert into t1 select i, i+1 from generate_series(-10,-5) i
     returning *
 ) insert into t2 select * from r;
-ERROR:  new row for relation "t2_1190005" violates check constraint "t2_b_check"
+ERROR:  new row for relation "t2_xxxxxxx" violates check constraint "t2_b_check"
 rollback to savepoint s4;
 with r AS (
     update t2 set b = b + 1
@@ -266,7 +266,7 @@ CREATE TABLE researchers (
 SET citus.shard_count TO 2;
 SELECT create_distributed_table('researchers', 'lab_id', 'hash');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -295,7 +295,7 @@ INSERT INTO researchers VALUES (12, 10, 'Stephen Kleene');
 COMMIT;
 SELECT * FROM researchers WHERE lab_id=10;
  id | lab_id |      name      
-----+--------+----------------
+---------------------------------------------------------------------
  12 |     10 | Stephen Kleene
 (1 row)
 
@@ -311,7 +311,7 @@ ERROR:  current transaction is aborted, commands ignored until end of transactio
 ROLLBACK;
 SELECT * FROM researchers WHERE lab_id=10;
  id | lab_id |      name      
-----+--------+----------------
+---------------------------------------------------------------------
  12 |     10 | Stephen Kleene
 (1 row)
 
@@ -327,7 +327,7 @@ ERROR:  current transaction is aborted, commands ignored until end of transactio
 COMMIT;
 SELECT * FROM researchers WHERE lab_id=10;
  id | lab_id |      name      
-----+--------+----------------
+---------------------------------------------------------------------
  12 |     10 | Stephen Kleene
 (1 row)
 
@@ -345,7 +345,7 @@ NOTICE:  caught not_null_violation
 COMMIT;
 SELECT * FROM researchers WHERE lab_id=10;
  id | lab_id |      name      
-----+--------+----------------
+---------------------------------------------------------------------
  12 |     10 | Stephen Kleene
 (1 row)
 
@@ -362,7 +362,7 @@ NOTICE:  caught manual plpgsql_error
 COMMIT;
 SELECT * FROM researchers WHERE lab_id=10;
  id | lab_id |      name      
-----+--------+----------------
+---------------------------------------------------------------------
  12 |     10 | Stephen Kleene
 (1 row)
 
@@ -379,7 +379,7 @@ ERROR:  not_null_violation
 COMMIT;
 SELECT * FROM researchers WHERE lab_id=10;
  id | lab_id |      name      
-----+--------+----------------
+---------------------------------------------------------------------
  12 |     10 | Stephen Kleene
 (1 row)
 
@@ -396,7 +396,7 @@ END $$;
 COMMIT;
 SELECT * FROM researchers WHERE lab_id=10;
  id | lab_id |       name       
-----+--------+------------------
+---------------------------------------------------------------------
  12 |     10 | Stephen Kleene
  32 |     10 | Raymond Smullyan
 (2 rows)
