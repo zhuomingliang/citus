@@ -171,6 +171,17 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 
 	if (needsDistributedPlanning)
 	{
+		static int fastPathCount = 0;
+		static int nonFastPathCount = 0;
+
+		if (fastPathRouterQuery)
+			++fastPathCount;
+		else
+			++nonFastPathCount;
+
+		if (fastPathCount % 10000 == 0)
+			elog(WARNING, "planner fast path ratio: %f", 100.0 * fastPathCount / (1.0 * fastPathCount + nonFastPathCount));
+
 		/*
 		 * Inserting into a local table needs to go through the regular postgres
 		 * planner/executor, but the SELECT needs to go through Citus. We currently

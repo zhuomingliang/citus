@@ -2281,6 +2281,19 @@ PlanRouterQuery(Query *originalQuery,
 		UpdateRelationToShardNames((Node *) originalQuery, *relationShardList);
 	}
 
+
+	static int fastPathCount = 0;
+	static int localFastPathCount = 0;
+
+	if (fastPathRouterQuery)
+		++fastPathCount;
+	if (fastPathRouterQuery && *localFastPathQuery)
+		++localFastPathCount;
+
+	if (fastPathCount % 10000 == 0)
+		elog(WARNING, "router planner local path ratio: %f", 100.0 * localFastPathCount / (1.0 * fastPathCount + localFastPathCount));
+
+
 	*multiShardModifyQuery = false;
 	*placementList = workerList;
 	*anchorShardId = shardId;

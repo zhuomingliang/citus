@@ -165,6 +165,9 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 {
 	Query *shardQuery = copyObject(workerJobQuery);
 
+	static int fastPathCount = 0;
+	static int nonFastPathCount = 0;
+
 	/*
 	 * For performance reasons, the queryString is not generated for
 	 * local-fast path queries. Instead, we simply update the shard
@@ -176,12 +179,15 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 	 */
 	if (task->queryString == NULL)
 	{
+		++fastPathCount;
+
 		ReplaceShardReferencesWalker((Node *) shardQuery, task);
 	}
 	else
 	{
 		int numParams = 0;
 		Oid *parameterTypes = NULL;
+		++nonFastPathCount;
 
 		if (boundParams != NULL)
 		{
@@ -198,6 +204,8 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 
 	int cursorOptions = CURSOR_OPT_FORCE_LOCAL;
 	PlannedStmt *localPlan = planner(shardQuery, cursorOptions, boundParams);
+	if (fastPathCount % 10000 == 0)
+		elog(WARNING, "executor fast path ratio: %f", 100.0 * fastPathCount / (1.0 * fastPathCount + nonFastPathCount));
 
 	return localPlan;
 }
