@@ -170,7 +170,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 					ResolveExternalParams((Node *) originalQuery->jointree->quals,
 										  copyParamList(boundParams));
 
-				fastPathRouterQuery = FastPathRouterQuery(parse, &distributionKeyValue);
+				fastPathRouterQuery = FastPathRouterQuery(originalQuery, &distributionKeyValue);
 			}
 		}
 	}
