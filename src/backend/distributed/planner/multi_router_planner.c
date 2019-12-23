@@ -2068,6 +2068,7 @@ PlanRouterQuery(Query *originalQuery,
 		static int stage5 = 0;
 		static int stage6 = 0;
 
+		++stage0;
 	/*
 	 * When FastPathRouterQuery() returns true, we know that standard_planner() has
 	 * not been called. Thus, restriction information is not avaliable and we do the
@@ -2316,7 +2317,7 @@ PlanRouterQuery(Query *originalQuery,
 	if (fastPathCount % 10000 == 0)
 	{
 		elog(WARNING, "router planner local path ratio: %f", 100.0 * localFastPathCount / (1.0 * fastPathCount + localFastPathCount));
-		elog(WARNING, "stage1: %d -stage2: %d -stage3: %d -stage4: %d -stage5: %d - stage6:%d", stage1, stage2, stage3, stage4,stage5, stage6);
+		elog(WARNING, "stage0: %d stage1: %d -stage2: %d -stage3: %d -stage4: %d -stage5: %d - stage6:%d", stage0, stage1, stage2, stage3, stage4,stage5, stage6);
 	}
 
 	*multiShardModifyQuery = false;
