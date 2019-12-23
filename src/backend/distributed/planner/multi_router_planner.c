@@ -2059,11 +2059,15 @@ PlanRouterQuery(Query *originalQuery,
 		plannerRestrictionContext->fastPathRestrictionContext->fastPathRouterQuery;
 
 	*placementList = NIL;
+	static int stage0 = 0;
+
 	static int stage1 = 0;
 		static int stage2 = 0;
 		static int stage3 = 0;
 		static int stage4 = 0;
 		static int stage5 = 0;
+		static int stage6 = 0;
+
 	/*
 	 * When FastPathRouterQuery() returns true, we know that standard_planner() has
 	 * not been called. Thus, restriction information is not avaliable and we do the
@@ -2107,6 +2111,7 @@ PlanRouterQuery(Query *originalQuery,
 			planningError = DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
 										  "Router planner cannot handle multi-shard "
 										  "modify queries", NULL, NULL);
+			elog(WARNING, "stage0");
 			return planningError;
 		}
 
@@ -2148,6 +2153,8 @@ PlanRouterQuery(Query *originalQuery,
 				 * Citus cannot handle EXPLAIN on local tables, so skip those as well.
 				 */
 				*localFastPathQuery = true;
+				++stage6;
+
 			}
 		}
 	}
@@ -2309,7 +2316,7 @@ PlanRouterQuery(Query *originalQuery,
 	if (fastPathCount % 10000 == 0)
 	{
 		elog(WARNING, "router planner local path ratio: %f", 100.0 * localFastPathCount / (1.0 * fastPathCount + localFastPathCount));
-		elog(WARNING, "stage1: %d -stage2: %d -stage3: %d -stage4: %d -stage5: %d", stage1, stage2, stage3, stage4,stage5);
+		elog(WARNING, "stage1: %d -stage2: %d -stage3: %d -stage4: %d -stage5: %d - stage6:%d", stage1, stage2, stage3, stage4,stage5, stage6);
 	}
 
 	*multiShardModifyQuery = false;
