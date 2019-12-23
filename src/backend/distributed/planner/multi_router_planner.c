@@ -2139,7 +2139,7 @@ PlanRouterQuery(Query *originalQuery,
 			if (!ExplainStatementRunning)
 					++stage5;
 			if (shardPlacement != NULL &&
-				!ReferenceTableShardId(shardInterval->shardId) &&
+				(!ReferenceTableShardId(shardInterval->shardId) || originalQuery->commandType == CMD_SELECT)&&
 				!ExplainStatementRunning)
 			{
 				/*
