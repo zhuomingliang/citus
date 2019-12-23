@@ -164,7 +164,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 			needsDistributedPlanning = ListContainsDistributedTableRTE(rangeTableList);
 			if (needsDistributedPlanning)
 			{
-				fastPathRouterQuery = FastPathRouterQuery(originalQuery, &distributionKeyValue);
+				fastPathRouterQuery = FastPathRouterQuery(parse, &distributionKeyValue);
 			}
 		}
 	}
