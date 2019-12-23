@@ -4,15 +4,15 @@ SET citus.shard_replication_factor TO 1;
 CREATE TABLE tab9 (test_id integer NOT NULL, data int);
 CREATE TABLE tab10 (test_id integer NOT NULL, data int);
 SELECT create_distributed_table('tab9', 'test_id', 'hash');
- create_distributed_table 
+ create_distributed_table
 ---------------------------------------------------------------------
- 
+
 (1 row)
 
 SELECT master_create_distributed_table('tab10', 'test_id', 'hash');
- master_create_distributed_table 
+ master_create_distributed_table
 ---------------------------------------------------------------------
- 
+
 (1 row)
 
 TRUNCATE tab9;
