@@ -131,6 +131,13 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	int rteIdCounter = 1;
 	bool fastPathRouterQuery = false;
 	Const *distributionKeyValue = NULL;
+	static int insertCount = 0;
+	static int othersCount = 0;
+
+	if (parse->commandType == CMD_INSERT) insertCount++;else othersCount++;
+
+	if (insertCount % 1000 == 0)
+	elog(INFO, "ration: %f", 1.0 * insertCount / (insertCount + othersCount * 1.0));
 
 	if (cursorOptions & CURSOR_OPT_FORCE_DISTRIBUTED)
 	{
