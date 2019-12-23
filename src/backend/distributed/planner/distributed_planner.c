@@ -137,7 +137,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	if (parse->commandType == CMD_INSERT) insertCount++;else othersCount++;
 
 	if (insertCount % 1000 == 0)
-	elog(INFO, "ration: %f", 1.0 * insertCount / (insertCount + othersCount * 1.0));
+	elog(WARNING, "ration: %f", 1.0 * insertCount / (insertCount + othersCount * 1.0));
 
 	if (cursorOptions & CURSOR_OPT_FORCE_DISTRIBUTED)
 	{
