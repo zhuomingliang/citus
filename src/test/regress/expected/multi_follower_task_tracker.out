@@ -3,7 +3,7 @@
 CREATE TABLE tab(a int, b int);
 SELECT create_distributed_table('tab', 'a');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
