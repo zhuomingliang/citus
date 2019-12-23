@@ -15,13 +15,13 @@ SELECT task_tracker_assign_task(:JobId, :SimpleTaskId,
 				'COPY (SELECT * FROM lineitem) TO '
 				'''base/pgsql_job_cache/job_401010/task_101101''');
  task_tracker_assign_task 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT task_tracker_assign_task(:JobId, :RecoverableTaskId, :BadQueryString);
  task_tracker_assign_task 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -36,13 +36,13 @@ SELECT pg_sleep(3.0);
 
 SELECT task_tracker_task_status(:JobId, :SimpleTaskId);
  task_tracker_task_status 
---------------------------
+---------------------------------------------------------------------
                         6
 (1 row)
 
 SELECT task_tracker_task_status(:JobId, :RecoverableTaskId);
  task_tracker_task_status 
---------------------------
+---------------------------------------------------------------------
                         5
 (1 row)
 
@@ -71,7 +71,7 @@ SELECT COUNT(*) As diff_rhs FROM ( :SelectAll FROM lineitem EXCEPT ALL
 -- the task's query string, and reschedules the updated task for execution.
 SELECT task_tracker_assign_task(:JobId, :RecoverableTaskId, :GoodQueryString);
  task_tracker_assign_task 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -83,7 +83,7 @@ SELECT pg_sleep(2.0);
 
 SELECT task_tracker_task_status(:JobId, :RecoverableTaskId);
  task_tracker_task_status 
---------------------------
+---------------------------------------------------------------------
                         6
 (1 row)
 

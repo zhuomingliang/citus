@@ -16,7 +16,7 @@ SELECT worker_merge_files_into_table(:JobId, :TaskId,
              'decimal(15, 2)', 'decimal(15, 2)', 'char(1)', 'char(1)', 'date', 'date',
 	     'date', 'char(25)', 'char(10)', 'varchar(44)']::_text);
  worker_merge_files_into_table 
--------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
