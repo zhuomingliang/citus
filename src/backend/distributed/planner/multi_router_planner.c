@@ -2059,7 +2059,11 @@ PlanRouterQuery(Query *originalQuery,
 		plannerRestrictionContext->fastPathRestrictionContext->fastPathRouterQuery;
 
 	*placementList = NIL;
-
+	static int stage1 = 0;
+		static int stage2 = 0;
+		static int stage3 = 0;
+		static int stage4 = 0;
+		static int stage5 = 0;
 	/*
 	 * When FastPathRouterQuery() returns true, we know that standard_planner() has
 	 * not been called. Thus, restriction information is not avaliable and we do the
@@ -2108,14 +2112,26 @@ PlanRouterQuery(Query *originalQuery,
 
 		*prunedShardIntervalListList = list_make1(shardIntervalList);
 
+
+		++stage1;
+
 		if (!isMultiShardQuery && list_length(shardIntervalList) == 1)
 		{
 			ereport(DEBUG2, (errmsg("Distributed planning for a fast-path router "
 									"query")));
+			++stage2;
 
 			ShardInterval *shardInterval = (ShardInterval *) linitial(shardIntervalList);
 			ShardPlacement *shardPlacement =
 				FindShardPlacementOnGroup(GetLocalGroupId(), shardInterval->shardId);
+
+			if (shardPlacement != NULL)
+				++stage3;
+
+			if (!ReferenceTableShardId(shardInterval->shardId))
+					++stage4;
+			if (!ExplainStatementRunning)
+					++stage5;
 			if (shardPlacement != NULL &&
 				!ReferenceTableShardId(shardInterval->shardId) &&
 				!ExplainStatementRunning)
@@ -2291,8 +2307,10 @@ PlanRouterQuery(Query *originalQuery,
 		++localFastPathCount;
 
 	if (fastPathCount % 10000 == 0)
+	{
 		elog(WARNING, "router planner local path ratio: %f", 100.0 * localFastPathCount / (1.0 * fastPathCount + localFastPathCount));
-
+		elog(WARNING, "stage1: %d -stage2: %d -stage3: %d -stage4: %d -stage5: %d", stage1, stage2, stage3, stage4,stage5);
+	}
 
 	*multiShardModifyQuery = false;
 	*placementList = workerList;
