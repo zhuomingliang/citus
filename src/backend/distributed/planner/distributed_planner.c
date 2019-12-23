@@ -138,6 +138,8 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 
 	if (insertCount % 10 == 0)
 	elog(WARNING, "ration: %f", 1.0 * insertCount / (insertCount + othersCount * 1.0));
+	else
+		elog(WARNING, "other ration: %f", 1.0 * insertCount / (insertCount + othersCount * 1.0));
 
 	if (cursorOptions & CURSOR_OPT_FORCE_DISTRIBUTED)
 	{
