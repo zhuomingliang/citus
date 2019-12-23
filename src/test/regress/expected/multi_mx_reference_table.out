@@ -3,7 +3,7 @@ ALTER SEQUENCE pg_catalog.pg_dist_shardid_seq RESTART 1250000;
 CREATE TABLE reference_table_test (value_1 int, value_2 float, value_3 text, value_4 timestamp);
 SELECT create_reference_table('reference_table_test');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -49,7 +49,7 @@ SELECT
 FROM
 	reference_table_test;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
        2 |       2 | 2       | Fri Dec 02 00:00:00 2016
        3 |       3 | 3       | Sat Dec 03 00:00:00 2016
@@ -64,7 +64,7 @@ FROM
 WHERE
 	value_1 = 1;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
 (1 row)
 
@@ -128,7 +128,7 @@ FROM
 WHERE
 	value_2 = 2 OR value_2 = 3;
  value_2 |         value_4          
----------+--------------------------
+---------------------------------------------------------------------
        2 | Fri Dec 02 00:00:00 2016
        3 | Sat Dec 03 00:00:00 2016
 (2 rows)
@@ -150,7 +150,7 @@ FROM
 WHERE
 	value_3 = '2' OR value_1 = 3;
  value_2 |         value_4          
----------+--------------------------
+---------------------------------------------------------------------
        2 | Fri Dec 02 00:00:00 2016
        3 | Sat Dec 03 00:00:00 2016
 (2 rows)
@@ -182,7 +182,7 @@ WHERE
 	)
 	AND value_1 < 3;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
        2 |       2 | 2       | Fri Dec 02 00:00:00 2016
 (2 rows)
@@ -197,7 +197,7 @@ WHERE
 		'1', '2'
 	);
          value_4          
---------------------------
+---------------------------------------------------------------------
  Thu Dec 01 00:00:00 2016
  Fri Dec 02 00:00:00 2016
 (2 rows)
@@ -234,7 +234,7 @@ FROM
 WHERE
 	value_2 <= 20 AND value_2 >= 4;
          value_4          
---------------------------
+---------------------------------------------------------------------
  Sun Dec 04 00:00:00 2016
  Mon Dec 05 00:00:00 2016
 (2 rows)
@@ -303,7 +303,7 @@ SELECT
 FROM
 	some_data;
  value_2 |         value_4          
----------+--------------------------
+---------------------------------------------------------------------
        3 | Sat Dec 03 00:00:00 2016
        4 | Sun Dec 04 00:00:00 2016
        5 | Mon Dec 05 00:00:00 2016
@@ -313,7 +313,7 @@ FROM
 WITH some_data AS ( SELECT value_2, value_4 FROM reference_table_test WHERE value_2 >=3)
 SELECT * FROM reference_table_test ORDER BY 1 LIMIT 1;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
 (1 row)
 
@@ -325,7 +325,7 @@ FROM
 WHERE
 	value_1 = 1;
  value_1 | value_2 | value_3 |         value_4          | position 
----------+---------+---------+--------------------------+----------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016 |        3
 (1 row)
 
@@ -336,7 +336,7 @@ FROM
 WHERE
 	value_1 = 1 OR value_1 = 2;
  value_1 | value_2 | value_3 |         value_4          | position 
----------+---------+---------+--------------------------+----------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016 |        3
        2 |       2 | 2       | Fri Dec 02 00:00:00 2016 |        3
 (2 rows)
@@ -349,7 +349,7 @@ SELECT * FROM (
 ) AS combination
 ORDER BY value_1;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
        3 |       3 | 3       | Sat Dec 03 00:00:00 2016
 (2 rows)
@@ -361,7 +361,7 @@ SELECT * FROM (
 ) AS combination
 ORDER BY value_1;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
 (1 row)
 
@@ -393,7 +393,7 @@ HAVING
 ORDER BY
 	1;
          value_4          | sum 
---------------------------+-----
+---------------------------------------------------------------------
  Fri Dec 02 00:00:00 2016 |   4
  Sat Dec 03 00:00:00 2016 |   6
  Sun Dec 04 00:00:00 2016 |   4
@@ -410,7 +410,7 @@ GROUP BY
 	GROUPING sets ((value_4), (value_3))
 ORDER BY 1, 2, 3;
          value_4          | value_3 | sum 
---------------------------+---------+-----
+---------------------------------------------------------------------
  Thu Dec 01 00:00:00 2016 |         |   2
  Fri Dec 02 00:00:00 2016 |         |   4
  Sat Dec 03 00:00:00 2016 |         |   6
@@ -431,7 +431,7 @@ FROM
 ORDER BY
 	1;
          value_4          
---------------------------
+---------------------------------------------------------------------
  Thu Dec 01 00:00:00 2016
  Fri Dec 02 00:00:00 2016
  Sat Dec 03 00:00:00 2016
@@ -445,7 +445,7 @@ SELECT
 FROM
 	reference_table_test;
          value_4          | rank 
---------------------------+------
+---------------------------------------------------------------------
  Thu Dec 01 00:00:00 2016 |    1
  Thu Dec 01 00:00:00 2016 |    1
  Fri Dec 02 00:00:00 2016 |    1
@@ -462,7 +462,7 @@ SELECT
 FROM
 	reference_table_test;
          value_4          |          avg           
---------------------------+------------------------
+---------------------------------------------------------------------
  Thu Dec 01 00:00:00 2016 | 1.00000000000000000000
  Thu Dec 01 00:00:00 2016 | 1.00000000000000000000
  Fri Dec 02 00:00:00 2016 |     2.0000000000000000
@@ -518,7 +518,7 @@ SELECT
 BEGIN;
 SELECT * FROM reference_table_test;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
        2 |       2 | 2       | Fri Dec 02 00:00:00 2016
        3 |       3 | 3       | Sat Dec 03 00:00:00 2016
@@ -531,7 +531,7 @@ SELECT * FROM reference_table_test;
 
 SELECT * FROM reference_table_test WHERE value_1 = 1;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
 (2 rows)
@@ -546,13 +546,13 @@ DECLARE test_cursor CURSOR FOR
 		ORDER BY value_1;
 FETCH test_cursor;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
 (1 row)
 
 FETCH ALL test_cursor;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        1 |       1 | 1       | Thu Dec 01 00:00:00 2016
        2 |       2 | 2       | Fri Dec 02 00:00:00 2016
        2 |       2 | 2       | Fri Dec 02 00:00:00 2016
@@ -565,7 +565,7 @@ FETCH test_cursor; -- fetch one row after the last
 
 FETCH BACKWARD test_cursor;
  value_1 | value_2 | value_3 |         value_4          
----------+---------+---------+--------------------------
+---------------------------------------------------------------------
        2 |       2 | 2       | Fri Dec 02 00:00:00 2016
 (1 row)
 
@@ -581,14 +581,14 @@ CREATE TEMP TABLE temp_reference_test as
 CREATE TABLE reference_table_test_second (value_1 int, value_2 float, value_3 text, value_4 timestamp);
 SELECT create_reference_table('reference_table_test_second');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE reference_table_test_third (value_1 int, value_2 float, value_3 text, value_4 timestamp);
 SELECT create_reference_table('reference_table_test_third');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -783,14 +783,14 @@ SET citus.replication_model TO streaming;
 CREATE TABLE colocated_table_test (value_1 int, value_2 float, value_3 text, value_4 timestamp);
 SELECT create_distributed_table('colocated_table_test', 'value_1');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE colocated_table_test_2 (value_1 int, value_2 float, value_3 text, value_4 timestamp);
 SELECT create_distributed_table('colocated_table_test_2', 'value_1');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

@@ -9,34 +9,34 @@ SET citus.shard_replication_factor TO 1;
 SET citus.replication_model TO 'streaming';
 SELECT start_metadata_sync_to_node('localhost', :worker_1_port);
  start_metadata_sync_to_node 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT start_metadata_sync_to_node('localhost', :worker_2_port);
  start_metadata_sync_to_node 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABlE ref_table(id int, value_1 int);
 SELECT create_reference_table('ref_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABlE ref_table_2(id int, value_1 int);
 SELECT create_reference_table('ref_table_2');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE test_table_1(id int, value_1 int);
 SELECT create_distributed_table('test_table_1', 'id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

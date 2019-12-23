@@ -9,7 +9,7 @@ SET client_min_messages TO WARNING;
 CREATE USER reprefuser WITH LOGIN;
 SELECT run_command_on_workers('CREATE USER reprefuser WITH LOGIN');
       run_command_on_workers       
------------------------------------
+---------------------------------------------------------------------
  (localhost,57637,t,"CREATE ROLE")
  (localhost,57638,t,"CREATE ROLE")
 (2 rows)
@@ -25,21 +25,21 @@ SELECT 1 FROM master_add_node('localhost', :master_port, groupId => 0);
 -- test that coordinator pg_dist_node entry is synced to the workers
 SELECT wait_until_metadata_sync();
  wait_until_metadata_sync 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT verify_metadata('localhost', :worker_1_port),
        verify_metadata('localhost', :worker_2_port);
  verify_metadata | verify_metadata 
------------------+-----------------
+---------------------------------------------------------------------
  t               | t
 (1 row)
 
 CREATE TABLE ref(a int);
 SELECT create_reference_table('ref');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -49,14 +49,14 @@ SET citus.enable_alter_role_propagation TO ON;
 ALTER ROLE reprefuser WITH CREATEROLE;
 select rolcreatedb, rolcreaterole from pg_roles where rolname = 'reprefuser';
  rolcreatedb | rolcreaterole 
--------------+---------------
+---------------------------------------------------------------------
  t           | t
 (1 row)
 
 \c - - - :worker_2_port
 select rolcreatedb, rolcreaterole from pg_roles where rolname = 'reprefuser';
  rolcreatedb | rolcreaterole 
--------------+---------------
+---------------------------------------------------------------------
  t           | f
 (1 row)
 
@@ -65,7 +65,7 @@ SET search_path TO mx_add_coordinator,public;
 SET client_min_messages TO WARNING;
 select rolcreatedb, rolcreaterole from pg_roles where rolname = 'reprefuser';
  rolcreatedb | rolcreaterole 
--------------+---------------
+---------------------------------------------------------------------
  t           | f
 (1 row)
 
@@ -153,7 +153,7 @@ SELECT * FROM ref ORDER BY a;
 -- of multi_mx_transaction_recovery consistent.
 SELECT recover_prepared_transactions();
  recover_prepared_transactions 
--------------------------------
+---------------------------------------------------------------------
                              0
 (1 row)
 
@@ -165,21 +165,21 @@ SELECT count(*) FROM run_command_on_workers('SELECT recover_prepared_transaction
 
 SELECT master_remove_node('localhost', :master_port);
  master_remove_node 
---------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 -- test that coordinator pg_dist_node entry was removed from the workers
 SELECT wait_until_metadata_sync();
  wait_until_metadata_sync 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 SELECT verify_metadata('localhost', :worker_1_port),
        verify_metadata('localhost', :worker_2_port);
  verify_metadata | verify_metadata 
------------------+-----------------
+---------------------------------------------------------------------
  t               | t
 (1 row)
 

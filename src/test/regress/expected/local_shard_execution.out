@@ -7,21 +7,21 @@ SET citus.next_shard_id TO 1470000;
 CREATE TABLE reference_table (key int PRIMARY KEY);
 SELECT create_reference_table('reference_table');
  create_reference_table 
-------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE distributed_table (key int PRIMARY KEY , value text, age bigint CHECK (age > 10), FOREIGN KEY (key) REFERENCES reference_table(key) ON DELETE CASCADE);
 SELECT create_distributed_table('distributed_table','key');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
 CREATE TABLE second_distributed_table (key int PRIMARY KEY , value text, FOREIGN KEY (key) REFERENCES distributed_table(key) ON DELETE CASCADE);
 SELECT create_distributed_table('second_distributed_table','key');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -40,7 +40,7 @@ CREATE TABLE collections_list (
 ) PARTITION BY LIST (collection_id );
 SELECT create_distributed_table('collections_list', 'key');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -80,38 +80,38 @@ $$ LANGUAGE plpgsql;
 -- we'll use these values in the tests
 SELECT shard_of_distribution_column_is_local(1);
  shard_of_distribution_column_is_local 
----------------------------------------
+---------------------------------------------------------------------
  t
 (1 row)
 
 SELECT shard_of_distribution_column_is_local(6);
  shard_of_distribution_column_is_local 
----------------------------------------
+---------------------------------------------------------------------
  t
 (1 row)
 
 SELECT shard_of_distribution_column_is_local(500);
  shard_of_distribution_column_is_local 
----------------------------------------
+---------------------------------------------------------------------
  t
 (1 row)
 
 SELECT shard_of_distribution_column_is_local(701);
  shard_of_distribution_column_is_local 
----------------------------------------
+---------------------------------------------------------------------
  t
 (1 row)
 
 -- distribution key values of 11 and 12 are REMOTE to shards
 SELECT shard_of_distribution_column_is_local(11);
  shard_of_distribution_column_is_local 
----------------------------------------
+---------------------------------------------------------------------
  f
 (1 row)
 
 SELECT shard_of_distribution_column_is_local(12);
  shard_of_distribution_column_is_local 
----------------------------------------
+---------------------------------------------------------------------
  f
 (1 row)
 
@@ -209,12 +209,12 @@ INSERT INTO distributed_table SELECT * FROM distributed_table ON CONFLICT DO NOT
 -- though going through distributed execution
 EXPLAIN (COSTS OFF) SELECT * FROM distributed_table WHERE key = 1 AND age = 20;
                                                  QUERY PLAN                                                 
-------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Custom Scan (Citus Adaptive)
    Task Count: 1
    Tasks Shown: All
    ->  Task
-         Node: host=localhost port=57637 dbname=regression
+         Node: host=localhost port=xxxxx dbname=regression
          ->  Index Scan using distributed_table_pkey_1470001 on distributed_table_1470001 distributed_table
                Index Cond: (key = 1)
                Filter: (age = 20)
@@ -224,12 +224,12 @@ EXPLAIN (COSTS OFF) SELECT * FROM distributed_table WHERE key = 1 AND age = 20;
 -- EXPLAIN (ANALYZE, COSTS OFF, SUMMARY OFF, TIMING OFF)   SELECT * FROM distributed_table WHERE key = 1 AND age = 20;
 EXPLAIN (COSTS OFF) DELETE FROM distributed_table WHERE key = 1 AND age = 20;
                                                     QUERY PLAN                                                    
-------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------
  Custom Scan (Citus Adaptive)
    Task Count: 1
    Tasks Shown: All
    ->  Task
-         Node: host=localhost port=57637 dbname=regression
+         Node: host=localhost port=xxxxx dbname=regression
          ->  Delete on distributed_table_1470001 distributed_table
                ->  Index Scan using distributed_table_pkey_1470001 on distributed_table_1470001 distributed_table
                      Index Cond: (key = 1)
@@ -1038,7 +1038,7 @@ COMMIT;
 INSERT INTO collections_list (collection_id) VALUES (0) RETURNING *;
 LOG:  executing the command locally: INSERT INTO local_shard_execution.collections_list_1470011 (key, ser, collection_id) VALUES ('3940649673949185'::bigint, '3940649673949185'::bigint, 0) RETURNING key, ser, ts, collection_id, value
        key        |       ser        | ts | collection_id | value 
-------------------+------------------+----+---------------+-------
+---------------------------------------------------------------------
  3940649673949185 | 3940649673949185 |    |             0 |      
 (1 row)
 
@@ -1064,7 +1064,7 @@ LOG:  executing the command locally: SELECT count(*) AS count FROM local_shard_e
 LOG:  executing the command locally: SELECT key, ser, ts, collection_id, value FROM local_shard_execution.collections_list_1470009 collections_list WHERE true
 LOG:  executing the command locally: SELECT key, ser, ts, collection_id, value FROM local_shard_execution.collections_list_1470011 collections_list WHERE true
        key        |       ser        | ts | collection_id | value 
-------------------+------------------+----+---------------+-------
+---------------------------------------------------------------------
                 1 | 3940649673949186 |    |             0 |      
  3940649673949185 | 3940649673949185 |    |             0 |      
 (2 rows)
@@ -1135,7 +1135,7 @@ CREATE TABLE event_responses (
 );
 SELECT create_distributed_table('event_responses', 'event_id');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
@@ -1149,7 +1149,7 @@ END;
 $fn$;
 SELECT create_distributed_function('register_for_event(int,int,invite_resp)', 'p_event_id', 'event_responses');
  create_distributed_function 
------------------------------
+---------------------------------------------------------------------
  
 (1 row)
 

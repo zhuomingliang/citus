@@ -25,7 +25,7 @@ ALTER TABLE mx_ddl_table ALTER COLUMN version SET NOT NULL;
 -- See that the changes are applied on coordinator, worker tables and shards
 SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='mx_ddl_table'::regclass;
  Column  |  Type   |     Modifiers      
----------+---------+--------------------
+---------------------------------------------------------------------
  key     | integer | not null
  value   | integer | 
  version | integer | not null default 1
@@ -34,7 +34,7 @@ SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='mx_ddl_table':
 SELECT "relname", "Column", "Type", "Definition" FROM index_attrs WHERE
     relname LIKE 'ddl_test%_index';
           relname          | Column |  Type   | Definition 
----------------------------+--------+---------+------------
+---------------------------------------------------------------------
  ddl_test_index            | value  | integer | value
  ddl_test_concurrent_index | value  | integer | value
 (2 rows)
@@ -44,7 +44,7 @@ SELECT "relname", "Column", "Type", "Definition" FROM index_attrs WHERE
 SET citus.override_table_visibility TO FALSE;
 SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='mx_ddl_table'::regclass;
  Column  |  Type   |     Modifiers      
----------+---------+--------------------
+---------------------------------------------------------------------
  key     | integer | not null
  value   | integer | 
  version | integer | not null default 1
@@ -53,14 +53,14 @@ SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='mx_ddl_table':
 SELECT "relname", "Column", "Type", "Definition" FROM index_attrs WHERE
     relname LIKE 'ddl_test%_index';
           relname          | Column |  Type   | Definition 
----------------------------+--------+---------+------------
+---------------------------------------------------------------------
  ddl_test_index            | value  | integer | value
  ddl_test_concurrent_index | value  | integer | value
 (2 rows)
 
 SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='mx_ddl_table_1220088'::regclass;
  Column  |  Type   |     Modifiers      
----------+---------+--------------------
+---------------------------------------------------------------------
  key     | integer | not null
  value   | integer | 
  version | integer | not null default 1
@@ -69,7 +69,7 @@ SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='mx_ddl_table_1
 SELECT "relname", "Column", "Type", "Definition" FROM index_attrs WHERE
     relname LIKE 'ddl_test%_index_1220088';
               relname              | Column |  Type   | Definition 
------------------------------------+--------+---------+------------
+---------------------------------------------------------------------
  ddl_test_index_1220088            | value  | integer | value
  ddl_test_concurrent_index_1220088 | value  | integer | value
 (2 rows)
@@ -79,7 +79,7 @@ SELECT "relname", "Column", "Type", "Definition" FROM index_attrs WHERE
 SET citus.override_table_visibility TO FALSE;
 SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='mx_ddl_table'::regclass;
  Column  |  Type   |     Modifiers      
----------+---------+--------------------
+---------------------------------------------------------------------
  key     | integer | not null
  value   | integer | 
  version | integer | not null default 1
@@ -88,14 +88,14 @@ SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='mx_ddl_table':
 SELECT "relname", "Column", "Type", "Definition" FROM index_attrs WHERE
     relname LIKE 'ddl_test%_index';
           relname          | Column |  Type   | Definition 
----------------------------+--------+---------+------------
+---------------------------------------------------------------------
  ddl_test_index            | value  | integer | value
  ddl_test_concurrent_index | value  | integer | value
 (2 rows)
 
 SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='mx_ddl_table_1220089'::regclass;
  Column  |  Type   |     Modifiers      
----------+---------+--------------------
+---------------------------------------------------------------------
  key     | integer | not null
  value   | integer | 
  version | integer | not null default 1
@@ -104,7 +104,7 @@ SELECT "Column", "Type", "Modifiers" FROM table_desc WHERE relid='mx_ddl_table_1
 SELECT "relname", "Column", "Type", "Definition" FROM index_attrs WHERE
     relname LIKE 'ddl_test%_index_1220089';
               relname              | Column |  Type   | Definition 
------------------------------------+--------+---------+------------
+---------------------------------------------------------------------
  ddl_test_index_1220089            | value  | integer | value
  ddl_test_concurrent_index_1220089 | value  | integer | value
 (2 rows)
@@ -223,7 +223,7 @@ SET citus.replication_model TO streaming;
 CREATE TABLE mx_sequence(key INT, value BIGSERIAL);
 SELECT create_distributed_table('mx_sequence', 'key');
  create_distributed_table 
---------------------------
+---------------------------------------------------------------------
  
 (1 row)
 
