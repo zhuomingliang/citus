@@ -201,7 +201,7 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 
 		shardQuery = ParseQueryString(task->queryString, parameterTypes, numParams);
 
-		if (nonFastPathCount % 100 == 1000)
+		if (nonFastPathCount % 100 == 0)
 			elog(WARNING, "nonFastPathCount: %s", task->queryString);
 	}
 
