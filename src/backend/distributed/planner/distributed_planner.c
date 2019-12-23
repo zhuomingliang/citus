@@ -139,6 +139,13 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 
 		needsDistributedPlanning = true;
 	}
+	else if (cursorOptions & CURSOR_OPT_FORCE_LOCAL)
+	{
+		/* this cursor flag could only be set when Citus has been loaded */
+		Assert(CitusHasBeenLoaded());
+
+		needsDistributedPlanning = false;
+	}
 	else if (CitusHasBeenLoaded())
 	{
 		if (IsLocalReferenceTableJoin(parse, rangeTableList))
