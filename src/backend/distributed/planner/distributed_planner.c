@@ -127,7 +127,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	bool needsDistributedPlanning = false;
 	Query *originalQuery = NULL;
 	bool setPartitionedTablesInherited = false;
-	List *rangeTableList = ExtractRangeTableEntryList(parse);
+	List *rangeTableList = NIL;
 	int rteIdCounter = 1;
 	bool fastPathRouterQuery = false;
 	Const *distributionKeyValue = NULL;
@@ -148,6 +148,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	}
 	else if (CitusHasBeenLoaded())
 	{
+		rangeTableList = ExtractRangeTableEntryList(parse);
 		if (IsLocalReferenceTableJoin(parse, rangeTableList))
 		{
 			/*
