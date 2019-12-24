@@ -1438,7 +1438,7 @@ RouterInsertJob(Query *originalQuery,PlannerRestrictionContext *plannerRestricti
 	}
 	else
 	{
-		taskList = RouterInsertTaskList(query, planningError);
+		taskList = RouterInsertTaskList(originalQuery, planningError);
 		if (*planningError)
 		{
 			return NULL;
