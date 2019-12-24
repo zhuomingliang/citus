@@ -84,8 +84,12 @@ FastPathPlanner(Query *originalQuery, Query *parse, ParamListInfo boundParams)
 	 * We're also only interested in resolving the quals since we'd want to
 	 * do shard pruning based on the filter on the distribution column.
 	 */
+	if (originalQuery->commandType != CMD_INSERT)
 	originalQuery->jointree->quals =
 		ResolveExternalParams((Node *) originalQuery->jointree->quals,
+							  copyParamList(boundParams));
+	else
+		originalQuery->targetList = (List *)  ResolveExternalParams((Node *) originalQuery->targetList,
 							  copyParamList(boundParams));
 
 	/*
@@ -179,9 +183,19 @@ FastPathRouterQuery(Query *query, Const **distributionKeyValue)
 	if (!(query->commandType == CMD_SELECT || query->commandType == CMD_UPDATE ||
 		  query->commandType == CMD_DELETE))
 	{
-		return false;
+		//return false;
 	}
 
+	if (query->commandType == CMD_INSERT)
+	{
+#include "catalog/pg_type_d.h"
+#include "nodes/makefuncs.h"
+		Const *c =  makeConst(INT4OID,0, 0, sizeof(int), Int32GetDatum(5), false, true);
+
+
+		*distributionKeyValue = c;
+		return true;
+	}
 	/*
 	 * We want to deal with only very simple select queries. Some of the
 	 * checks might be too restrictive, still we prefer this way.

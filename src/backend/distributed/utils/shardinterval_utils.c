@@ -298,6 +298,8 @@ FindShardInterval(Datum partitionColumnValue, DistTableCacheEntry *cacheEntry)
 }
 
 
+
+
 /*
  * FindShardIntervalIndex finds the index of the shard interval which covers
  * the searched value. Note that the searched value must be the hashed value

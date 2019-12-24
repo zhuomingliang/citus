@@ -132,7 +132,7 @@ static bool MasterIrreducibleExpressionWalker(Node *expression, WalkerState *sta
 static bool MasterIrreducibleExpressionFunctionChecker(Oid func_id, void *context);
 static bool TargetEntryChangesValue(TargetEntry *targetEntry, Var *column,
 									FromExpr *joinTree);
-static Job * RouterInsertJob(Query *originalQuery, Query *query,
+static Job * RouterInsertJob(Query *originalQuery, PlannerRestrictionContext *plannerRestrictionContext, Query *query,
 							 DeferredErrorMessage **planningError);
 static void ErrorIfNoShardsExist(DistTableCacheEntry *cacheEntry);
 static DeferredErrorMessage * DeferErrorIfModifyView(Query *queryTree);
@@ -224,7 +224,7 @@ CreateModifyPlan(Query *originalQuery, Query *query,
 	}
 	else
 	{
-		job = RouterInsertJob(originalQuery, query, &distributedPlan->planningError);
+		job = RouterInsertJob(originalQuery, plannerRestrictionContext, query, &distributedPlan->planningError);
 	}
 
 	if (distributedPlan->planningError != NULL)
@@ -1403,7 +1403,7 @@ TargetEntryChangesValue(TargetEntry *targetEntry, Var *column, FromExpr *joinTre
  * shard-extended deparsed SQL to be run during execution.
  */
 static Job *
-RouterInsertJob(Query *originalQuery, Query *query, DeferredErrorMessage **planningError)
+RouterInsertJob(Query *originalQuery,PlannerRestrictionContext *plannerRestrictionContext, Query *query, DeferredErrorMessage **planningError)
 {
 	Oid distributedTableId = ExtractFirstDistributedTableId(query);
 	List *taskList = NIL;
@@ -1451,10 +1451,10 @@ RouterInsertJob(Query *originalQuery, Query *query, DeferredErrorMessage **plann
 	if (!requiresMasterEvaluation)
 	{
 		/* no functions or parameters, build the query strings upfront */
-		RebuildQueryStrings(originalQuery, taskList);
+		//RebuildQueryStrings(originalQuery, taskList);
 
 		/* remember the partition column value */
-		partitionKeyValue = ExtractInsertPartitionKeyValue(originalQuery);
+		partitionKeyValue = plannerRestrictionContext->fastPathRestrictionContext->distributionKeyValue;
 	}
 
 	Job *job = CreateJob(originalQuery);
@@ -2636,6 +2636,8 @@ BuildRoutesForInsert(Query *query, DeferredErrorMessage **planningError)
 
 			cacheEntry = DistributedTableCacheEntry(distributedTableId);
 			ShardInterval *shardInterval = FindShardInterval(partitionValue, cacheEntry);
+
+
 			if (shardInterval != NULL)
 			{
 				prunedShardIntervalList = list_make1(shardInterval);

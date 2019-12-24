@@ -165,6 +165,19 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 {
 	Query *shardQuery = copyObject(workerJobQuery);
 
+	/* add a RelationShard for the result relation, TODO: move into planner(s) */
+	if (shardQuery->resultRelation != 0)
+	{
+		RangeTblEntry *rangeTableEntry = rt_fetch(shardQuery->resultRelation,
+												  shardQuery->rtable);
+		RelationShard *relationShard = CitusMakeNode(RelationShard);
+
+		relationShard->relationId = rangeTableEntry->relid;
+		relationShard->shardId = task->anchorShardId;
+
+		task->relationShardList = lcons(relationShard, task->relationShardList);
+	}
+
 	/*
 	 * For performance reasons, the queryString is not generated for
 	 * local-fast path queries. Instead, we simply update the shard
@@ -568,10 +581,10 @@ LogLocalCommand(Job *workerJob, Task *task)
 		return;
 	}
 
-	GenerateShardQueryStringIfMissing(workerJob->jobQuery, task);
+	//GenerateShardQueryStringIfMissing(workerJob->jobQuery, task);
 
-	ereport(LOG, (errmsg("executing the command locally: %s",
-						 ApplyLogRedaction(task->queryString))));
+//	ereport(LOG, (errmsg("executing the command locally: %s",
+//						 ApplyLogRedaction(task->queryString))));
 }
 
 
