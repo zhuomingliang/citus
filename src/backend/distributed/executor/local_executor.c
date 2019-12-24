@@ -190,6 +190,9 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 	if (task->queryString == NULL)
 	{
 		ReplaceShardReferencesWalker((Node *) shardQuery, task);
+
+		shardQuery->targetList = (List *)  ResolveExternalParams((Node *) shardQuery->targetList,
+							  copyParamList(boundParams));
 	}
 	else
 	{
