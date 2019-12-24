@@ -1459,8 +1459,8 @@ RouterInsertJob(Query *originalQuery,PlannerRestrictionContext *plannerRestricti
 
 	Job *job = CreateJob(originalQuery);
 	job->taskList = taskList;
-	job->requiresMasterEvaluation = requiresMasterEvaluation;
-	job->deferredPruning = deferredPruning;
+	job->requiresMasterEvaluation = false;
+	job->deferredPruning = false;
 	job->partitionKeyValue = partitionKeyValue;
 
 	return job;
