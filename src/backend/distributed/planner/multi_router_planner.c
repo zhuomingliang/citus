@@ -1438,7 +1438,7 @@ RouterInsertJob(Query *originalQuery,PlannerRestrictionContext *plannerRestricti
 	}
 	else
 	{
-		taskList = RouterInsertTaskList(originalQuery, planningError);
+
 		if (*planningError)
 		{
 			return NULL;
@@ -1454,14 +1454,14 @@ RouterInsertJob(Query *originalQuery,PlannerRestrictionContext *plannerRestricti
 		//RebuildQueryStrings(originalQuery, taskList);
 
 		/* remember the partition column value */
-		partitionKeyValue = plannerRestrictionContext->fastPathRestrictionContext->distributionKeyValue;
 	}
 
 	Job *job = CreateJob(originalQuery);
+	taskList = RouterInsertTaskList(originalQuery, planningError);
 	job->taskList = taskList;
-	job->requiresMasterEvaluation = false;
-	job->deferredPruning = false;
-	job->partitionKeyValue = partitionKeyValue;
+	job->requiresMasterEvaluation = true;
+	job->deferredPruning = true;
+	job->partitionKeyValue = plannerRestrictionContext->fastPathRestrictionContext->distributionKeyValue;
 
 	return job;
 }
