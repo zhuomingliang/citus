@@ -1405,20 +1405,20 @@ TargetEntryChangesValue(TargetEntry *targetEntry, Var *column, FromExpr *joinTre
 static Job *
 RouterInsertJob(Query *originalQuery,PlannerRestrictionContext *plannerRestrictionContext, Query *query, DeferredErrorMessage **planningError)
 {
-	Oid distributedTableId = ExtractFirstDistributedTableId(query);
+	Oid distributedTableId = ExtractFirstDistributedTableId(originalQuery);
 	List *taskList = NIL;
 	bool requiresMasterEvaluation = false;
 	bool deferredPruning = false;
 	Const *partitionKeyValue = NULL;
 
-	bool isMultiRowInsert = IsMultiRowInsert(query);
+	bool isMultiRowInsert = IsMultiRowInsert(originalQuery);
 	if (isMultiRowInsert)
 	{
 		/* add default expressions to RTE_VALUES in multi-row INSERTs */
 		NormalizeMultiRowInsertTargetList(originalQuery);
 	}
 
-	if (isMultiRowInsert || !CanShardPrune(distributedTableId, query))
+	if (isMultiRowInsert || !CanShardPrune(distributedTableId, originalQuery))
 	{
 		/*
 		 * If there is a non-constant (e.g. parameter, function call) in the partition
