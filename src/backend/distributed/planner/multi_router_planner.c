@@ -1445,7 +1445,7 @@ RouterInsertJob(Query *originalQuery,PlannerRestrictionContext *plannerRestricti
 		}
 
 		/* determine whether there are function calls to evaluate */
-		requiresMasterEvaluation = RequiresMasterEvaluation(originalQuery);
+		//requiresMasterEvaluation = RequiresMasterEvaluation(originalQuery);
 	}
 
 	if (!requiresMasterEvaluation)
