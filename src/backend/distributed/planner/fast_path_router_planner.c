@@ -190,10 +190,15 @@ FastPathRouterQuery(Query *query, Const **distributionKeyValue)
 	{
 #include "catalog/pg_type_d.h"
 #include "nodes/makefuncs.h"
+		MemoryContext oldContextPerRow = MemoryContextSwitchTo(CacheMemoryContext);
+
 		Const *c =  makeConst(INT4OID,0, 0, sizeof(int), Int32GetDatum(5), false, true);
 
 
 		*distributionKeyValue = c;
+
+		MemoryContextSwitchTo(oldContextPerRow);
+
 		return true;
 	}
 	/*
