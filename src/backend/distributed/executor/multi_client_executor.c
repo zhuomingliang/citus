@@ -516,38 +516,15 @@ MultiClientQueryStatus(int32 connectionId)
 }
 
 
-/*
- * FileDescriptorWriteCallback writes data to a file descriptor.
- * For use with CopyDataFromConnectionWithWriteCallback.
- */
-static int
-FileDescriptorWriteCallback(void *file, char *buffer, int length)
-{
-	return write(*(int32 *) file, buffer, length);
-}
-
-
 /* MultiClientCopyData copies data from the file. */
 CopyStatus
-MultiClientCopyData(int32 connectionId, int32 fileDescriptor, uint64 *bytesReceived)
+MultiClientCopyData(int32 connectionId, FileCompat *fileCompat, uint64 *bytesReceived)
 {
 	Assert(connectionId != INVALID_CONNECTION_ID);
 	MultiConnection *connection = ClientConnectionArray[connectionId];
 	Assert(connection != NULL);
 
-	return CopyDataFromConnectionWithCallbackForWrite(
-		connection, &fileDescriptor, FileDescriptorWriteCallback, bytesReceived);
-}
-
-
-/*
- * FileWriteCompatCallback writes data to a FileCompat.
- * For use with CopyDataFromConnectionWithWriteCallback.
- */
-static int
-FileWriteCompatCallback(void *file, char *buffer, int length)
-{
-	return FileWriteCompat(file, buffer, length, PG_WAIT_IO);
+	return CopyDataFromConnection(connection, fileCompat, bytesReceived);
 }
 
 
@@ -558,21 +535,6 @@ FileWriteCompatCallback(void *file, char *buffer, int length)
 CopyStatus
 CopyDataFromConnection(MultiConnection *connection, FileCompat *fileCompat,
 					   uint64 *bytesReceived)
-{
-	return CopyDataFromConnectionWithCallbackForWrite(
-		connection, fileCompat, FileWriteCompatCallback, bytesReceived);
-}
-
-
-/*
- * CopyDataFromConnection reads a row of copy data from connection and writes it
- * to the given file.
- */
-static CopyStatus
-CopyDataFromConnectionWithCallbackForWrite(MultiConnection *connection,
-										   void *file,
-										   int (*write)(void *, char *, int),
-										   uint64 *bytesReceived)
 {
 	/*
 	 * Consume input to handle the case where previous copy operation might have
@@ -593,7 +555,7 @@ CopyDataFromConnectionWithCallbackForWrite(MultiConnection *connection,
 		/* received copy data; append these data to file */
 		errno = 0;
 
-		int bytesWritten = FileWriteCompat(file, receiveBuffer,
+		int bytesWritten = FileWriteCompat(fileCompat, receiveBuffer,
 										   receiveLength, PG_WAIT_IO);
 		if (bytesWritten != receiveLength)
 		{

@@ -214,14 +214,14 @@ InitTaskExecution(Task *task, TaskExecStatus initialTaskExecStatus)
 	taskExecution->taskStatusArray = palloc0(nodeCount * sizeof(TaskExecStatus));
 	taskExecution->transmitStatusArray = palloc0(nodeCount * sizeof(TransmitExecStatus));
 	taskExecution->connectionIdArray = palloc0(nodeCount * sizeof(int32));
-	taskExecution->fileDescriptorArray = palloc0(nodeCount * sizeof(int32));
+	taskExecution->fileArray = palloc0(nodeCount * sizeof(FileCompat));
 
 	for (uint32 nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++)
 	{
 		taskExecution->taskStatusArray[nodeIndex] = initialTaskExecStatus;
 		taskExecution->transmitStatusArray[nodeIndex] = EXEC_TRANSMIT_UNASSIGNED;
 		taskExecution->connectionIdArray[nodeIndex] = INVALID_CONNECTION_ID;
-		taskExecution->fileDescriptorArray[nodeIndex] = -1;
+		taskExecution->fileArray[nodeIndex].fd = -1;
 	}
 
 	return taskExecution;
@@ -239,7 +239,7 @@ CleanupTaskExecution(TaskExecution *taskExecution)
 	for (uint32 nodeIndex = 0; nodeIndex < taskExecution->nodeCount; nodeIndex++)
 	{
 		int32 connectionId = taskExecution->connectionIdArray[nodeIndex];
-		int32 fileDescriptor = taskExecution->fileDescriptorArray[nodeIndex];
+		FileCompat *fileCompat = &taskExecution->fileArray[nodeIndex];
 
 		/* close open connection */
 		if (connectionId != INVALID_CONNECTION_ID)
@@ -249,23 +249,17 @@ CleanupTaskExecution(TaskExecution *taskExecution)
 		}
 
 		/* close open file */
-		if (fileDescriptor >= 0)
+		if (fileCompat->fd >= 0)
 		{
-			int closed = close(fileDescriptor);
-			taskExecution->fileDescriptorArray[nodeIndex] = -1;
-
-			if (closed < 0)
-			{
-				ereport(WARNING, (errcode_for_file_access(),
-								  errmsg("could not close copy file: %m")));
-			}
+			FileClose(fileCompat->fd);
+			fileCompat->fd = -1;
 		}
 	}
 
 	/* deallocate memory and reset all fields */
 	pfree(taskExecution->taskStatusArray);
 	pfree(taskExecution->connectionIdArray);
-	pfree(taskExecution->fileDescriptorArray);
+	pfree(taskExecution->fileArray);
 	pfree(taskExecution);
 }
 

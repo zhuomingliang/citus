@@ -16,6 +16,7 @@
 
 #include "distributed/multi_physical_planner.h"
 #include "distributed/task_tracker.h"
+#include "distributed/version_compat.h"
 #include "distributed/worker_manager.h"
 
 
@@ -118,7 +119,7 @@ struct TaskExecution
 	TaskExecStatus *taskStatusArray;
 	TransmitExecStatus *transmitStatusArray;
 	int32 *connectionIdArray;
-	int32 *fileDescriptorArray;
+	FileCompat *fileArray;
 	uint32 nodeCount;
 	uint32 currentNodeIndex;
 	uint32 querySourceNodeIndex; /* only applies to map fetch tasks */

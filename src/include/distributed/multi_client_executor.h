@@ -122,7 +122,7 @@ extern bool MultiClientSendQuery(int32 connectionId, const char *query);
 extern bool MultiClientCancel(int32 connectionId);
 extern ResultStatus MultiClientResultStatus(int32 connectionId);
 extern QueryStatus MultiClientQueryStatus(int32 connectionId);
-extern CopyStatus MultiClientCopyData(int32 connectionId, int32 fileDescriptor,
+extern CopyStatus MultiClientCopyData(int32 connectionId, FileCompat *fileCompat,
 									  uint64 *returnBytesReceived);
 extern CopyStatus CopyDataFromConnection(MultiConnection *connection,
 										 FileCompat *fileCompat, uint64 *bytesReceived);

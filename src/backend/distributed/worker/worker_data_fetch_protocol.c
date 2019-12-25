@@ -61,7 +61,7 @@ static bool ReceiveRegularFile(const char *nodeName, uint32 nodePort,
 							   const char *nodeUser, StringInfo transmitCommand,
 							   StringInfo filePath);
 static void ReceiveResourceCleanup(int32 connectionId, const char *filename,
-								   int32 fileDescriptor);
+								   FileCompat *fileCompat);
 static void CitusDeleteFile(const char *filename);
 static bool check_log_statement(List *stmt_list);
 static void AlterSequenceMinMax(Oid sequenceId, char *schemaName, char *sequenceName,
@@ -228,14 +228,15 @@ ReceiveRegularFile(const char *nodeName, uint32 nodePort, const char *nodeUser,
 	/* create local file to append remote data to */
 	snprintf(filename, MAXPGPATH, "%s", filePath->data);
 
-	int32 fileDescriptor = BasicOpenFilePerm(filename, fileFlags, fileMode);
-	if (fileDescriptor < 0)
+	File file = PathNameOpenFilePerm(filename, fileFlags, fileMode);
+	if (file < 0)
 	{
 		ereport(WARNING, (errcode_for_file_access(),
 						  errmsg("could not open file \"%s\": %m", filePath->data)));
 
 		return false;
 	}
+	FileCompat fileCompat = FileCompatFromFileStart(file);
 
 	/* we use the same database name on the master and worker nodes */
 	char *nodeDatabase = CurrentDatabaseName();
@@ -244,7 +245,7 @@ ReceiveRegularFile(const char *nodeName, uint32 nodePort, const char *nodeUser,
 	int32 connectionId = MultiClientConnect(nodeName, nodePort, nodeDatabase, nodeUser);
 	if (connectionId == INVALID_CONNECTION_ID)
 	{
-		ReceiveResourceCleanup(connectionId, filename, fileDescriptor);
+		ReceiveResourceCleanup(connectionId, filename, fileCompat);
 
 		return false;
 	}
@@ -253,7 +254,7 @@ ReceiveRegularFile(const char *nodeName, uint32 nodePort, const char *nodeUser,
 	bool querySent = MultiClientSendQuery(connectionId, transmitCommand->data);
 	if (!querySent)
 	{
-		ReceiveResourceCleanup(connectionId, filename, fileDescriptor);
+		ReceiveResourceCleanup(connectionId, filename, fileCompat);
 
 		return false;
 	}
@@ -274,7 +275,7 @@ ReceiveRegularFile(const char *nodeName, uint32 nodePort, const char *nodeUser,
 		}
 		else
 		{
-			ReceiveResourceCleanup(connectionId, filename, fileDescriptor);
+			ReceiveResourceCleanup(connectionId, filename, fileCompat);
 
 			return false;
 		}
@@ -284,7 +285,7 @@ ReceiveRegularFile(const char *nodeName, uint32 nodePort, const char *nodeUser,
 	QueryStatus queryStatus = MultiClientQueryStatus(connectionId);
 	if (queryStatus != CLIENT_QUERY_COPY)
 	{
-		ReceiveResourceCleanup(connectionId, filename, fileDescriptor);
+		ReceiveResourceCleanup(connectionId, filename, fileCompat);
 
 		return false;
 	}
@@ -292,7 +293,7 @@ ReceiveRegularFile(const char *nodeName, uint32 nodePort, const char *nodeUser,
 	/* loop until we receive and append all the data from remote node */
 	while (!copyDone)
 	{
-		CopyStatus copyStatus = MultiClientCopyData(connectionId, fileDescriptor, NULL);
+		CopyStatus copyStatus = MultiClientCopyData(connectionId, fileCompat, NULL);
 		if (copyStatus == CLIENT_COPY_DONE)
 		{
 			copyDone = true;
@@ -303,7 +304,7 @@ ReceiveRegularFile(const char *nodeName, uint32 nodePort, const char *nodeUser,
 		}
 		else
 		{
-			ReceiveResourceCleanup(connectionId, filename, fileDescriptor);
+			ReceiveResourceCleanup(connectionId, filename, fileCompat);
 
 			return false;
 		}
@@ -312,17 +313,7 @@ ReceiveRegularFile(const char *nodeName, uint32 nodePort, const char *nodeUser,
 	/* we are done executing; release the connection and the file handle */
 	MultiClientDisconnect(connectionId);
 
-	int closed = close(fileDescriptor);
-	if (closed < 0)
-	{
-		ereport(WARNING, (errcode_for_file_access(),
-						  errmsg("could not close file \"%s\": %m", filename)));
-
-		/* if we failed to close file, try to delete it before erroring out */
-		CitusDeleteFile(filename);
-
-		return false;
-	}
+	FileClose(fileCompat.fd);
 
 	/* we successfully received the remote file */
 	ereport(DEBUG2, (errmsg("received remote file \"%s\"", filename)));
@@ -336,21 +327,17 @@ ReceiveRegularFile(const char *nodeName, uint32 nodePort, const char *nodeUser,
  * The function closes the connection, and closes and deletes the local file.
  */
 static void
-ReceiveResourceCleanup(int32 connectionId, const char *filename, int32 fileDescriptor)
+ReceiveResourceCleanup(int32 connectionId, const char *filename, FileCompat *fileCompat)
 {
 	if (connectionId != INVALID_CONNECTION_ID)
 	{
 		MultiClientDisconnect(connectionId);
 	}
 
-	if (fileDescriptor != -1)
+	if (fileCompat->fd != -1)
 	{
-		int closed = close(fileDescriptor);
-		if (closed < 0)
-		{
-			ereport(WARNING, (errcode_for_file_access(),
-							  errmsg("could not close file \"%s\": %m", filename)));
-		}
+		FileClose(fileCompat->fd);
+		fileCompat->fd = -1;
 
 		int deleted = unlink(filename);
 		if (deleted != 0)

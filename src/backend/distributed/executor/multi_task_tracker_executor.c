@@ -1252,7 +1252,7 @@ ManageTransmitExecution(TaskTracker *transmitTracker,
 						Task *task, TaskExecution *taskExecution,
 						DistributedExecutionStats *executionStats)
 {
-	int32 *fileDescriptorArray = taskExecution->fileDescriptorArray;
+	FileCompat *fileArray = taskExecution->fileArray;
 	uint32 currentNodeIndex = taskExecution->currentNodeIndex;
 
 	TransmitExecStatus *transmitStatusArray = taskExecution->transmitStatusArray;
@@ -1324,14 +1324,14 @@ ManageTransmitExecution(TaskTracker *transmitTracker,
 				int fileFlags = (O_APPEND | O_CREAT | O_RDWR | O_TRUNC | PG_BINARY);
 				int fileMode = (S_IRUSR | S_IWUSR);
 
-				int32 fileDescriptor = BasicOpenFilePerm(filename, fileFlags, fileMode);
-				if (fileDescriptor >= 0)
+				File file = PathNameOpenFilePerm(filename, fileFlags, fileMode);
+				if (file >= 0)
 				{
 					/*
 					 * All files inside the job directory get automatically cleaned
 					 * up on transaction commit or abort.
 					 */
-					fileDescriptorArray[currentNodeIndex] = fileDescriptor;
+					fileArray[currentNodeIndex] = FileCompatFromFileStart(file);
 					nextTransmitStatus = EXEC_TRANSMIT_COPYING;
 				}
 				else
@@ -1365,15 +1365,14 @@ ManageTransmitExecution(TaskTracker *transmitTracker,
 
 		case EXEC_TRANSMIT_COPYING:
 		{
-			int32 fileDescriptor = fileDescriptorArray[currentNodeIndex];
-			int closed = -1;
+			FileCompat *fileCompat = &fileArray[currentNodeIndex];
 			uint64 bytesReceived = 0;
 
 			/* the open connection belongs to this task */
 			int32 connectionId = TransmitTrackerConnectionId(transmitTracker, task);
 			Assert(connectionId != INVALID_CONNECTION_ID);
 
-			CopyStatus copyStatus = MultiClientCopyData(connectionId, fileDescriptor,
+			CopyStatus copyStatus = MultiClientCopyData(connectionId, fileCompat,
 														&bytesReceived);
 
 			if (SubPlanLevel > 0)
@@ -1391,33 +1390,17 @@ ManageTransmitExecution(TaskTracker *transmitTracker,
 			/* we are done copying data */
 			if (copyStatus == CLIENT_COPY_DONE)
 			{
-				closed = close(fileDescriptor);
-				fileDescriptorArray[currentNodeIndex] = -1;
+				FileClose(fileCompat->fd);
+				fileCompat->fd = -1;
 
-				if (closed >= 0)
-				{
-					nextTransmitStatus = EXEC_TRANSMIT_DONE;
-				}
-				else
-				{
-					ereport(WARNING, (errcode_for_file_access(),
-									  errmsg("could not close copied file: %m")));
-
-					nextTransmitStatus = EXEC_TRANSMIT_TRACKER_RETRY;
-				}
+				nextTransmitStatus = EXEC_TRANSMIT_DONE;
 			}
 			else if (copyStatus == CLIENT_COPY_FAILED)
 			{
 				nextTransmitStatus = EXEC_TRANSMIT_TRACKER_RETRY;
 
-				closed = close(fileDescriptor);
-				fileDescriptorArray[currentNodeIndex] = -1;
-
-				if (closed < 0)
-				{
-					ereport(WARNING, (errcode_for_file_access(),
-									  errmsg("could not close copy file: %m")));
-				}
+				FileClose(fileCompat->fd);
+				fileCompat->fd = -1;
 			}
 
 			/*
