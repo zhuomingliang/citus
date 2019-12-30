@@ -499,6 +499,29 @@ BEGIN;
 	EXECUTE remote_prepare_param(1);
 COMMIT;
 
+PREPARE local_insert_prepare_no_param AS INSERT INTO distributed_table VALUES (1+0*random(), '11',21::int) ON CONFLICT(key) DO UPDATE SET value = '29' || '28' RETURNING *, key + 1, value || '30', age * 15;
+PREPARE local_insert_prepare_param (int) AS INSERT INTO distributed_table VALUES ($1+0*random(), '11',21::int) ON CONFLICT(key) DO UPDATE SET value = '29' || '28' RETURNING *, key + 1, value || '30', age * 15;
+BEGIN;
+	-- 6 local execution without params
+	EXECUTE local_insert_prepare_no_param;
+	EXECUTE local_insert_prepare_no_param;
+	EXECUTE local_insert_prepare_no_param;
+	EXECUTE local_insert_prepare_no_param;
+	EXECUTE local_insert_prepare_no_param;
+	EXECUTE local_insert_prepare_no_param;
+
+	-- 6 local executions with params
+	EXECUTE local_insert_prepare_param(1);
+	EXECUTE local_insert_prepare_param(5);
+	EXECUTE local_insert_prepare_param(6);
+	EXECUTE local_insert_prepare_param(1);
+	EXECUTE local_insert_prepare_param(5);
+	EXECUTE local_insert_prepare_param(6);
+
+	-- followed by a non-local execution
+	EXECUTE remote_prepare_param(2);
+COMMIT;
+
 
 -- failures of local execution should rollback both the
 -- local execution and remote executions

@@ -35,6 +35,7 @@
 #include "postgres.h"
 
 #include "distributed/distributed_planner.h"
+#include "distributed/insert_select_planner.h"
 #include "distributed/multi_physical_planner.h" /* only to use some utility functions */
 #include "distributed/metadata_cache.h"
 #include "distributed/multi_router_planner.h"
@@ -52,6 +53,7 @@
 #else
 #include "optimizer/clauses.h"
 #endif
+#include "tcop/pquery.h"
 
 bool EnableFastPathRouterPlanner = true;
 
@@ -97,7 +99,6 @@ FastPathPlanner(Query *originalQuery, Query *parse, ParamListInfo boundParams)
 	parse->jointree->quals =
 		(Node *) eval_const_expressions(NULL, (Node *) parse->jointree->quals);
 
-
 	PlannedStmt *result = GeneratePlaceHolderPlannedStmt(originalQuery);
 
 	return result;
@@ -130,7 +131,9 @@ GeneratePlaceHolderPlannedStmt(Query *parse)
 	/* there is only a single relation rte */
 	seqScanNode->scanrelid = 1;
 
-	plan->targetlist = copyObject(parse->targetList);
+	plan->targetlist =
+		copyObject(FetchStatementTargetList((Node *) parse));
+
 	plan->qual = NULL;
 	plan->lefttree = NULL;
 	plan->righttree = NULL;
@@ -143,6 +146,7 @@ GeneratePlaceHolderPlannedStmt(Query *parse)
 
 	result->rtable = copyObject(parse->rtable);
 	result->planTree = (Plan *) plan;
+	result->hasReturning = (parse->returningList != NIL);
 
 	Oid relationId = ExtractFirstDistributedTableId(parse);
 	result->relationOids = list_make1_oid(relationId);
@@ -176,10 +180,15 @@ FastPathRouterQuery(Query *query, Const **distributionKeyValue)
 		return false;
 	}
 
-	if (!(query->commandType == CMD_SELECT || query->commandType == CMD_UPDATE ||
-		  query->commandType == CMD_DELETE))
+	if (CheckInsertSelectQuery(query))
 	{
+		/* we don't support INSERT..SELECT in the fast-path */
 		return false;
+	}
+	else if (query->commandType == CMD_INSERT)
+	{
+		/* we don't need to do any further checks, all INSERTs are fast-path */
+		return true;
 	}
 
 	/*
