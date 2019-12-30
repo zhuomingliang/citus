@@ -62,21 +62,17 @@ BuildExtendedOpNodeProperties(MultiExtendedOp *extendedOpNode, bool
 		ShouldPullDistinctColumn(repartitionSubquery, groupedByDisjointPartitionColumn,
 								 hasNonPartitionColumnDistinctAgg);
 
-	/*
-	 * TODO: Only window functions that can be pushed down reach here, thus,
-	 * using hasWindowFuncs is safe for now. However, this should be fixed
-	 * when we support pull-to-master window functions.
-	 */
-	bool pushDownWindowFunctions = extendedOpNode->hasWindowFuncs;
-
 	extendedOpNodeProperties.groupedByDisjointPartitionColumn =
 		groupedByDisjointPartitionColumn;
 	extendedOpNodeProperties.repartitionSubquery = repartitionSubquery;
 	extendedOpNodeProperties.hasNonPartitionColumnDistinctAgg =
 		hasNonPartitionColumnDistinctAgg;
 	extendedOpNodeProperties.pullDistinctColumns = pullDistinctColumns;
-	extendedOpNodeProperties.pushDownWindowFunctions = pushDownWindowFunctions;
-	extendedOpNodeProperties.pullUpIntermediateRows = pullUpIntermediateRows;
+	extendedOpNodeProperties.pushDownWindowFunctions =
+		!pullDistinctColumns && !pullUpIntermediateRows &&
+		!extendedOpNode->hasNonPushableWindowFunction;
+	extendedOpNodeProperties.pullUpIntermediateRows =
+		extendedOpNode->hasNonPushableWindowFunction || pullUpIntermediateRows;
 
 	return extendedOpNodeProperties;
 }

@@ -470,7 +470,8 @@ HasDistinctOrOrderByAggregate(Query *masterQuery)
 	ListCell *allColumnCell = NULL;
 
 	List *targetVarList = pull_var_clause((Node *) masterQuery->targetList,
-										  PVC_INCLUDE_AGGREGATES);
+										  PVC_INCLUDE_AGGREGATES |
+										  PVC_RECURSE_WINDOWFUNCS);
 	List *havingVarList = pull_var_clause(masterQuery->havingQual,
 										  PVC_INCLUDE_AGGREGATES);
 
@@ -529,7 +530,8 @@ QueryContainsAggregateWithHLL(Query *query)
 {
 	ListCell *varCell = NULL;
 
-	List *varList = pull_var_clause((Node *) query->targetList, PVC_INCLUDE_AGGREGATES);
+	List *varList = pull_var_clause((Node *) query->targetList, PVC_INCLUDE_AGGREGATES |
+									PVC_INCLUDE_WINDOWFUNCS);
 	foreach(varCell, varList)
 	{
 		Var *var = (Var *) lfirst(varCell);
