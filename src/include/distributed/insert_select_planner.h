@@ -22,6 +22,7 @@
 #include "nodes/parsenodes.h"
 #include "nodes/plannodes.h"
 
+extern bool CheckInsertSelectQuery(Query *query);
 
 extern bool InsertSelectIntoDistributedTable(Query *query);
 extern bool InsertSelectIntoLocalTable(Query *query);

@@ -174,6 +174,12 @@ FastPathRouterQuery(Query *query)
 	if (!(query->commandType == CMD_SELECT || query->commandType == CMD_UPDATE ||
 		  query->commandType == CMD_DELETE))
 	{
+		/*return false; */
+	}
+
+#include "distributed/insert_select_planner.h"
+	if (query->commandType == CMD_INSERT && CheckInsertSelectQuery(query))
+	{
 		return false;
 	}
 
