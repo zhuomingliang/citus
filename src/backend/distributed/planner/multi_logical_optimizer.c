@@ -1419,10 +1419,6 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 	walkerContext->extendedOpNodeProperties = extendedOpNodeProperties;
 	walkerContext->columnId = 1;
 
-	bool pullWindowFunctions = extendedOpNodeProperties->pullDistinctColumns ||
-							   originalOpNode->hasNonPushableWindowFunction ||
-							   extendedOpNodeProperties->pullUpIntermediateRows;
-
 	/* iterate over original target entries */
 	foreach(targetEntryCell, targetEntryList)
 	{
@@ -1446,7 +1442,7 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 			newExpression = (Expr *) newNode;
 		}
 		else if (hasWindowFunction &&
-				 !walkerContext->extendedOpNodeProperties->pushDownWindowFunctions)
+				 !extendedOpNodeProperties->pushDownWindowFunctions)
 		{
 			Node *newNode = MasterPullWindowFunction((Node *) originalExpression,
 													 walkerContext);
@@ -1502,11 +1498,28 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 	masterExtendedOpNode->limitOffset = originalOpNode->limitOffset;
 	masterExtendedOpNode->havingQual = newHavingQual;
 
-	if (pullWindowFunctions)
+	if (!extendedOpNodeProperties->pushDownWindowFunctions)
 	{
 		masterExtendedOpNode->hasWindowFuncs = originalOpNode->hasWindowFuncs;
-		masterExtendedOpNode->windowClause = originalOpNode->windowClause;
-		masterExtendedOpNode->hasNonPushableWindowFunction = true;
+		masterExtendedOpNode->windowClause = copyObject(originalOpNode->windowClause);
+
+		if (masterExtendedOpNode->windowClause != NIL)
+		{
+			List *columnList = pull_var_clause_default(
+				(Node *) masterExtendedOpNode->windowClause);
+			ListCell *columnCell = NULL;
+
+			foreach(columnCell, columnList)
+			{
+				Var *column = (Var *) lfirst(columnCell);
+				column->varattno = walkerContext->columnId;
+				column->varoattno = walkerContext->columnId;
+				walkerContext->columnId++;
+			}
+		}
+
+		masterExtendedOpNode->hasNonPushableWindowFunction =
+			originalOpNode->hasNonPushableWindowFunction;
 	}
 
 	return masterExtendedOpNode;
@@ -1550,7 +1563,7 @@ MasterAggregateMutator(Node *originalNode, MasterAggregateWalkerContext *walkerC
 
 		newNode = (Node *) newColumn;
 	}
-	else
+	else if (!IsA(originalNode, WindowFunc))
 	{
 		newNode = expression_tree_mutator(originalNode, MasterAggregateMutator,
 										  (void *) walkerContext);

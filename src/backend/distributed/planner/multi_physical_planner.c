@@ -579,12 +579,14 @@ BuildJobQuery(MultiNode *multiNode, List *dependentJobList)
 	bool updateColumnAttributes = false;
 	List *targetList = NIL;
 	List *sortClauseList = NIL;
+	List *windowClause = NIL;
 	Node *limitCount = NULL;
 	Node *limitOffset = NULL;
 	Node *havingQual = NULL;
 	bool hasDistinctOn = false;
 	List *distinctClause = NIL;
 	bool isRepartitionJoin = false;
+	bool hasWindowFuncs = false;
 
 	/* we start building jobs from below the collect node */
 	Assert(!CitusIsA(multiNode, MultiCollect));
@@ -635,6 +637,7 @@ BuildJobQuery(MultiNode *multiNode, List *dependentJobList)
 		targetList = copyObject(extendedOp->targetList);
 		distinctClause = extendedOp->distinctClause;
 		hasDistinctOn = extendedOp->hasDistinctOn;
+		hasWindowFuncs = extendedOp->hasWindowFuncs;
 	}
 	else
 	{
@@ -660,6 +663,7 @@ BuildJobQuery(MultiNode *multiNode, List *dependentJobList)
 		limitOffset = extendedOp->limitOffset;
 		sortClauseList = extendedOp->sortClauseList;
 		havingQual = extendedOp->havingQual;
+		windowClause = extendedOp->windowClause;
 	}
 
 	/* build group clauses */
@@ -716,9 +720,12 @@ BuildJobQuery(MultiNode *multiNode, List *dependentJobList)
 	jobQuery->limitOffset = limitOffset;
 	jobQuery->limitCount = limitCount;
 	jobQuery->havingQual = havingQual;
-	jobQuery->hasAggs = contain_agg_clause((Node *) targetList);
+	jobQuery->hasAggs = contain_agg_clause((Node *) targetList) ||
+						contain_agg_clause((Node *) havingQual);
 	jobQuery->distinctClause = distinctClause;
 	jobQuery->hasDistinctOn = hasDistinctOn;
+	jobQuery->hasWindowFuncs = hasWindowFuncs;
+	jobQuery->windowClause = windowClause;
 
 	return jobQuery;
 }
@@ -800,7 +807,10 @@ BuildReduceQuery(MultiExtendedOp *extendedOpNode, List *dependentJobList)
 	reduceQuery->limitOffset = extendedOpNode->limitOffset;
 	reduceQuery->limitCount = extendedOpNode->limitCount;
 	reduceQuery->havingQual = extendedOpNode->havingQual;
-	reduceQuery->hasAggs = contain_agg_clause((Node *) targetList);
+	reduceQuery->hasAggs = contain_agg_clause((Node *) targetList) ||
+						   contain_agg_clause((Node *) extendedOpNode->havingQual);
+	reduceQuery->hasWindowFuncs = contain_window_function((Node *) targetList);
+	reduceQuery->windowClause = extendedOpNode->windowClause;
 
 	return reduceQuery;
 }
