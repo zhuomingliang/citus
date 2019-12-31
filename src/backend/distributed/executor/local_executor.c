@@ -149,7 +149,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		LogLocalCommand(workerJob, task);
 
 		totalRowsProcessed +=
-			ExecuteLocalTaskPlan(scanState, localPlan, task->queryString);
+			ExecuteLocalTaskPlan(scanState, localPlan, TaskQueryString(task));
 	}
 
 	return totalRowsProcessed;
@@ -176,7 +176,7 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 	 * we'd need to parse the queryString back to Query before passing it
 	 * to the planner,
 	 */
-	if (task->queryString == NULL)
+	if (task->queryStringLazy == NULL)
 	{
 		ReplaceShardReferencesWalker((Node *) shardQuery, task);
 
@@ -205,7 +205,7 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 			numParams = boundParams->numParams;
 		}
 
-		shardQuery = ParseQueryString(task->queryString, parameterTypes, numParams);
+		shardQuery = ParseQueryString(task->queryStringLazy, parameterTypes, numParams);
 	}
 
 	/*
@@ -597,10 +597,8 @@ LogLocalCommand(Job *workerJob, Task *task)
 		return;
 	}
 
-	GenerateShardQueryStringIfMissing(workerJob->jobQuery, task);
-
 	ereport(LOG, (errmsg("executing the command locally: %s",
-						 ApplyLogRedaction(task->queryString))));
+						 ApplyLogRedaction(TaskQueryString(task)))));
 }
 
 
@@ -613,21 +611,29 @@ LogLocalCommand(Job *workerJob, Task *task)
  * executor might decide not to execute the task locally. In that case,
  * re-generate the queryString.
  */
-void
-GenerateShardQueryStringIfMissing(Query *workerJobQuery, Task *task)
+char *
+TaskQueryString(Task *task)
 {
-	const char *shardQueryString = task->queryString;
-
-	if (shardQueryString == NULL)
+	if (task->queryStringLazy != NULL)
 	{
-		StringInfo queryString = makeStringInfo();
-		Query *copyJobQuery = copyObject(workerJobQuery);
-
-		UpdateRelationToShardNames((Node *) copyJobQuery, task->relationShardList);
-		pg_get_query_def(copyJobQuery, queryString);
-
-		task->queryString = queryString->data;
+		return task->queryStringLazy;
 	}
+	Assert(task->query != NULL);
+
+	StringInfo queryString = makeStringInfo();
+
+	pg_get_query_def(task->query, queryString);
+
+	/*
+	 * TODO: Uncomment the below line.
+	 * Caching it here would be preferable, so the string would only need
+	 * to be built once. Sadly, this breaks for prepared statements on their
+	 * second execution. Probably because the backing memory uses the wrong
+	 * memory context.
+	 */
+
+	/*task->queryStringLazy = queryString->data; */
+	return queryString->data;
 }
 
 
