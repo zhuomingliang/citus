@@ -180,7 +180,7 @@ AppendAllAccessedWorkerNodes(IntermediateResultsHashEntry *entry,
 		/* if there is a task that does not have any placements, write to local file
 		 * TODO: Hanefi make sure that it is possible to have nil task placement lists
 		 */
-		if (list_length(task->taskPlacementList) < 3)
+		if (list_length(task->taskPlacementList) < 1)
 		{
 			entry->writeLocalFile = true;
 		}
