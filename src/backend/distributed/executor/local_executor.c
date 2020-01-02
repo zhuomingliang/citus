@@ -241,8 +241,16 @@ ReplaceShardReferencesWalker(Node *node, Task *task)
 	{
 		RangeTblEntry *rangeTableEntry = (RangeTblEntry *) node;
 
-		if (rangeTableEntry->rtekind == RTE_RELATION)
+		if (rangeTableEntry->rtekind == RTE_FUNCTION)
 		{
+			UnsetRangeTblExtraData(rangeTableEntry);
+		}
+		else if (rangeTableEntry->rtekind == RTE_RELATION)
+		{
+			/*
+			 * We only have RTE_RELATION in fast path queries, which only have
+			 * a single relation
+			 */
 			Assert(list_length(task->relationShardList) == 1);
 			RelationShard *relationShard = linitial(task->relationShardList);
 
@@ -251,6 +259,11 @@ ReplaceShardReferencesWalker(Node *node, Task *task)
 			AppendShardIdToName(&generatedRelationName, relationShard->shardId);
 
 			rangeTableEntry->relid = get_relname_relid(generatedRelationName, schemaOid);
+		}
+
+		/* RTE_FUNCTION can be changed to a RTE_RELATION after UnsetTblExtraData */
+		if (rangeTableEntry->rtekind == RTE_RELATION)
+		{
 #if PG_VERSION_NUM >= 120000
 			LockRelationOid(rangeTableEntry->relid, rangeTableEntry->rellockmode);
 #else
