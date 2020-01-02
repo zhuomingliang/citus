@@ -632,20 +632,14 @@ TaskQueryString(Task *task)
 		return task->queryStringLazy;
 	}
 	Assert(task->query != NULL);
-
+	Assert(PlanMemoryContext != NULL);
+	MemoryContext previousContext = MemoryContextSwitchTo(PlanMemoryContext);
 	StringInfo queryString = makeStringInfo();
 
 	pg_get_query_def(task->query, queryString);
 
-	/*
-	 * TODO: Uncomment the below line.
-	 * Caching it here would be preferable, so the string would only need
-	 * to be built once. Sadly, this breaks for prepared statements on their
-	 * second execution. Probably because the backing memory uses the wrong
-	 * memory context.
-	 */
-
-	/*task->queryStringLazy = queryString->data; */
+	task->queryStringLazy = queryString->data;
+	MemoryContextSwitchTo(previousContext);
 	return queryString->data;
 }
 

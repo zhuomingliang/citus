@@ -67,6 +67,7 @@ extern int MaxAdaptiveExecutorPoolSize;
 extern int ExecutorSlowStartInterval;
 extern bool SortReturning;
 extern int ExecutorLevel;
+extern MemoryContext PlanMemoryContext;
 
 
 extern void CitusExecutorStart(QueryDesc *queryDesc, int eflags);

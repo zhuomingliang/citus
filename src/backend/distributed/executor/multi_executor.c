@@ -64,6 +64,13 @@ bool SortReturning = false;
  */
 int ExecutorLevel = 0;
 
+/*
+ * Stores the memory context. We need this to cache the lazily generated task
+ * query string here. Otherwise its memory is freed and future EXECUTE
+ * statements will try to use that freed memory.
+ */
+MemoryContext PlanMemoryContext = NULL;
+
 
 /* local function forward declarations */
 static Relation StubRelation(TupleDesc tupleDescriptor);
@@ -78,6 +85,7 @@ void
 CitusExecutorStart(QueryDesc *queryDesc, int eflags)
 {
 	PlannedStmt *plannedStmt = queryDesc->plannedstmt;
+	PlanMemoryContext = GetMemoryChunkContext(plannedStmt);
 
 	/*
 	 * We cannot modify XactReadOnly on Windows because it is not
