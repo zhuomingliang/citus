@@ -20,7 +20,7 @@ SELECT create_reference_table('squares');
 INSERT INTO squares SELECT i, i * i FROM generate_series(1, 10) i;
 -- should be executed locally
 SELECT count(*) FROM squares;
-LOG:  executing the command locally: SELECT count(*) AS count FROM replicate_ref_to_coordinator.squares_8000000 squares
+LOG:  executing the command locally: SELECT count(*) AS count FROM replicate_ref_to_coordinator.squares
  count
 ---------------------------------------------------------------------
     10
@@ -164,7 +164,7 @@ SELECT sum(a) FROM local_table;
 (1 row)
 
 SELECT sum(a) FROM numbers;
-LOG:  executing the command locally: SELECT sum(a) AS sum FROM replicate_ref_to_coordinator.numbers_8000001 numbers
+LOG:  executing the command locally: SELECT sum(a) AS sum FROM replicate_ref_to_coordinator.numbers
  sum
 ---------------------------------------------------------------------
   41
@@ -300,7 +300,7 @@ DROP VIEW numbers_v, local_table_v;
 -- be planned locally.
 --
 CREATE MATERIALIZED VIEW numbers_v AS SELECT * FROM numbers WHERE a BETWEEN 1 AND 10;
-LOG:  executing the command locally: SELECT a FROM replicate_ref_to_coordinator.numbers_8000001 numbers WHERE ((a OPERATOR(pg_catalog.>=) 1) AND (a OPERATOR(pg_catalog.<=) 10))
+LOG:  executing the command locally: SELECT a FROM replicate_ref_to_coordinator.numbers WHERE ((a OPERATOR(pg_catalog.>=) 1) AND (a OPERATOR(pg_catalog.<=) 10))
 REFRESH MATERIALIZED VIEW numbers_v;
 SELECT public.plan_is_distributed($Q$
 EXPLAIN (COSTS FALSE)
