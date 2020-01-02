@@ -168,6 +168,8 @@ GeneratePlaceHolderPlannedStmt(Query *parse)
  *          SELECT ... FROM dist_table WHERE dist_key = X
  *      If the filter is a const, distributionKeyValue is set
  *   - No returning for UPDATE/DELETE queries
+ *   - All INSERT statements (including multi-row INSERTs) that don't have any
+ *     sublinks/CTEs etc
  */
 bool
 FastPathRouterQuery(Query *query, Const **distributionKeyValue)
@@ -176,6 +178,17 @@ FastPathRouterQuery(Query *query, Const **distributionKeyValue)
 	Node *quals = NULL;
 
 	if (!EnableFastPathRouterPlanner)
+	{
+		return false;
+	}
+
+	/*
+	 * We want to deal with only very simple select queries. Some of the
+	 * checks might be too restrictive, still we prefer this way.
+	 */
+	if (query->cteList != NIL || query->returningList != NIL ||
+		query->hasSubLinks || query->setOperations != NULL ||
+		query->hasTargetSRFs || query->hasModifyingCTE)
 	{
 		return false;
 	}
@@ -189,17 +202,6 @@ FastPathRouterQuery(Query *query, Const **distributionKeyValue)
 	{
 		/* we don't need to do any further checks, all INSERTs are fast-path */
 		return true;
-	}
-
-	/*
-	 * We want to deal with only very simple select queries. Some of the
-	 * checks might be too restrictive, still we prefer this way.
-	 */
-	if (query->cteList != NIL || query->returningList != NIL ||
-		query->hasSubLinks || query->setOperations != NULL ||
-		query->hasTargetSRFs || query->hasModifyingCTE)
-	{
-		return false;
 	}
 
 	/* make sure that the only range table in FROM clause */
