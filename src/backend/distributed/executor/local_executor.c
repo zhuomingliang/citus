@@ -291,6 +291,55 @@ ReplaceShardReferencesWalker(Node *node, Task *task)
 
 
 /*
+ * ReplaceShardReferencesWalker2 update RTE_RELATIONs that are the distributed
+ * relations to RTE_RELATIONs that are the local shards. In PG12+ we acquire
+ * the required locks on the local shards when we replace them, for PG11 these
+ * locks should be taken manually.
+ */
+static bool
+ReplaceShardReferencesWalker2(Node *node, Task *task)
+{
+	if (node == NULL)
+	{
+		return false;
+	}
+
+	if (IsA(node, RangeTblEntry))
+	{
+		RangeTblEntry *rangeTableEntry = (RangeTblEntry *) node;
+
+		if (rangeTableEntry->rtekind == RTE_RELATION)
+		{
+			/*
+			 * We only have RTE_RELATION in fast path queries, which only have
+			 * a single relation
+			 */
+			Assert(list_length(task->relationShardList) == 1);
+			RelationShard *relationShard = linitial(task->relationShardList);
+
+			Oid schemaOid = get_rel_namespace(relationShard->relationId);
+			char *generatedRelationName = get_rel_name(relationShard->relationId);
+			AppendShardIdToName(&generatedRelationName, relationShard->shardId);
+
+			rangeTableEntry->relid = get_relname_relid(generatedRelationName, schemaOid);
+		}
+
+		/* caller will descend into range table entry */
+		return false;
+	}
+	else if (IsA(node, Query))
+	{
+		return query_tree_walker((Query *) node, ReplaceShardReferencesWalker2, task,
+								 QTW_EXAMINE_RTES_BEFORE);
+	}
+	else
+	{
+		return expression_tree_walker(node, ReplaceShardReferencesWalker2, task);
+	}
+}
+
+
+/*
  * ExtractParametersForLocalExecution extracts parameter types and values from
  * the given ParamListInfo structure, and fills parameter type and value arrays.
  * It does not change the oid of custom types, because the query will be run locally.
@@ -633,6 +682,7 @@ TaskQueryString(Task *task)
 	}
 	Assert(task->query != NULL);
 	Assert(PlanMemoryContext != NULL);
+	ReplaceShardReferencesWalker2((Node *) task->query, task);
 	MemoryContext previousContext = MemoryContextSwitchTo(PlanMemoryContext);
 	StringInfo queryString = makeStringInfo();
 
