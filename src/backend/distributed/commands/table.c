@@ -285,8 +285,6 @@ List *
 PreprocessAlterTableStmt(Node *node, const char *alterTableCommand)
 {
 	AlterTableStmt *alterTableStatement = castNode(AlterTableStmt, node);
-	Oid rightRelationId = InvalidOid;
-	bool executeSequentially = false;
 
 	/* first check whether a distributed relation is affected */
 	if (alterTableStatement->relation == NULL)
@@ -296,6 +294,7 @@ PreprocessAlterTableStmt(Node *node, const char *alterTableCommand)
 
 	LOCKMODE lockmode = AlterTableGetLockLevel(alterTableStatement->cmds);
 	Oid leftRelationId = AlterTableLookupRelation(alterTableStatement, lockmode);
+
 	if (!OidIsValid(leftRelationId))
 	{
 		return NIL;
@@ -309,7 +308,8 @@ PreprocessAlterTableStmt(Node *node, const char *alterTableCommand)
 	char leftRelationKind = get_rel_relkind(leftRelationId);
 	if (leftRelationKind == RELKIND_INDEX)
 	{
-		leftRelationId = IndexGetRelation(leftRelationId, false);
+		bool missingOk = false;
+		leftRelationId = IndexGetRelation(leftRelationId, missingOk);
 	}
 
 	bool isDistributedRelation = IsDistributedTable(leftRelationId);
@@ -848,7 +848,7 @@ ErrorIfUnsupportedConstraint(Relation relation, char distributionMethod,
 	 * We first perform check for foreign constraints. It is important to do this check
 	 * before next check, because other types of constraints are allowed on reference
 	 * tables and we return early for those constraints thanks to next check. Therefore,
-	 * for reference tables, we first check for foreing constraints and if they are OK,
+	 * for reference tables, we first check for foreign constraints and if they are OK,
 	 * we do not error out for other types of constraints.
 	 */
 	ErrorIfUnsupportedForeignConstraintExists(relation, distributionMethod,
