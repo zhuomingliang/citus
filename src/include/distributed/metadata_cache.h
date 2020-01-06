@@ -114,6 +114,9 @@ typedef struct DistObjectCacheEntry
 
 	int distributionArgIndex;
 	int colocationId;
+
+	/* not stored in pg_dist_object, calculated on the fly for procedures/functions */
+	Oid colocatedTableId;
 } DistObjectCacheEntry;
 
 

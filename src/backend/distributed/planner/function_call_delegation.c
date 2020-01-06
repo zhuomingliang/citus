@@ -260,7 +260,7 @@ TryToDelegateFunctionCall(DistributedPlanningContext *planContext)
 		return NULL;
 	}
 
-	colocatedRelationId = ColocatedTableId(procedure->colocationId);
+	colocatedRelationId = procedure->colocatedTableId;
 	if (colocatedRelationId == InvalidOid)
 	{
 		ereport(DEBUG1, (errmsg("function does not have co-located tables")));
@@ -268,6 +268,7 @@ TryToDelegateFunctionCall(DistributedPlanningContext *planContext)
 	}
 
 	distTable = DistributedTableCacheEntry(colocatedRelationId);
+
 	partitionColumn = distTable->partitionColumn;
 	if (partitionColumn == NULL)
 	{
