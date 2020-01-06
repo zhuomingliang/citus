@@ -47,7 +47,7 @@ static bool CallFuncExprRemotely(const char *queryString, CallStmt *callStmt,
  */
 bool
 CallDistributedProcedureRemotely(const char *queryString, CallStmt *callStmt,
-								DestReceiver *dest)
+								 DestReceiver *dest)
 {
 	FuncExpr *funcExpr = callStmt->funcexpr;
 	Oid functionId = funcExpr->funcid;
@@ -157,7 +157,7 @@ CallFuncExprRemotely(const char *queryString, CallStmt *callStmt,
 
 	/* build remote command with fully qualified names */
 	StringInfo callCommand = makeStringInfo();
-	appendStringInfo(callCommand, "CALL %s", queryString);
+	appendStringInfo(callCommand, "%s", queryString);
 
 	{
 		Tuplestorestate *tupleStore = tuplestore_begin_heap(true, false, work_mem);
