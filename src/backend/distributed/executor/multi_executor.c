@@ -737,9 +737,9 @@ IsLocalReferenceTableJoinPlan(PlannedStmt *plan)
 	bool hasReferenceTable = false;
 	bool hasLocalTable = false;
 
-	/* 
+	/*
 	 * Check if we are in the coordinator and coordinator can have reference
-	 * table replicas 
+	 * table replicas
 	 */
 	if (!CanUseCoordinatorLocalTablesWithReferenceTables())
 	{

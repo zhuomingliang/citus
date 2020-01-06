@@ -17,6 +17,7 @@
 #include "commands/dbcommands.h"
 #include "distributed/hash_helpers.h"
 #include "distributed/listutils.h"
+#include "distributed/master_protocol.h"
 #include "distributed/metadata_cache.h"
 #include "distributed/multi_client_executor.h"
 #include "distributed/worker_manager.h"
@@ -46,7 +47,7 @@ static WorkerNode * FindRandomNodeFromList(List *candidateWorkerNodeList);
 static bool OddNumber(uint32 number);
 static bool ListMember(List *currentList, WorkerNode *workerNode);
 static bool NodeIsPrimaryWorker(WorkerNode *node);
-static bool CanHaveReferenceTableReplicas(void);
+static bool NodeHasReferenceTableReplicas(void);
 static bool NodeIsReadableWorker(WorkerNode *node);
 
 
@@ -401,20 +402,21 @@ NodeIsPrimaryWorker(WorkerNode *node)
 	return !NodeIsCoordinator(node) && NodeIsPrimary(node);
 }
 
+
 /*
- * CanUseCoordinatorLocalTablesWithReferenceTables returns true if we 
- * are allowed to use coordinator local tables with reference tables 
+ * CanUseCoordinatorLocalTablesWithReferenceTables returns true if we
+ * are allowed to use coordinator local tables with reference tables
  * for joining or defining foreign keys between them.
  */
 bool
 CanUseCoordinatorLocalTablesWithReferenceTables(void)
 {
 	/*
-	 * Using local tables of coordinator with reference tables is only allowed 
+	 * Using local tables of coordinator with reference tables is only allowed
 	 * if we are in the coordinator.
-	 * 
+	 *
 	 * Also, to check if coordinator can have reference table replicas in below
-	 * check, we should be in the coordinator. 
+	 * check, we should be in the coordinator.
 	 */
 	if (!IsCoordinator())
 	{
@@ -425,7 +427,7 @@ CanUseCoordinatorLocalTablesWithReferenceTables(void)
 	 * If reference table doesn't have replicas on the coordinator, we don't
 	 * use local tables in coordinator with reference tables.
 	 */
-	if (!CanHaveReferenceTableReplicas())
+	if (!NodeHasReferenceTableReplicas())
 	{
 		return false;
 	}
@@ -435,13 +437,13 @@ CanUseCoordinatorLocalTablesWithReferenceTables(void)
 
 
 /*
- * CanHaveReferenceTableReplicas returns true if current node can have
+ * NodeHasReferenceTableReplicas returns true if current node can have
  * reference table replicas. This is only possible if we called below
  * command formerly
  * "SELECT master_add_node(coordinator_hostname, coordinator_port, groupId => 0)"
  */
 static bool
-CanHaveReferenceTableReplicas()
+NodeHasReferenceTableReplicas(void)
 {
 	bool hasReferenceTableReplica = false;
 
