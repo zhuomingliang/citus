@@ -70,7 +70,6 @@ static int activeDropSchemaOrDBs = 0;
 
 /* Local functions forward declarations for helper functions */
 static void ExecuteDistributedDDLJob(DDLJob *ddlJob);
-static char * SetSearchPathToCurrentSearchPathCommand(void);
 static char * CurrentSearchPath(void);
 static void PostProcessUtility(Node *parsetree);
 static List * PlanRenameAttributeStmt(RenameStmt *stmt, const char *queryString);
@@ -1112,7 +1111,7 @@ ExecuteDistributedDDLJob(DDLJob *ddlJob)
  * If the current search path is null (or doesn't have any valid schemas),
  * the function returns NULL.
  */
-static char *
+char *
 SetSearchPathToCurrentSearchPathCommand(void)
 {
 	char *currentSearchPath = CurrentSearchPath();

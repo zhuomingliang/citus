@@ -60,5 +60,6 @@ extern List * DDLTaskList(Oid relationId, const char *commandString);
 extern List * NodeDDLTaskList(TargetWorkerSet targets, List *commands);
 extern bool AlterTableInProgress(void);
 extern bool DropSchemaOrDBInProgress(void);
+extern char * SetSearchPathToCurrentSearchPathCommand(void);
 
 #endif /* MULTI_UTILITY_H */
