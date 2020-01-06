@@ -157,7 +157,9 @@ CallFuncExprRemotely(const char *queryString, CallStmt *callStmt,
 
 	/* build remote command with fully qualified names */
 	StringInfo callCommand = makeStringInfo();
-	appendStringInfo(callCommand, "%s", queryString);
+	char *setSearchPathCommand = SetSearchPathToCurrentSearchPathCommand();
+
+	appendStringInfo(callCommand, "%s;%s", setSearchPathCommand, queryString);
 
 	{
 		Tuplestorestate *tupleStore = tuplestore_begin_heap(true, false, work_mem);
