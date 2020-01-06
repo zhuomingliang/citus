@@ -7,7 +7,7 @@
 -- into select, multi row insert via copy commands.
 SELECT count(*) FROM lineitem_hash_part;
  count
----------------------------------------------------------------------
+----------------------------------------------------------------
  12000
 (1 row)
 
