@@ -38,7 +38,6 @@
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
 
-
 /* Local functions forward declarations for unsupported command checks */
 static void ErrorIfUnsupportedAlterTableStmt(AlterTableStmt *alterTableStatement);
 static List * InterShardDDLTaskList(Oid leftRelationId, Oid rightRelationId,
