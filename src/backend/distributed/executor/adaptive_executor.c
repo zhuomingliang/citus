@@ -544,7 +544,6 @@ typedef struct TaskPlacementExecution
 
 /* local functions */
 static DistributedExecution * CreateDistributedExecution(RowModifyLevel modLevel,
-														 Query *jobQuery,
 														 List *taskList, bool
 														 hasReturning,
 														 ParamListInfo paramListInfo,
@@ -676,7 +675,6 @@ AdaptiveExecutor(CitusScanState *scanState)
 
 	DistributedExecution *execution = CreateDistributedExecution(
 		distributedPlan->modLevel,
-		job->jobQuery,
 		taskList,
 		distributedPlan->hasReturning,
 		paramListInfo,
@@ -893,7 +891,7 @@ ExecuteTaskListExtended(RowModifyLevel modLevel, List *taskList,
 	}
 
 	DistributedExecution *execution =
-		CreateDistributedExecution(modLevel, NULL, taskList, hasReturning, paramListInfo,
+		CreateDistributedExecution(modLevel, taskList, hasReturning, paramListInfo,
 								   tupleDescriptor, tupleStore, targetPoolSize,
 								   xactProperties);
 
@@ -910,7 +908,7 @@ ExecuteTaskListExtended(RowModifyLevel modLevel, List *taskList,
  * a distributed plan.
  */
 static DistributedExecution *
-CreateDistributedExecution(RowModifyLevel modLevel, Query *jobQuery, List *taskList,
+CreateDistributedExecution(RowModifyLevel modLevel, List *taskList,
 						   bool hasReturning,
 						   ParamListInfo paramListInfo, TupleDesc tupleDescriptor,
 						   Tuplestorestate *tupleStore, int targetPoolSize,

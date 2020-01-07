@@ -116,6 +116,7 @@ static PlannedStmt * LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, Par
 static bool ReplaceShardReferencesWalker(Node *node, Task *task);
 static uint64 ExecuteLocalTaskPlan(CitusScanState *scanState, PlannedStmt *taskPlan,
 								   char *queryString);
+static bool TaskAccessesLocalNode(Task *task);
 static void LogLocalCommand(Job *workerJob, Task *task);
 static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
 											   Oid **parameterTypes,
@@ -548,7 +549,7 @@ ShouldExecuteTasksLocally(List *taskList)
  * TaskAccessesLocalNode returns true if any placements of the task reside on the
  * node that we're executing the query.
  */
-bool
+static bool
 TaskAccessesLocalNode(Task *task)
 {
 	ListCell *placementCell = NULL;

@@ -16,7 +16,4 @@
 extern bool ExplainDistributedQueries;
 extern bool ExplainAllTasks;
 
-/* internal state, not a GUC */
-extern bool ExplainStatementRunning;
-
 #endif /* MULTI_EXPLAIN_H */

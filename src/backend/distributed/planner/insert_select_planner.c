@@ -499,7 +499,6 @@ RouterModifyTaskForShardInterval(Query *originalQuery, ShardInterval *shardInter
 	/* mark that we don't want the router planner to generate dummy hosts/queries */
 	bool replacePrunedQueryWithDummy = false;
 
-	bool localFastPathQuery = false;
 
 	/*
 	 * Use router planner to decide on whether we can push down the query or not.
@@ -513,8 +512,7 @@ RouterModifyTaskForShardInterval(Query *originalQuery, ShardInterval *shardInter
 														  &relationShardList,
 														  &prunedShardIntervalListList,
 														  replacePrunedQueryWithDummy,
-														  &multiShardModifyQuery, NULL,
-														  &localFastPathQuery);
+														  &multiShardModifyQuery, NULL);
 
 	Assert(!multiShardModifyQuery);
 
