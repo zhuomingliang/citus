@@ -205,7 +205,7 @@ LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParam
 			numParams = boundParams->numParams;
 		}
 
-		shardQuery = ParseQueryString(task->queryStringLazy, parameterTypes, numParams);
+		shardQuery = ParseQueryString(TaskQueryString(task), parameterTypes, numParams);
 	}
 
 	/*
