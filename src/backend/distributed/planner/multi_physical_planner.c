@@ -2346,9 +2346,10 @@ QueryPushdownTaskCreate(Query *originalQuery, int shardIndex,
 						RelationRestrictionContext *restrictionContext, uint32 taskId,
 						TaskType taskType, bool modifyRequiresMasterEvaluation)
 {
-	Query *taskQuery = copyObject(originalQuery);
 
-	StringInfo queryString = makeStringInfo();
+	    	Query *taskQuery = copyObject(originalQuery);
+
+
 	ListCell *restrictionCell = NULL;
 	List *taskShardList = NIL;
 	List *relationShardList = NIL;
@@ -2447,17 +2448,23 @@ QueryPushdownTaskCreate(Query *originalQuery, int shardIndex,
 	if ((taskType == MODIFY_TASK && !modifyRequiresMasterEvaluation) ||
 		taskType == SELECT_TASK)
 	{
-		pg_get_query_def(taskQuery, queryString);
-		ereport(DEBUG4, (errmsg("distributed statement: %s",
-								ApplyLogRedaction(queryString->data))));
-		subqueryTask->queryStringLazy = queryString->data;
+elog(INFO,"generated in cache");
+	    MemoryContext previousContext = MemoryContextSwitchTo(CacheMemoryContext);
+		StringInfo queryString = makeStringInfo();
+
+	    pg_get_query_def(taskQuery, queryString);
+
+	     MemoryContextSwitchTo(previousContext);
+			ereport(DEBUG4, (errmsg("distributed statement: %s",
+									ApplyLogRedaction(queryString->data))));
+			subqueryTask->queryStringLazy = queryString->data;
 	}
 
 	subqueryTask->dependentTaskList = NULL;
 	subqueryTask->anchorShardId = anchorShardId;
 	subqueryTask->taskPlacementList = selectPlacementList;
 	subqueryTask->relationShardList = relationShardList;
-
+subqueryTask->query = taskQuery;
 	return subqueryTask;
 }
 

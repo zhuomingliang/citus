@@ -1454,7 +1454,7 @@ RouterInsertJob(Query *originalQuery, Query *query, DeferredErrorMessage **plann
 	if (!requiresMasterEvaluation)
 	{
 		/* no functions or parameters, build the query strings upfront */
-		RebuildQueryStrings(originalQuery, taskList);
+		//RebuildQueryStrings(originalQuery, taskList);
 
 		/* remember the partition column value */
 		partitionKeyValue = ExtractInsertPartitionKeyValue(originalQuery);
@@ -1581,6 +1581,15 @@ RouterInsertTaskList(Query *query, DeferredErrorMessage **planningError)
 		modifyTask->anchorShardId = modifyRoute->shardId;
 		modifyTask->replicationModel = cacheEntry->replicationModel;
 		modifyTask->rowValuesLists = modifyRoute->rowValuesLists;
+
+		modifyTask->query = copyObject(query);
+
+		RangeTblEntry *valuesRTE = ExtractDistributedInsertValuesRTE(modifyTask->query);
+		if (valuesRTE != NULL)
+		{
+			/* add the values list for a multi-row INSERT */
+			valuesRTE->values_lists = modifyRoute->rowValuesLists;
+		}
 
 		insertTaskList = lappend(insertTaskList, modifyTask);
 	}
@@ -1850,7 +1859,10 @@ SingleShardSelectTaskList(Query *query, uint64 jobId, List *relationShardList,
 	 * execution this is not needed, so we wait until the executor determines
 	 * that the query cannot be executed locally.
 	 */
+	 MemoryContext PlanMemoryContext2 = GetMemoryChunkContext(task);
+	 MemoryContext previousContext = MemoryContextSwitchTo(PlanMemoryContext2);
 	task->query = copyObject(query);
+	MemoryContextSwitchTo(previousContext);
 	task->queryStringLazy = NULL;
 	task->anchorShardId = shardId;
 	task->jobId = jobId;

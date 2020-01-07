@@ -146,59 +146,6 @@ SetRangeTblExtraData(RangeTblEntry *rte, CitusRTEKind rteKind,
 
 
 /*
- * UnsetRangeTblExtraData changes an RTE that contains extradata backe into a
- * normal RTE_RELATION for the shard.
- * IMPORTANT: This only works when the shard is present on the machine in
- * question.
- */
-void
-UnsetRangeTblExtraData(RangeTblEntry *rte)
-{
-	/* only function RTEs have our special extra data */
-	if (rte->rtekind != RTE_FUNCTION)
-	{
-		return;
-	}
-
-	/* we only ever generate one argument */
-	if (list_length(rte->functions) != 1)
-	{
-		return;
-	}
-
-	/* should pretty much always be a FuncExpr, but be liberal in what we expect... */
-	RangeTblFunction *fauxFunction = linitial(rte->functions);
-	if (!IsA(fauxFunction->funcexpr, FuncExpr))
-	{
-		return;
-	}
-
-	FuncExpr *fauxFuncExpr = (FuncExpr *) fauxFunction->funcexpr;
-
-	/*
-	 * There will never be a range table entry with this function id, but for
-	 * the purpose of this file.
-	 */
-	if (fauxFuncExpr->funcid != CitusExtraDataContainerFuncId())
-	{
-		return;
-	}
-
-	char *fragmentSchemaName = NULL;
-	char *fragmentTableName = NULL;
-
-	ExtractRangeTblExtraData(rte, NULL, &fragmentSchemaName, &fragmentTableName, NULL);
-	Assert(fragmentSchemaName != NULL);
-	Oid schemaOid = GetSysCacheOid1Compat(NAMESPACENAME, Anum_pg_namespace_oid,
-										  CStringGetDatum(fragmentSchemaName));
-
-	rte->rtekind = RTE_RELATION;
-	rte->functions = NIL;
-	rte->relid = get_relname_relid(fragmentTableName, schemaOid);
-}
-
-
-/*
  * ExtractRangeTblExtraData extracts extra data stored for a range table entry
  * that previously has been stored with
  * Set/ModifyRangeTblExtraData. Parameters can be NULL if unintersting. It is
@@ -359,10 +306,10 @@ GetRangeTblKind(RangeTblEntry *rte)
 #if PG_VERSION_NUM >= 120000
 		case RTE_RESULT:
 #endif
-			{
-				rteKind = (CitusRTEKind) rte->rtekind;
-				break;
-			}
+		{
+			rteKind = (CitusRTEKind) rte->rtekind;
+			break;
+		}
 
 		case RTE_FUNCTION:
 		{

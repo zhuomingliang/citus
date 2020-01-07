@@ -223,6 +223,11 @@ CitusModifyBeginScan(CustomScanState *node, EState *estate, int eflags)
 
 		RebuildQueryStrings(jobQuery, taskList);
 	}
+	else
+	{
+		/* simply generate the query strings which were deferred from planning */
+		RebuildQueryStrings(jobQuery, taskList);
+	}
 
 	/* prevent concurrent placement changes */
 	AcquireMetadataLocks(taskList);

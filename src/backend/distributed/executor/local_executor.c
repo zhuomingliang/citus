@@ -111,13 +111,10 @@ bool LocalExecutionHappened = false;
 static void SplitLocalAndRemotePlacements(List *taskPlacementList,
 										  List **localTaskPlacementList,
 										  List **remoteTaskPlacementList);
-static PlannedStmt * LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo
-										  boundParams);
-static bool ReplaceShardReferencesWalker(Node *node, Task *task);
 static uint64 ExecuteLocalTaskPlan(CitusScanState *scanState, PlannedStmt *taskPlan,
-								   char *queryString);
+								   const char *queryString);
 static bool TaskAccessesLocalNode(Task *task);
-static void LogLocalCommand(Job *workerJob, Task *task);
+static void LogLocalCommand(const char *command);
 static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
 											   Oid **parameterTypes,
 											   const char ***parameterValues);
@@ -136,158 +133,53 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 {
 	EState *executorState = ScanStateGetExecutorState(scanState);
 	ParamListInfo paramListInfo = copyParamList(executorState->es_param_list_info);
+	int numParams = 0;
+	Oid *parameterTypes = NULL;
 	ListCell *taskCell = NULL;
 	uint64 totalRowsProcessed = 0;
-	Job *workerJob = scanState->distributedPlan->workerJob;
+
+	if (paramListInfo != NULL)
+	{
+		const char **parameterValues = NULL; /* not used anywhere, so decleare here */
+
+		ExtractParametersForLocalExecution(paramListInfo, &parameterTypes,
+										   &parameterValues);
+
+		numParams = paramListInfo->numParams;
+	}
 
 	foreach(taskCell, taskList)
 	{
 		Task *task = (Task *) lfirst(taskCell);
 
-		PlannedStmt *localPlan =
-			LocalTaskPlannedStmt(workerJob->jobQuery, task, paramListInfo);
+		const char *shardQueryString = TaskQueryString(task);
+		Query *shardQuery = ParseQueryString(shardQueryString, parameterTypes, numParams);
 
-		LogLocalCommand(workerJob, task);
+		/*
+		 * We should not consider using CURSOR_OPT_FORCE_DISTRIBUTED in case of
+		 * intermediate results in the query. That'd trigger ExecuteLocalTaskPlan()
+		 * go through the distributed executor, which we do not want since the
+		 * query is already known to be local.
+		 */
+		int cursorOptions = 0;
+
+		/*
+		 * Altough the shardQuery is local to this node, we prefer planner()
+		 * over standard_planner(). The primary reason for that is Citus itself
+		 * is not very tolarent standard_planner() calls that doesn't go through
+		 * distributed_planner() because of the way that restriction hooks are
+		 * implemented. So, let planner to call distributed_planner() which
+		 * eventually calls standard_planner().
+		 */
+		PlannedStmt *localPlan = planner(shardQuery, cursorOptions, paramListInfo);
+
+		LogLocalCommand(shardQueryString);
 
 		totalRowsProcessed +=
-			ExecuteLocalTaskPlan(scanState, localPlan, TaskQueryString(task));
+			ExecuteLocalTaskPlan(scanState, localPlan, shardQueryString);
 	}
 
 	return totalRowsProcessed;
-}
-
-
-/*
- * LocalTaskPlannedStmt creates the PlannedStmt for the input task.
- *
- * The function behaves differently when the task->queryString is avaliable
- * or not. See the comments in the function for the details.
- */
-static PlannedStmt *
-LocalTaskPlannedStmt(Query *workerJobQuery, Task *task, ParamListInfo boundParams)
-{
-	Query *shardQuery = copyObject(workerJobQuery);
-
-	/*
-	 * For performance reasons, the queryString is not generated for
-	 * local-fast path queries. Instead, we simply update the shard
-	 * references to the actual shard relations.
-	 *
-	 * Otherwise, like multi-shard queries going through the local execution,
-	 * we'd need to parse the queryString back to Query before passing it
-	 * to the planner,
-	 */
-	if (task->queryStringLazy == NULL)
-	{
-		ReplaceShardReferencesWalker((Node *) shardQuery, task);
-
-#if PG_VERSION_NUM < 120000
-		AcquireRewriteLocks(shardQuery, true, false);
-#else
-
-		/*
-		 * We acquire the required locks for PG12+ inside
-		 * ReplaceShardReferencesWalker.
-		 */
-#endif
-	}
-	else
-	{
-		int numParams = 0;
-		Oid *parameterTypes = NULL;
-
-		if (boundParams != NULL)
-		{
-			const char **parameterValues = NULL; /* not used anywhere, so decleare here */
-
-			ExtractParametersForLocalExecution(boundParams, &parameterTypes,
-											   &parameterValues);
-
-			numParams = boundParams->numParams;
-		}
-
-		shardQuery = ParseQueryString(TaskQueryString(task), parameterTypes, numParams);
-	}
-
-	/*
-	 * Altough the shardQuery is local to this node, we prefer planner()
-	 * over standard_planner(). The primary reason for that is Citus itself
-	 * is not very tolarent standard_planner() calls that doesn't go through
-	 * distributed_planner() because of the way that restriction hooks are
-	 * implemented. So, let planner to call distributed_planner() which
-	 * eventually calls standard_planner().
-	 */
-	int cursorOptions = 0;
-	PlannedStmt *localPlan = planner(shardQuery, cursorOptions, boundParams);
-
-	return localPlan;
-}
-
-
-/*
- * ReplaceShardReferencesWalker update RTE_RELATIONs that are the distributed
- * relations to RTE_RELATIONs that are the local shards. In PG12+ we acquire
- * the required locks on the local shards when we replace them, for PG11 these
- * locks should be taken manually.
- */
-static bool
-ReplaceShardReferencesWalker(Node *node, Task *task)
-{
-	if (node == NULL)
-	{
-		return false;
-	}
-
-	if (IsA(node, RangeTblEntry))
-	{
-		RangeTblEntry *rangeTableEntry = (RangeTblEntry *) node;
-
-		if (rangeTableEntry->rtekind == RTE_FUNCTION)
-		{
-			UnsetRangeTblExtraData(rangeTableEntry);
-		}
-		else if (rangeTableEntry->rtekind == RTE_RELATION)
-		{
-			/*
-			 * We only have RTE_RELATION in fast path queries, which only have
-			 * a single relation
-			 */
-			Assert(list_length(task->relationShardList) == 1);
-			RelationShard *relationShard = linitial(task->relationShardList);
-
-			Oid schemaOid = get_rel_namespace(relationShard->relationId);
-			char *generatedRelationName = get_rel_name(relationShard->relationId);
-			AppendShardIdToName(&generatedRelationName, relationShard->shardId);
-
-			rangeTableEntry->relid = get_relname_relid(generatedRelationName, schemaOid);
-		}
-
-		/* RTE_FUNCTION can be changed to a RTE_RELATION after UnsetTblExtraData */
-		if (rangeTableEntry->rtekind == RTE_RELATION)
-		{
-#if PG_VERSION_NUM >= 120000
-			LockRelationOid(rangeTableEntry->relid, rangeTableEntry->rellockmode);
-#else
-
-			/*
-			 * We acquire the required locks for PG11 outside this function
-			 * using AcquireRewriteLocks.
-			 */
-#endif
-		}
-
-		/* caller will descend into range table entry */
-		return false;
-	}
-	else if (IsA(node, Query))
-	{
-		return query_tree_walker((Query *) node, ReplaceShardReferencesWalker, task,
-								 QTW_EXAMINE_RTES_BEFORE);
-	}
-	else
-	{
-		return expression_tree_walker(node, ReplaceShardReferencesWalker, task);
-	}
 }
 
 
@@ -426,7 +318,8 @@ SplitLocalAndRemotePlacements(List *taskPlacementList, List **localTaskPlacement
  * tupleStore if necessary. The function returns the
  */
 static uint64
-ExecuteLocalTaskPlan(CitusScanState *scanState, PlannedStmt *taskPlan, char *queryString)
+ExecuteLocalTaskPlan(CitusScanState *scanState, PlannedStmt *taskPlan,
+					 const char *queryString)
 {
 	EState *executorState = ScanStateGetExecutorState(scanState);
 	ParamListInfo paramListInfo = executorState->es_param_list_info;
@@ -599,20 +492,15 @@ ErrorIfLocalExecutionHappened(void)
  * meaning it is part of distributed execution.
  */
 static void
-LogLocalCommand(Job *workerJob, Task *task)
+LogLocalCommand(const char *command)
 {
 	if (!(LogRemoteCommands || LogLocalCommands))
 	{
 		return;
 	}
 
-	if (!IsLoggableLevel(LOG))
-	{
-		return;
-	}
-
 	ereport(LOG, (errmsg("executing the command locally: %s",
-						 ApplyLogRedaction(TaskQueryString(task)))));
+						 ApplyLogRedaction(command))));
 }
 
 
@@ -629,8 +517,8 @@ char *
 TaskQueryString(Task *task)
 {
 	if (task->queryStringLazy != NULL)
-	{
-		return task->queryStringLazy;
+	{elog(INFO, "found string");
+		return pstrdup(task->queryStringLazy);
 	}
 	Assert(task->query != NULL);
 	Assert(PlanMemoryContext != NULL);
