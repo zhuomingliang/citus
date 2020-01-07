@@ -54,6 +54,7 @@ extern void multi_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 extern void CitusProcessUtility(Node *node, const char *queryString,
 								ProcessUtilityContext context, ParamListInfo params,
 								DestReceiver *dest, char *completionTag);
+extern char * SetSearchPathToCurrentSearchPathCommand(void);
 extern void MarkInvalidateForeignKeyGraph(void);
 extern void InvalidateForeignKeyGraphForDDL(void);
 extern List * DDLTaskList(Oid relationId, const char *commandString);
