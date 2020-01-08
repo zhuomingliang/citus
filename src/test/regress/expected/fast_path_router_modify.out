@@ -181,7 +181,7 @@ DETAIL:  distribution column value: 1
 (0 rows)
 
 SELECT * FROM modify_fast_path_reference WHERE key = 1 FOR UPDATE;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  key | value_1 | value_2
@@ -189,7 +189,7 @@ DEBUG:  Plan is router executable
 (0 rows)
 
 SELECT * FROM modify_fast_path_reference WHERE key = 1 FOR SHARE;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  key | value_1 | value_2
@@ -207,19 +207,19 @@ ERROR:  could not run distributed query with FOR UPDATE/SHARE commands
 HINT:  Consider using an equality filter on the distributed table's partition column.
 -- very simple queries on reference tables goes through fast-path planning
 DELETE FROM modify_fast_path_reference WHERE key = 1;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 UPDATE modify_fast_path_reference SET value_1 = 1 WHERE key = 1;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 UPDATE modify_fast_path_reference SET value_1 = value_1 + 1 WHERE key = 1;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 UPDATE modify_fast_path_reference SET value_1 = value_1 + value_2::int WHERE key = 1;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 -- joins are not supported via fast-path
@@ -236,50 +236,42 @@ DETAIL:  distribution column value: 1
 PREPARE p1 (int, int, int) AS
 	UPDATE modify_fast_path SET value_1 = value_1 + $1 WHERE key = $2 AND value_1 = $3;
 EXECUTE p1(1,1,1);
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 1
 EXECUTE p1(2,2,2);
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 2
 EXECUTE p1(3,3,3);
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 3
 EXECUTE p1(4,4,4);
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 4
 EXECUTE p1(5,5,5);
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 5
 EXECUTE p1(6,6,6);
-DEBUG:  Router planner cannot handle multi-shard modify queries
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 6
 CREATE FUNCTION modify_fast_path_plpsql(int, int) RETURNS void as $$
 BEGIN
 	DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2;
 END;
 $$ LANGUAGE plpgsql;
 SELECT modify_fast_path_plpsql(1,1);
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Creating router plan
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 1
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql
@@ -288,14 +280,13 @@ PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL stateme
 (1 row)
 
 SELECT modify_fast_path_plpsql(2,2);
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Creating router plan
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 2
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql
@@ -304,14 +295,13 @@ PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL stateme
 (1 row)
 
 SELECT modify_fast_path_plpsql(3,3);
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Creating router plan
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 3
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql
@@ -320,14 +310,13 @@ PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL stateme
 (1 row)
 
 SELECT modify_fast_path_plpsql(4,4);
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Creating router plan
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 4
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql
@@ -336,14 +325,13 @@ PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL stateme
 (1 row)
 
 SELECT modify_fast_path_plpsql(5,5);
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Creating router plan
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 5
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql
@@ -352,17 +340,13 @@ PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL stateme
 (1 row)
 
 SELECT modify_fast_path_plpsql(6,6);
-DEBUG:  Router planner cannot handle multi-shard modify queries
-CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
-PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Creating router plan
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
 DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 6
 CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
 PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql
@@ -371,16 +355,6 @@ PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL stateme
 (1 row)
 
 SELECT modify_fast_path_plpsql(6,6);
-DEBUG:  Distributed planning for a fast-path router query
-CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
-PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
-DEBUG:  Creating router plan
-CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
-PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
-DEBUG:  Plan is router executable
-DETAIL:  distribution column value: 6
-CONTEXT:  SQL statement "DELETE FROM modify_fast_path WHERE key = $1 AND value_1 = $2"
-PL/pgSQL function modify_fast_path_plpsql(integer,integer) line 3 at SQL statement
  modify_fast_path_plpsql
 ---------------------------------------------------------------------
 

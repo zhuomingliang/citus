@@ -156,7 +156,7 @@ DEBUG:  Local tables cannot be used in distributed queries.
 DEBUG:  generating subplan XXX_1 for CTE cte_1: SELECT x FROM recursive_set_local.test
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  generating subplan XXX_2 for CTE cte_1: SELECT a FROM recursive_set_local.ref
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DEBUG:  generating subplan XXX_3 for subquery SELECT x FROM recursive_set_local.local_test
@@ -186,7 +186,7 @@ DEBUG:  Local tables cannot be used in distributed queries.
 DEBUG:  generating subplan XXX_1 for CTE cte_1: SELECT x FROM recursive_set_local.test
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  generating subplan XXX_2 for CTE cte_1: SELECT a FROM recursive_set_local.ref
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DEBUG:  generating subplan XXX_3 for subquery SELECT x FROM recursive_set_local.local_test

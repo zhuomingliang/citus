@@ -132,7 +132,7 @@ SET LOCAL citus.explain_distributed_queries TO off;
 -- Check how task_assignment_policy impact planning decisions for reference tables
 SET LOCAL citus.task_assignment_policy TO 'greedy';
 EXPLAIN (COSTS FALSE) SELECT * FROM task_assignment_reference_table;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
                           QUERY PLAN
@@ -142,7 +142,7 @@ DEBUG:  Plan is router executable
 (2 rows)
 
 EXPLAIN (COSTS FALSE) SELECT * FROM task_assignment_reference_table;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
                           QUERY PLAN
@@ -153,7 +153,7 @@ DEBUG:  Plan is router executable
 
 SET LOCAL citus.task_assignment_policy TO 'first-replica';
 EXPLAIN (COSTS FALSE) SELECT * FROM task_assignment_reference_table;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
                           QUERY PLAN
@@ -163,7 +163,7 @@ DEBUG:  Plan is router executable
 (2 rows)
 
 EXPLAIN (COSTS FALSE) SELECT * FROM task_assignment_reference_table;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
                           QUERY PLAN
