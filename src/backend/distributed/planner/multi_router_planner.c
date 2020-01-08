@@ -68,6 +68,7 @@
 #include "optimizer/restrictinfo.h"
 #include "parser/parsetree.h"
 #include "parser/parse_oper.h"
+#include "postmaster/postmaster.h"
 #include "storage/lock.h"
 #include "utils/builtins.h"
 #include "utils/elog.h"
@@ -2023,8 +2024,6 @@ PlanRouterQuery(Query *originalQuery,
 				bool replacePrunedQueryWithDummy, bool *multiShardModifyQuery,
 				Const **partitionValueConst)
 {
-	static uint32 zeroShardQueryRoundRobin = 0;
-
 	bool isMultiShardQuery = false;
 	DeferredErrorMessage *planningError = NULL;
 	ListCell *prunedShardIntervalListCell = NULL;
@@ -2163,24 +2162,13 @@ PlanRouterQuery(Query *originalQuery,
 	}
 	else if (replacePrunedQueryWithDummy)
 	{
-		List *workerNodeList = ActiveReadableWorkerNodeList();
-		if (workerNodeList != NIL)
-		{
-			int workerNodeCount = list_length(workerNodeList);
-			int workerNodeIndex = zeroShardQueryRoundRobin % workerNodeCount;
-			WorkerNode *workerNode = (WorkerNode *) list_nth(workerNodeList,
-															 workerNodeIndex);
-			ShardPlacement *dummyPlacement =
-				(ShardPlacement *) CitusMakeNode(ShardPlacement);
-			dummyPlacement->nodeName = workerNode->workerName;
-			dummyPlacement->nodePort = workerNode->workerPort;
-			dummyPlacement->nodeId = workerNode->nodeId;
-			dummyPlacement->groupId = workerNode->groupId;
+		ShardPlacement *dummyPlacement =
+			(ShardPlacement *) CitusMakeNode(ShardPlacement);
+		dummyPlacement->nodeName = LOCAL_HOST_NAME;
+		dummyPlacement->nodePort = PostPortNumber;
+		dummyPlacement->groupId = GetLocalGroupId();
 
-			workerList = lappend(workerList, dummyPlacement);
-
-			zeroShardQueryRoundRobin++;
-		}
+		workerList = lappend(workerList, dummyPlacement);
 	}
 	else
 	{
