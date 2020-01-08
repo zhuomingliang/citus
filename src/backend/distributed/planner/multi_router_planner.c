@@ -153,14 +153,6 @@ static bool SelectsFromDistributedTable(List *rangeTableList, Query *query);
 static List * get_all_actual_clauses(List *restrictinfo_list);
 static int CompareInsertValuesByShardId(const void *leftElement,
 										const void *rightElement);
-static uint64 GetAnchorShardId(List *relationShardList);
-static List * TargetShardIntervalForFastPathQuery(Query *query,
-												  Const **partitionValueConst,
-												  bool *isMultiShardQuery,
-												  Const *distributionKeyValue);
-static List * SingleShardSelectTaskList(Query *query, uint64 jobId,
-										List *relationShardList, List *placementList,
-										uint64 shardId);
 static bool RowLocksOnRelations(Node *node, List **rtiLockList);
 static List * SingleShardModifyTaskList(Query *query, uint64 jobId,
 										List *relationShardList, List *placementList,
@@ -1674,6 +1666,19 @@ RouterJob(Query *originalQuery, PlannerRestrictionContext *plannerRestrictionCon
 	/* check if this query requires master evaluation */
 	bool requiresMasterEvaluation = RequiresMasterEvaluation(originalQuery);
 
+	bool fastPathRouterQuery =
+		plannerRestrictionContext->fastPathRestrictionContext->fastPathRouterQuery;
+
+
+	Job *job = CreateJob(originalQuery);
+	job->partitionKeyValue = partitionKeyValue;
+
+	if (fastPathRouterQuery)
+	{
+		job->requiresMasterEvaluation = requiresMasterEvaluation;
+		return job;
+	}
+
 	(*planningError) = PlanRouterQuery(originalQuery, plannerRestrictionContext,
 									   &placementList, &shardId, &relationShardList,
 									   &prunedShardIntervalListList,
@@ -1685,8 +1690,7 @@ RouterJob(Query *originalQuery, PlannerRestrictionContext *plannerRestrictionCon
 		return NULL;
 	}
 
-	Job *job = CreateJob(originalQuery);
-	job->partitionKeyValue = partitionKeyValue;
+
 
 	RangeTblEntry *updateOrDeleteRTE = GetUpdateOrDeleteRTE(originalQuery);
 
@@ -1835,7 +1839,7 @@ RemoveCoordinatorPlacement(List *placementList)
  * SingleShardSelectTaskList generates a task for single shard select query
  * and returns it as a list.
  */
-static List *
+List *
 SingleShardSelectTaskList(Query *query, uint64 jobId, List *relationShardList,
 						  List *placementList,
 						  uint64 shardId)
@@ -2229,7 +2233,7 @@ PlanRouterQuery(Query *originalQuery,
  * reference tables
  * - Return INVALID_SHARD_ID on empty lists
  */
-static uint64
+uint64
 GetAnchorShardId(List *prunedShardIntervalListList)
 {
 	ListCell *prunedShardIntervalListCell = NULL;
@@ -2269,7 +2273,7 @@ GetAnchorShardId(List *prunedShardIntervalListList)
  * Also set the outgoing partition column value if requested via
  * partitionValueConst
  */
-static List *
+List *
 TargetShardIntervalForFastPathQuery(Query *query, Const **partitionValueConst,
 									bool *isMultiShardQuery, Const *distributionKeyValue)
 {

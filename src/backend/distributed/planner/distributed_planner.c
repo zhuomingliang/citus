@@ -586,6 +586,7 @@ PlanDistributedStmt(DistributedPlanningContext *planContext,
 void
 DissuadePlannerFromUsingPlan(PlannedStmt *plan)
 {
+	elog(INFO, "DissuadePlannerFromUsingPlan");
 	/*
 	 * Arbitrarily high cost, but low enough that it can be added up
 	 * without overflowing by choose_custom_plan().

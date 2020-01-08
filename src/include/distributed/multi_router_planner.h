@@ -27,10 +27,18 @@
 
 extern bool EnableRouterExecution;
 extern bool EnableFastPathRouterPlanner;
-
+extern List * TargetShardIntervalForFastPathQuery(Query *query,
+												  Const **partitionValueConst,
+												  bool *isMultiShardQuery,
+												  Const *distributionKeyValue);
+extern List * SingleShardSelectTaskList(Query *query, uint64 jobId,
+										List *relationShardList, List *placementList,
+										uint64 shardId);
 extern DistributedPlan * CreateRouterPlan(Query *originalQuery, Query *query,
 										  PlannerRestrictionContext *
 										  plannerRestrictionContext);
+extern uint64 GetAnchorShardId(List *relationShardList);
+
 extern DistributedPlan * CreateModifyPlan(Query *originalQuery, Query *query,
 										  PlannerRestrictionContext *
 										  plannerRestrictionContext);

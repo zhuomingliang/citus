@@ -86,9 +86,9 @@ FastPathPlanner(Query *originalQuery, Query *parse, ParamListInfo boundParams)
 	 * We're also only interested in resolving the quals since we'd want to
 	 * do shard pruning based on the filter on the distribution column.
 	 */
-	originalQuery->jointree->quals =
-		ResolveExternalParams((Node *) originalQuery->jointree->quals,
-							  copyParamList(boundParams));
+	//originalQuery->jointree->quals =
+	//	ResolveExternalParams((Node *) originalQuery->jointree->quals,
+	//						  copyParamList(boundParams));
 
 	/*
 	 * Citus planner relies on some of the transformations on constant

@@ -134,6 +134,79 @@ CitusBeginScan(CustomScanState *node, EState *estate, int eflags)
 		distributedPlan->insertSelectQuery != NULL)
 	{
 		/* no more action required */
+
+		//CitusScanState *scanState = (CitusScanState *) node;
+
+		/*
+		 * We must not change the distributed plan since it may be reused across multiple
+		 * executions of a prepared statement. Instead we create a deep copy that we only
+		 * use for the current execution.
+		 */
+		distributedPlan = copyObject(scanState->distributedPlan);
+
+
+		PlanState *planState = &(scanState->customScanState.ss.ps);
+		EState *executorState = planState->state;
+		Job *workerJob = distributedPlan->workerJob;
+
+		ExecuteMasterEvaluableFunctions(workerJob->jobQuery, planState);
+
+		/*
+		 * We've processed parameters in ExecuteMasterEvaluableFunctions and
+		 * don't need to send their values to workers, since they will be
+		 * represented as constants in the deparsed query. To avoid sending
+		 * parameter values, we set the parameter list to NULL.
+		 */
+		executorState->es_param_list_info = NULL;
+
+
+		scanState->distributedPlan = distributedPlan;
+		List *relationShardList = NIL;
+		if (distributedPlan->fastPathRouterPlan)
+		{
+			Const *partitionValueConst = NULL;
+
+			bool b = false;
+
+
+			List *shardIntervalList = TargetShardIntervalForFastPathQuery(workerJob->jobQuery, &partitionValueConst, &b,  partitionValueConst);
+			ListCell *prunedShardIntervalListCell = NULL;
+
+			shardIntervalList = list_make1(shardIntervalList);
+			foreach(prunedShardIntervalListCell, shardIntervalList)
+			{
+				List *prunedShardIntervalList = (List *) lfirst(prunedShardIntervalListCell);
+				ListCell *shardIntervalCell = NULL;
+
+				/* no shard is present or all shards are pruned out case will be handled later */
+				if (prunedShardIntervalList == NIL)
+				{
+					continue;
+				}
+
+
+				foreach(shardIntervalCell, prunedShardIntervalList)
+				{
+					ShardInterval *shardInterval = (ShardInterval *) lfirst(shardIntervalCell);
+					RelationShard *relationShard = CitusMakeNode(RelationShard);
+
+					relationShard->relationId = shardInterval->relationId;
+					relationShard->shardId = shardInterval->shardId;
+
+					relationShardList = lappend(relationShardList, relationShard);
+				}
+			}
+
+			uint64 shardId = GetAnchorShardId(shardIntervalList);
+			List *placementList = WorkersContainingAllShards(shardIntervalList);
+			UpdateRelationToShardNames((Node *) workerJob->jobQuery, relationShardList);
+
+			workerJob->taskList = SingleShardSelectTaskList(workerJob->jobQuery, 1,
+													  relationShardList, placementList,
+													  shardId);
+
+		}
+
 		return;
 	}
 
