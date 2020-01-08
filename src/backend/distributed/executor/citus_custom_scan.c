@@ -39,7 +39,14 @@ static Node * DelayedErrorCreateScan(CustomScan *scan);
 
 /* functions that are common to different scans */
 static void CitusBeginScan(CustomScanState *node, EState *estate, int eflags);
+static void CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int
+											  eflags);
+static void HandleDeferredShardPruningForFastPathQueries(
+	DistributedPlan *distributedPlan);
+static void HandleDeferredShardPruningForInserts(DistributedPlan *distributedPlan);
+
 static void CitusModifyBeginScan(CustomScanState *node, EState *estate, int eflags);
+static bool TaskListContainsInvalidAnchorShardId(List *taskList);
 static void CitusEndScan(CustomScanState *node);
 static void CitusReScan(CustomScanState *node);
 
@@ -114,13 +121,12 @@ RegisterCitusCustomScanMethods(void)
  * CitusBeginScan sets the coordinator backend initiated by Citus for queries using
  * that function as the BeginCustomScan callback.
  *
- * The function also handles modification scan actions.
+ * The function also handles deferred shard pruning along with function evaluations.
  */
 static void
 CitusBeginScan(CustomScanState *node, EState *estate, int eflags)
 {
 	DistributedPlan *distributedPlan = NULL;
-
 	MarkCitusInitiatedCoordinatorBackend();
 
 	CitusScanState *scanState = (CitusScanState *) node;
@@ -129,11 +135,20 @@ CitusBeginScan(CustomScanState *node, EState *estate, int eflags)
 	ExecInitResultSlot(&scanState->customScanState.ss.ps, &TTSOpsMinimalTuple);
 #endif
 
+	distributedPlan = copyObject(scanState->distributedPlan);
+	scanState->distributedPlan = distributedPlan;
+
 	distributedPlan = scanState->distributedPlan;
+	Job *workerJob = distributedPlan->workerJob;
+	if (workerJob &&
+		(workerJob->requiresMasterEvaluation || workerJob->deferredPruning))
+	{
+		CitusGenerateDeferredQueryStrings(node, estate, eflags);
+	}
+
 	if (distributedPlan->modLevel == ROW_MODIFY_READONLY ||
 		distributedPlan->insertSelectQuery != NULL)
 	{
-		/* no more action required */
 		return;
 	}
 
@@ -177,52 +192,10 @@ static void
 CitusModifyBeginScan(CustomScanState *node, EState *estate, int eflags)
 {
 	CitusScanState *scanState = (CitusScanState *) node;
-
-	/*
-	 * We must not change the distributed plan since it may be reused across multiple
-	 * executions of a prepared statement. Instead we create a deep copy that we only
-	 * use for the current execution.
-	 */
-	DistributedPlan *distributedPlan = copyObject(scanState->distributedPlan);
-	scanState->distributedPlan = distributedPlan;
+	DistributedPlan *distributedPlan = scanState->distributedPlan;
 
 	Job *workerJob = distributedPlan->workerJob;
-	Query *jobQuery = workerJob->jobQuery;
 	List *taskList = workerJob->taskList;
-
-	if (workerJob->requiresMasterEvaluation)
-	{
-		PlanState *planState = &(scanState->customScanState.ss.ps);
-		EState *executorState = planState->state;
-
-		ExecuteMasterEvaluableFunctions(jobQuery, planState);
-
-		/*
-		 * We've processed parameters in ExecuteMasterEvaluableFunctions and
-		 * don't need to send their values to workers, since they will be
-		 * represented as constants in the deparsed query. To avoid sending
-		 * parameter values, we set the parameter list to NULL.
-		 */
-		executorState->es_param_list_info = NULL;
-
-		if (workerJob->deferredPruning)
-		{
-			DeferredErrorMessage *planningError = NULL;
-
-			/* need to perform shard pruning, rebuild the task list from scratch */
-			taskList = RouterInsertTaskList(jobQuery, &planningError);
-
-			if (planningError != NULL)
-			{
-				RaiseDeferredError(planningError, ERROR);
-			}
-
-			workerJob->taskList = taskList;
-			workerJob->partitionKeyValue = ExtractInsertPartitionKeyValue(jobQuery);
-		}
-
-		RebuildQueryStrings(jobQuery, taskList);
-	}
 
 	/* prevent concurrent placement changes */
 	AcquireMetadataLocks(taskList);
@@ -234,7 +207,207 @@ CitusModifyBeginScan(CustomScanState *node, EState *estate, int eflags)
 	LockPartitionsInRelationList(distributedPlan->relationIdList, AccessShareLock);
 
 	/* modify tasks are always assigned using first-replica policy */
-	workerJob->taskList = FirstReplicaAssignTaskList(taskList);
+	if (!TaskListContainsInvalidAnchorShardId(taskList))
+	{
+		workerJob->taskList = FirstReplicaAssignTaskList(taskList);
+	}
+}
+
+
+static bool
+TaskListContainsInvalidAnchorShardId(List *taskList)
+{
+	ListCell *taskCell = NULL;
+	foreach(taskCell, taskList)
+	{
+		Task *task = (Task *) lfirst(taskCell);
+
+		if (task->anchorShardId == INVALID_SHARD_ID)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+/*
+ * CitusGenerateDeferredQueryStrings generates query strings at the start of the execution
+ * in two cases: when the query requires master evaluation and/or deferred shard pruning.
+ */
+static void
+CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int eflags)
+{
+	CitusScanState *scanState = (CitusScanState *) node;
+	DistributedPlan *distributedPlan = scanState->distributedPlan;
+
+	/*
+	 * We must not change the distributed plan since it may be reused across multiple
+	 * executions of a prepared statement. Instead we create a deep copy that we only
+	 * use for the current execution.
+	 */
+	distributedPlan = copyObject(scanState->distributedPlan);
+	scanState->distributedPlan = distributedPlan;
+
+	Job *workerJob = distributedPlan->workerJob;
+	Query *jobQuery = workerJob->jobQuery;
+
+	PlanState *planState = &(scanState->customScanState.ss.ps);
+	EState *executorState = planState->state;
+
+	/* citus only evaluates functions for modification queries */
+	bool modifyQueryRequiresMasterEvaluation =
+		workerJob->requiresMasterEvaluation && jobQuery->commandType != CMD_SELECT;
+
+	if (modifyQueryRequiresMasterEvaluation || workerJob->deferredPruning)
+	{
+		distributedPlan = (scanState->distributedPlan);
+		scanState->distributedPlan = distributedPlan;
+
+		workerJob = distributedPlan->workerJob;
+		jobQuery = workerJob->jobQuery;
+
+		ExecuteMasterEvaluableFunctions(jobQuery, planState);
+
+		/*
+		 * We've processed parameters in ExecuteMasterEvaluableFunctions and
+		 * don't need to send their values to workers, since they will be
+		 * represented as constants in the deparsed query. To avoid sending
+		 * parameter values, we set the parameter list to NULL.
+		 */
+		executorState->es_param_list_info = NULL;
+	}
+
+
+	if (workerJob->requiresMasterEvaluation && !workerJob->deferredPruning)
+	{
+		/*
+		 * After evaluating the function/parameters, we're done unless shard pruning
+		 * is also deferred.
+		 */
+		RebuildQueryStrings(workerJob->jobQuery, workerJob->taskList);
+
+		return;
+	}
+
+	/* at this point, we're about to do the shard pruning */
+	Assert(workerJob->deferredPruning);
+	if (jobQuery->commandType == CMD_INSERT)
+	{
+		HandleDeferredShardPruningForInserts(distributedPlan);
+	}
+	else
+	{
+		HandleDeferredShardPruningForFastPathQueries(distributedPlan);
+	}
+}
+
+
+/*
+ * HandleDeferredShardPruningForInserts does the shard pruning for INSERT
+ * queries and rebuilds the query strings.
+ */
+static void
+HandleDeferredShardPruningForInserts(DistributedPlan *distributedPlan)
+{
+	Job *workerJob = distributedPlan->workerJob;
+	Query *jobQuery = workerJob->jobQuery;
+	List *taskList = workerJob->taskList;
+	DeferredErrorMessage *planningError = NULL;
+
+	/* need to perform shard pruning, rebuild the task list from scratch */
+	taskList = RouterInsertTaskList(jobQuery, &planningError);
+
+	if (planningError != NULL)
+	{
+		RaiseDeferredError(planningError, ERROR);
+	}
+
+	workerJob->taskList = taskList;
+	workerJob->partitionKeyValue = ExtractInsertPartitionKeyValue(jobQuery);
+
+	RebuildQueryStrings(jobQuery, workerJob->taskList);
+}
+
+
+/*
+ * HandleDeferredShardPruningForFastPathQueries does the shard pruning for
+ * UPDATE/DELETE/SELECT fast path router queries and rebuilds the query strings.
+ */
+static void
+HandleDeferredShardPruningForFastPathQueries(DistributedPlan *distributedPlan)
+{
+	Assert(distributedPlan->fastPathRouterPlan);
+
+	Job *workerJob = distributedPlan->workerJob;
+	Query *jobQuery = workerJob->jobQuery;
+
+	bool isMultiShardQuery = false;
+	List *relationShardList = NIL;
+	List *shardIntervalList =
+		TargetShardIntervalForFastPathQuery(workerJob->jobQuery,
+											&workerJob->partitionKeyValue,
+											&isMultiShardQuery, NULL);
+
+	/*
+	 * A fast-path router query can only yield multiple shards when the parameter
+	 * cannot be resolved properly, which can be triggered by SQL function.
+	 */
+	if (isMultiShardQuery)
+	{
+		ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						errmsg("cannot perform distributed planning on this "
+							   "query because parameterized queries for SQL "
+							   "functions referencing distributed tables are "
+							   "not supported"),
+						errhint("Consider using PL/pgSQL functions instead.")));
+	}
+
+	shardIntervalList = list_make1(shardIntervalList);
+	bool shardsPresent = false;
+	relationShardList =
+		RelationShardListForShardIntervalList(shardIntervalList, &shardsPresent);
+
+	UpdateRelationToShardNames((Node *) workerJob->jobQuery, relationShardList);
+
+	List *placementList =
+		FindRouterWorkerList(shardIntervalList, shardsPresent, true);
+	uint64 shardId = INVALID_SHARD_ID;
+
+	if (shardsPresent)
+	{
+		shardId = GetAnchorShardId(shardIntervalList);
+	}
+
+	if (jobQuery->commandType == CMD_SELECT)
+	{
+		workerJob->taskList =
+			SingleShardSelectTaskList(workerJob->jobQuery, workerJob->jobId,
+									  relationShardList, placementList, shardId);
+
+		/*
+		 * Queries to reference tables, or distributed tables with multiple replica's have
+		 * their task placements reordered according to the configured
+		 * task_assignment_policy. This is only applicable to select queries as the modify
+		 * queries will _always_ be executed on all placements.
+		 *
+		 * We also ignore queries that are targeting only intermediate results (e.g., no
+		 * valid anchorShardId).
+		 */
+		if (shardId != INVALID_SHARD_ID)
+		{
+			ReorderTaskPlacementsByTaskAssignmentPolicy(workerJob,
+														TaskAssignmentPolicy,
+														placementList);
+		}
+	}
+	else
+	{
+		workerJob->taskList =
+			SingleShardModifyTaskList(workerJob->jobQuery, workerJob->jobId,
+									  relationShardList, placementList, shardId);
+	}
 }
 
 
@@ -287,7 +460,8 @@ CoordinatorInsertSelectCreateScan(CustomScan *scan)
 	scanState->customScanState.ss.ps.type = T_CustomScanState;
 	scanState->distributedPlan = GetDistributedPlan(scan);
 
-	scanState->customScanState.methods = &CoordinatorInsertSelectCustomExecMethods;
+	scanState->customScanState.methods =
+		&CoordinatorInsertSelectCustomExecMethods;
 
 	return (Node *) scanState;
 }
@@ -380,7 +554,8 @@ CitusReScan(CustomScanState *node)
 TupleDesc
 ScanStateGetTupleDescriptor(CitusScanState *scanState)
 {
-	return scanState->customScanState.ss.ps.ps_ResultTupleSlot->tts_tupleDescriptor;
+	return scanState->customScanState.ss.ps.ps_ResultTupleSlot->
+		   tts_tupleDescriptor;
 }
 
 

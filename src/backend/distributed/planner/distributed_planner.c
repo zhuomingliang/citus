@@ -549,7 +549,6 @@ PlanFastPathDistributedStmt(DistributedPlanningContext *planContext,
 	fastPathRouterQuery = true;
 	planContext->plannerRestrictionContext->fastPathRestrictionContext->
 	distributionKeyValue = distributionKeyValue;
-
 	planContext->plan = FastPathPlanner(planContext->originalQuery, planContext->query,
 										planContext->boundParams);
 

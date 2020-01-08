@@ -74,7 +74,7 @@ SET client_min_messages TO DEBUG;
 -- if the placement policy is not round-robin, SELECTs on the reference
 -- tables use local execution
 SELECT count(*) FROM ref;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 NOTICE:  executing the command locally: SELECT count(*) AS count FROM mx_add_coordinator.ref_7000000 ref
@@ -84,7 +84,7 @@ NOTICE:  executing the command locally: SELECT count(*) AS count FROM mx_add_coo
 (1 row)
 
 SELECT count(*) FROM ref;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 NOTICE:  executing the command locally: SELECT count(*) AS count FROM mx_add_coordinator.ref_7000000 ref
@@ -96,7 +96,7 @@ NOTICE:  executing the command locally: SELECT count(*) AS count FROM mx_add_coo
 -- for round-robin policy, always go to workers
 SET citus.task_assignment_policy TO "round-robin";
 SELECT count(*) FROM ref;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  count
@@ -105,7 +105,7 @@ DEBUG:  Plan is router executable
 (1 row)
 
 SELECT count(*) FROM ref;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  count
@@ -114,7 +114,7 @@ DEBUG:  Plan is router executable
 (1 row)
 
 SELECT count(*) FROM ref;
-DEBUG:  Distributed planning for a fast-path router query
+DEBUG:  Deferred pruning for a fast-path router query
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  count

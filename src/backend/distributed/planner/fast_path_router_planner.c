@@ -76,21 +76,6 @@ PlannedStmt *
 FastPathPlanner(Query *originalQuery, Query *parse, ParamListInfo boundParams)
 {
 	/*
-	 * To support prepared statements for fast-path queries, we resolve the
-	 * external parameters at this point. Note that this is normally done by
-	 * eval_const_expr() in standard planner when the boundParams are avaliable.
-	 * If not avaliable, as does for all other types of queries, Citus goes
-	 * through the logic of increasing the cost of the plan and forcing
-	 * PostgreSQL to pick custom plans.
-	 *
-	 * We're also only interested in resolving the quals since we'd want to
-	 * do shard pruning based on the filter on the distribution column.
-	 */
-	originalQuery->jointree->quals =
-		ResolveExternalParams((Node *) originalQuery->jointree->quals,
-							  copyParamList(boundParams));
-
-	/*
 	 * Citus planner relies on some of the transformations on constant
 	 * evaluation on the parse tree.
 	 */
