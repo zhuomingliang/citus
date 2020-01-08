@@ -77,6 +77,7 @@ extern List * DistributedTablePlacementNodeList(LOCKMODE lockMode);
 extern bool NodeCanHaveDistTablePlacements(WorkerNode *node);
 extern uint32 ActiveReadableWorkerNodeCount(void);
 extern List * ActiveReadableWorkerNodeList(void);
+extern List * CoordinatorOrActiveReadableWorkerNodeList(void);
 extern List * ActiveReadableNodeList(void);
 extern WorkerNode * FindWorkerNode(char *nodeName, int32 nodePort);
 extern WorkerNode * FindWorkerNodeAnyCluster(const char *nodeName, int32 nodePort);

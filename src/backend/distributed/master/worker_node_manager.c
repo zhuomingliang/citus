@@ -452,6 +452,19 @@ ActiveReadableWorkerNodeList(void)
 }
 
 
+List *
+CoordinatorOrActiveReadableWorkerNodeList(void)
+{
+	List *coordinators = FilterActiveNodeListFunc(NoLock, NodeIsCoordinator);
+	if (coordinators)
+	{
+		return coordinators;
+	}
+
+	return FilterActiveNodeListFunc(NoLock, NodeIsReadableWorker);
+}
+
+
 /*
  * ActiveReadableNodeList returns a list of all nodes in workerNodeHash
  * that are readable workers.

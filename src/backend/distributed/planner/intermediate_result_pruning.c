@@ -180,7 +180,15 @@ AppendAllAccessedWorkerNodes(IntermediateResultsHashEntry *entry,
 		/* if there is a task that does not have any placements, write to local file
 		 * TODO: Hanefi make sure that it is possible to have nil task placement lists
 		 */
-		if (list_length(task->taskPlacementList) < 2)
+		if (list_length(task->taskPlacementList) == 1)
+		{
+			ShardPlacement *placement = linitial(task->taskPlacementList);
+			if (placement->groupId == 0 || placement->colocationGroupId == 0)
+			{
+				entry->writeLocalFile = true;
+			}
+		}
+		if (list_length(task->taskPlacementList) == 0)
 		{
 			entry->writeLocalFile = true;
 		}

@@ -2163,7 +2163,7 @@ PlanRouterQuery(Query *originalQuery,
 	}
 	else if (replacePrunedQueryWithDummy)
 	{
-		List *workerNodeList = ActiveReadableWorkerNodeList();
+		List *workerNodeList = CoordinatorOrActiveReadableWorkerNodeList();
 		if (workerNodeList != NIL)
 		{
 			int workerNodeCount = list_length(workerNodeList);
