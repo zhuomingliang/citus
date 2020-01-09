@@ -231,7 +231,12 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 	 * executions of a prepared statement. Instead we create a deep copy that we only
 	 * use for the current execution.
 	 */
+	List *originalLocalPlans = scanState->distributedPlan->localPlannedStatements;
+	elog(INFO, "originalLocalPlans: %d", originalLocalPlans);
 	DistributedPlan *distributedPlan = copyObject(scanState->distributedPlan);
+
+	originalLocalPlans = distributedPlan->localPlannedStatements;
+
 	scanState->distributedPlan = distributedPlan;
 
 	Job *workerJob = distributedPlan->workerJob;

@@ -132,7 +132,6 @@ static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
  *
  * The function returns totalRowsProcessed.
  */
-static List *savedLocalPlanList = NIL;
 uint64
 ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 {
@@ -154,13 +153,14 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 											&parameterTypes);
 
 		ListCell *savedLocalPlanCell = NULL;
-		foreach(savedLocalPlanCell, savedLocalPlanList)
+		foreach(savedLocalPlanCell, distributedPlan->localPlannedStatements)
 		{
 			LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
+			elog(INFO, "found local");
 
-			if (lps->queryId == shardQuery->queryId
-					&& lps->shardId == task->anchorShardId)
+			if (lps->shardId == task->anchorShardId)
 			{
+				elog(INFO, "found local");
 				localPlan = lps->localPlan;
 			}
 		}
@@ -193,8 +193,8 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 			lps->localPlan = copyObject(localPlan);
 			lps->shardId = task->anchorShardId;
 
-			lps->queryId = shardQuery->queryId;
-			savedLocalPlanList = lappend(savedLocalPlanList, lps);
+			distributedPlan->localPlannedStatements = lappend(distributedPlan->localPlannedStatements, lps);
+			elog(INFO, "Added to :%d-%d",distributedPlan, distributedPlan->localPlannedStatements);
 			MemoryContextSwitchTo(oldContext);
 		}
 

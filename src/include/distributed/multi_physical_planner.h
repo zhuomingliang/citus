@@ -244,7 +244,6 @@ typedef struct LocalPlannedStatement
 
 	PlannedStmt *localPlan;
 	uint64 shardId;
-	uint64 queryId;
 
 } LocalPlannedStatement;
 
