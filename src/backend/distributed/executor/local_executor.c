@@ -201,7 +201,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		LogLocalCommand(task);
 
 		totalRowsProcessed +=
-			ExecuteLocalTaskPlan(scanState, localPlan, TaskQueryString(task));
+			ExecuteLocalTaskPlan(scanState, localPlan, NULL);
 	}
 
 	return totalRowsProcessed;
