@@ -185,7 +185,7 @@ multi_ProcessUtility(PlannedStmt *pstmt,
 				 * Since we cannot execute EXPLAIN ANALYZE locally, we
 				 * cannot continue.
 				 */
-				ErrorIfLocalExecutionHappened();
+				ErrorIfLocalPlacementExecutionHappened();
 			}
 		}
 

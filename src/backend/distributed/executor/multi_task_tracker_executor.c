@@ -2920,7 +2920,7 @@ TaskTrackerExecScan(CustomScanState *node)
 		Job *workerJob = distributedPlan->workerJob;
 		Query *jobQuery = workerJob->jobQuery;
 
-		ErrorIfLocalExecutionHappened();
+		ErrorIfLocalPlacementExecutionHappened();
 		DisableLocalExecution();
 
 		if (ContainsReadIntermediateResultFunction((Node *) jobQuery))

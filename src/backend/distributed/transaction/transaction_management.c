@@ -247,7 +247,7 @@ CoordinatedTransactionCallback(XactEvent event, void *arg)
 
 			CurrentCoordinatedTransactionState = COORD_TRANS_NONE;
 			XactModificationLevel = XACT_MODIFICATION_NONE;
-			LocalExecutionHappened = false;
+			LocalPlacementExecutionHappened = false;
 			dlist_init(&InProgressTransactions);
 			activeSetStmts = NULL;
 			CoordinatedTransactionUses2PC = false;
@@ -301,7 +301,7 @@ CoordinatedTransactionCallback(XactEvent event, void *arg)
 
 			CurrentCoordinatedTransactionState = COORD_TRANS_NONE;
 			XactModificationLevel = XACT_MODIFICATION_NONE;
-			LocalExecutionHappened = false;
+			LocalPlacementExecutionHappened = false;
 			dlist_init(&InProgressTransactions);
 			activeSetStmts = NULL;
 			CoordinatedTransactionUses2PC = false;
