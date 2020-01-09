@@ -46,7 +46,6 @@ static void HandleDeferredShardPruningForFastPathQueries(
 static void HandleDeferredShardPruningForInserts(DistributedPlan *distributedPlan);
 
 static void CitusModifyBeginScan(CustomScanState *node, EState *estate, int eflags);
-static bool TaskListContainsInvalidAnchorShardId(List *taskList);
 static void CitusEndScan(CustomScanState *node);
 static void CitusReScan(CustomScanState *node);
 
@@ -207,28 +206,7 @@ CitusModifyBeginScan(CustomScanState *node, EState *estate, int eflags)
 	LockPartitionsInRelationList(distributedPlan->relationIdList, AccessShareLock);
 
 	/* modify tasks are always assigned using first-replica policy */
-	if (!TaskListContainsInvalidAnchorShardId(taskList))
-	{
-		workerJob->taskList = FirstReplicaAssignTaskList(taskList);
-	}
-}
-
-
-static bool
-TaskListContainsInvalidAnchorShardId(List *taskList)
-{
-	ListCell *taskCell = NULL;
-	foreach(taskCell, taskList)
-	{
-		Task *task = (Task *) lfirst(taskCell);
-
-		if (task->anchorShardId == INVALID_SHARD_ID)
-		{
-			return true;
-		}
-	}
-
-	return false;
+	workerJob->taskList = FirstReplicaAssignTaskList(taskList);
 }
 
 
