@@ -255,11 +255,11 @@ ConvertDistributedTableRTEToShardRTE(RangeTblEntry *rangeTableEntry, Task *task)
 		relationShard = NULL;
 	}
 
-	/*
-	 * We should have found a restriction, otherwise it cannot be a local
-	 * query.
-	 */
-	Assert(relationShard != NULL);
+	if (relationShard == NULL)
+	{
+		/* if we cannot find it it means it's not there */
+		return;
+	}
 
 	Oid schemaOid = get_rel_namespace(relationShard->relationId);
 	char *generatedRelationName = get_rel_name(relationShard->relationId);

@@ -2042,7 +2042,7 @@ PlanRouterQuery(Query *originalQuery,
 
 	*placementList = NIL;
 
-	*localFastPathQuery = false;
+	*localFastPathQuery = true;
 
 	/*
 	 * When FastPathRouterQuery() returns true, we know that standard_planner() has
@@ -2077,30 +2077,6 @@ PlanRouterQuery(Query *originalQuery,
 		{
 			ereport(DEBUG2, (errmsg("Distributed planning for a fast-path router "
 									"query")));
-			if (list_length(shardIntervalList) == 1)
-			{
-				ShardInterval *shardInterval = (ShardInterval *) linitial(
-					shardIntervalList);
-				ShardPlacement *shardPlacement =
-					FindShardPlacementOnGroup(GetLocalGroupId(), shardInterval->shardId);
-				if (shardPlacement != NULL &&
-					(!ReferenceTableShardId(shardInterval->shardId) ||
-					 !IsModifyCommand(originalQuery)))
-				{
-					/*
-					 * The query could be executed locally, but that's not a decision
-					 * we can give at the moment. We're only doing some performance
-					 * optimizations if that's how the executor behaves. Otherwise, the
-					 * optimizations would be lost during the execution.
-					 *
-					 * Modifications on reference tables needs to be executed remotely as
-					 * well, so doesn't worth the optimization.
-					 *
-					 * Citus cannot handle EXPLAIN on local tables, so skip those as well.
-					 */
-					*localFastPathQuery = true;
-				}
-			}
 		}
 	}
 	else
@@ -2110,6 +2086,41 @@ PlanRouterQuery(Query *originalQuery,
 												relationRestrictionContext,
 												&isMultiShardQuery,
 												partitionValueConst);
+	}
+
+	if (!isMultiShardQuery && list_length(*prunedShardIntervalListList) == 1)
+	{
+		ShardInterval *shardInterval = NULL;
+		foreach_ptr(shardInterval, linitial(*prunedShardIntervalListList))
+		{
+			ShardPlacement *shardPlacement =
+				FindShardPlacementOnGroup(GetLocalGroupId(), shardInterval->shardId);
+			if (shardPlacement != NULL &&
+				(!ReferenceTableShardId(shardInterval->shardId) ||
+				 !IsModifyCommand(originalQuery)))
+			{
+				/*
+				 * The query could be executed locally, but that's not a decision
+				 * we can give at the moment. We're only doing some performance
+				 * optimizations if that's how the executor behaves. Otherwise, the
+				 * optimizations would be lost during the execution.
+				 *
+				 * Modifications on reference tables needs to be executed remotely as
+				 * well, so doesn't worth the optimization.
+				 *
+				 * Citus cannot handle EXPLAIN on local tables, so skip those as well.
+				 */
+			}
+			else
+			{
+				*localFastPathQuery = false;
+				break;
+			}
+		}
+	}
+	else
+	{
+		*localFastPathQuery = false;
 	}
 
 	if (isMultiShardQuery)

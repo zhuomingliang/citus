@@ -15,6 +15,7 @@
 #include "distributed/citus_ruleutils.h"
 #include "distributed/colocation_utils.h"
 #include "distributed/errormessage.h"
+#include "distributed/deparse_shard_query.h"
 #include "distributed/log_utils.h"
 #include "distributed/insert_select_planner.h"
 #include "distributed/metadata_cache.h"
@@ -517,7 +518,6 @@ RouterModifyTaskForShardInterval(Query *originalQuery, ShardInterval *shardInter
 														  &localFastPathQuery);
 
 	Assert(!multiShardModifyQuery);
-	Assert(!localFastPathQuery);
 
 	if (planningError)
 	{
@@ -525,6 +525,20 @@ RouterModifyTaskForShardInterval(Query *originalQuery, ShardInterval *shardInter
 						errmsg("cannot perform distributed planning for the given "
 							   "modification"),
 						errdetail("Select query cannot be pushed down to the worker.")));
+	}
+
+	if (UpdateOrDeleteQuery(copiedSubquery) &&
+		RequiresMasterEvaluation(copiedSubquery))
+	{
+		/*
+		 * If this is an UPDATE or DELETE query which requires master evaluation,
+		 * don't try update shard names, and postpone that to execution phase.
+		 */
+	}
+	else
+	{
+		/* Run steps that were skipped because it was a local fast path query */
+		UpdateRelationToShardNames((Node *) copiedSubquery, relationShardList);
 	}
 
 
