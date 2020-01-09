@@ -158,7 +158,8 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		{
 			LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
 
-			if (lps->shardId == task->anchorShardId)
+			if (lps->queryId == shardQuery->queryId
+					&& lps->shardId == task->anchorShardId)
 			{
 				localPlan = lps->localPlan;
 			}
@@ -191,6 +192,8 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 
 			lps->localPlan = copyObject(localPlan);
 			lps->shardId = task->anchorShardId;
+
+			lps->queryId = shardQuery->queryId;
 			savedLocalPlanList = lappend(savedLocalPlanList, lps);
 			MemoryContextSwitchTo(oldContext);
 		}
