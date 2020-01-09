@@ -80,16 +80,9 @@ extern List * TargetShardIntervalForFastPathQuery(Query *query,
 												  Const **partitionValueConst,
 												  bool *isMultiShardQuery,
 												  Const *distributionKeyValue);
-extern List * SingleShardSelectTaskList(Query *query, uint64 jobId,
-										List *relationShardList, List *placementList,
-										uint64 shardId);
-extern List * SingleShardModifyTaskList(Query *query, uint64 jobId,
-										List *relationShardList, List *placementList,
-										uint64 shardId);
-extern void ReorderTaskPlacementsByTaskAssignmentPolicy(Job *job,
-														TaskAssignmentPolicyType
-														taskAssignmentPolicy,
-														List *placementList);
+extern void GenerateSingleShardRouterTaskList(Job *job,
+											  List *relationShardList,
+											  List *placementList, uint64 shardId);
 
 /*
  * FastPathPlanner is a subset of router planner, that's why we prefer to

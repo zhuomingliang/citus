@@ -153,8 +153,18 @@ static bool SelectsFromDistributedTable(List *rangeTableList, Query *query);
 static List * get_all_actual_clauses(List *restrictinfo_list);
 static int CompareInsertValuesByShardId(const void *leftElement,
 										const void *rightElement);
+static List * SingleShardSelectTaskList(Query *query, uint64 jobId,
+										List *relationShardList, List *placementList,
+										uint64 shardId);
 static bool RowLocksOnRelations(Node *node, List **rtiLockList);
+static List * SingleShardModifyTaskList(Query *query, uint64 jobId,
+										List *relationShardList, List *placementList,
+										uint64 shardId);
 static List * RemoveCoordinatorPlacement(List *placementList);
+static void ReorderTaskPlacementsByTaskAssignmentPolicy(Job *job,
+														TaskAssignmentPolicyType
+														taskAssignmentPolicy,
+														List *placementList);
 
 
 /*
@@ -1710,6 +1720,39 @@ RouterJob(Query *originalQuery, PlannerRestrictionContext *plannerRestrictionCon
 		return job;
 	}
 
+	if (isMultiShardModifyQuery)
+	{
+		job->taskList = QueryPushdownSqlTaskList(originalQuery, job->jobId,
+												 plannerRestrictionContext->
+												 relationRestrictionContext,
+												 prunedShardIntervalListList,
+												 MODIFY_TASK,
+												 requiresMasterEvaluation);
+	}
+	else
+	{
+		GenerateSingleShardRouterTaskList(job, relationShardList,
+										  placementList, shardId);
+	}
+
+	job->requiresMasterEvaluation = requiresMasterEvaluation;
+	return job;
+}
+
+
+/*
+ * SingleShardRouterTaskList is a wrapper around other corresponding task
+ * list generation functions speficit to single shard selects and modifications.
+ *
+ * The function updates the input job's taskList in-place.
+ */
+void
+GenerateSingleShardRouterTaskList(Job *job, List *relationShardList,
+								  List *placementList, uint64 shardId)
+{
+	Query *originalQuery = job->jobQuery;
+
+
 	if (originalQuery->commandType == CMD_SELECT)
 	{
 		job->taskList = SingleShardSelectTaskList(originalQuery, job->jobId,
@@ -1731,15 +1774,6 @@ RouterJob(Query *originalQuery, PlannerRestrictionContext *plannerRestrictionCon
 														placementList);
 		}
 	}
-	else if (isMultiShardModifyQuery)
-	{
-		job->taskList = QueryPushdownSqlTaskList(originalQuery, job->jobId,
-												 plannerRestrictionContext->
-												 relationRestrictionContext,
-												 prunedShardIntervalListList,
-												 MODIFY_TASK,
-												 requiresMasterEvaluation);
-	}
 	else if (shardId == INVALID_SHARD_ID)
 	{
 		/* modification that prunes to 0 shards */
@@ -1751,9 +1785,6 @@ RouterJob(Query *originalQuery, PlannerRestrictionContext *plannerRestrictionCon
 												  relationShardList, placementList,
 												  shardId);
 	}
-
-	job->requiresMasterEvaluation = requiresMasterEvaluation;
-	return job;
 }
 
 
@@ -1766,7 +1797,7 @@ RouterJob(Query *originalQuery, PlannerRestrictionContext *plannerRestrictionCon
  *
  * By default it does not reorder the task list, implying a first-replica strategy.
  */
-void
+static void
 ReorderTaskPlacementsByTaskAssignmentPolicy(Job *job,
 											TaskAssignmentPolicyType taskAssignmentPolicy,
 											List *placementList)
@@ -1842,7 +1873,7 @@ RemoveCoordinatorPlacement(List *placementList)
  * SingleShardSelectTaskList generates a task for single shard select query
  * and returns it as a list.
  */
-List *
+static List *
 SingleShardSelectTaskList(Query *query, uint64 jobId, List *relationShardList,
 						  List *placementList,
 						  uint64 shardId)
@@ -1910,7 +1941,7 @@ RowLocksOnRelations(Node *node, List **relationRowLockList)
  * SingleShardModifyTaskList generates a task for single shard update/delete query
  * and returns it as a list.
  */
-List *
+static List *
 SingleShardModifyTaskList(Query *query, uint64 jobId, List *relationShardList,
 						  List *placementList, uint64 shardId)
 {

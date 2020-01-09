@@ -324,7 +324,6 @@ HandleDeferredShardPruningForFastPathQueries(DistributedPlan *distributedPlan)
 	Assert(distributedPlan->fastPathRouterPlan);
 
 	Job *workerJob = distributedPlan->workerJob;
-	Query *jobQuery = workerJob->jobQuery;
 
 	bool isMultiShardQuery = false;
 	List *shardIntervalList =
@@ -362,39 +361,9 @@ HandleDeferredShardPruningForFastPathQueries(DistributedPlan *distributedPlan)
 		shardId = GetAnchorShardId(shardIntervalList);
 	}
 
-	if (jobQuery->commandType == CMD_SELECT)
-	{
-		workerJob->taskList =
-			SingleShardSelectTaskList(workerJob->jobQuery, workerJob->jobId,
-									  relationShardList, placementList, shardId);
-
-		/*
-		 * Queries to reference tables, or distributed tables with multiple replica's have
-		 * their task placements reordered according to the configured
-		 * task_assignment_policy. This is only applicable to select queries as the modify
-		 * queries will _always_ be executed on all placements.
-		 *
-		 * We also ignore queries that are targeting only intermediate results (e.g., no
-		 * valid anchorShardId).
-		 */
-		if (shardId != INVALID_SHARD_ID)
-		{
-			ReorderTaskPlacementsByTaskAssignmentPolicy(workerJob,
-														TaskAssignmentPolicy,
-														placementList);
-		}
-	}
-	else if (shardId == INVALID_SHARD_ID)
-	{
-		/* modification that prunes to 0 shards */
-		workerJob->taskList = NIL;
-	}
-	else
-	{
-		workerJob->taskList =
-			SingleShardModifyTaskList(workerJob->jobQuery, workerJob->jobId,
-									  relationShardList, placementList, shardId);
-	}
+	GenerateSingleShardRouterTaskList(workerJob,
+									  relationShardList,
+									  placementList, shardId);
 }
 
 
