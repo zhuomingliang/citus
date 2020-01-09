@@ -125,7 +125,6 @@ RegisterCitusCustomScanMethods(void)
 static void
 CitusBeginScan(CustomScanState *node, EState *estate, int eflags)
 {
-	DistributedPlan *distributedPlan = NULL;
 	MarkCitusInitiatedCoordinatorBackend();
 
 	CitusScanState *scanState = (CitusScanState *) node;
@@ -134,10 +133,7 @@ CitusBeginScan(CustomScanState *node, EState *estate, int eflags)
 	ExecInitResultSlot(&scanState->customScanState.ss.ps, &TTSOpsMinimalTuple);
 #endif
 
-	distributedPlan = copyObject(scanState->distributedPlan);
-	scanState->distributedPlan = distributedPlan;
-
-	distributedPlan = scanState->distributedPlan;
+	DistributedPlan *distributedPlan = scanState->distributedPlan;
 	Job *workerJob = distributedPlan->workerJob;
 	if (workerJob &&
 		(workerJob->requiresMasterEvaluation || workerJob->deferredPruning))
@@ -192,6 +188,17 @@ CitusModifyBeginScan(CustomScanState *node, EState *estate, int eflags)
 {
 	CitusScanState *scanState = (CitusScanState *) node;
 	DistributedPlan *distributedPlan = scanState->distributedPlan;
+
+	/*
+	 * If we have not already copied the plan into this context, do it now.
+	 * Note that we could have copied the plan during CitusGenerateDeferredQueryStrings.
+	 */
+	if (GetMemoryChunkContext(distributedPlan) != CurrentMemoryContext)
+	{
+		distributedPlan = copyObject(distributedPlan);
+
+		scanState->distributedPlan = distributedPlan;
+	}
 
 	Job *workerJob = distributedPlan->workerJob;
 	List *taskList = workerJob->taskList;
