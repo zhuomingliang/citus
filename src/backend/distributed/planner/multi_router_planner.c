@@ -2042,9 +2042,7 @@ PlanRouterQuery(Query *originalQuery,
 {
 	bool isMultiShardQuery = false;
 	DeferredErrorMessage *planningError = NULL;
-	List *workerList = NIL;
 	bool shardsPresent = false;
-	uint64 shardId = INVALID_SHARD_ID;
 	CmdType commandType = originalQuery->commandType;
 	bool fastPathRouterQuery =
 		plannerRestrictionContext->fastPathRestrictionContext->fastPathRouterQuery;
@@ -2151,9 +2149,9 @@ PlanRouterQuery(Query *originalQuery,
 	}
 
 	/* we need anchor shard id for select queries with router planner */
-	shardId = GetAnchorShardId(*prunedShardIntervalListList);
+	uint64 shardId = GetAnchorShardId(*prunedShardIntervalListList);
 
-	workerList =
+	List *workerList =
 		FindRouterWorkerList(*prunedShardIntervalListList, shardsPresent,
 							 replacePrunedQueryWithDummy);
 
