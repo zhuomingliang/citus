@@ -1623,9 +1623,6 @@ ExtractFirstDistributedTableId(Query *query)
 	List *rangeTableList = query->rtable;
 	ListCell *rangeTableCell = NULL;
 	Oid distributedTableId = InvalidOid;
-	Const *distKey PG_USED_FOR_ASSERTS_ONLY = NULL;
-
-	Assert(IsModifyCommand(query) || FastPathRouterQuery(query, &distKey));
 
 	foreach(rangeTableCell, rangeTableList)
 	{
@@ -2338,7 +2335,7 @@ TargetShardIntervalForFastPathQuery(Query *query, Const **partitionValueConst,
 
 	/* we're only expecting single shard from a single table */
 	Const *distKey PG_USED_FOR_ASSERTS_ONLY = NULL;
-	Assert(FastPathRouterQuery(query, &distKey));
+	Assert(FastPathRouterQuery(query, &distKey) || !EnableFastPathRouterPlanner);
 
 	if (list_length(prunedShardIntervalList) > 1)
 	{
