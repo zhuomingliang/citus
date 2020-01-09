@@ -240,14 +240,13 @@ static void
 CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int eflags)
 {
 	CitusScanState *scanState = (CitusScanState *) node;
-	DistributedPlan *distributedPlan = scanState->distributedPlan;
 
 	/*
 	 * We must not change the distributed plan since it may be reused across multiple
 	 * executions of a prepared statement. Instead we create a deep copy that we only
 	 * use for the current execution.
 	 */
-	distributedPlan = copyObject(scanState->distributedPlan);
+	DistributedPlan *distributedPlan = copyObject(scanState->distributedPlan);
 	scanState->distributedPlan = distributedPlan;
 
 	Job *workerJob = distributedPlan->workerJob;
@@ -313,11 +312,10 @@ HandleDeferredShardPruningForInserts(DistributedPlan *distributedPlan)
 {
 	Job *workerJob = distributedPlan->workerJob;
 	Query *jobQuery = workerJob->jobQuery;
-	List *taskList = workerJob->taskList;
 	DeferredErrorMessage *planningError = NULL;
 
 	/* need to perform shard pruning, rebuild the task list from scratch */
-	taskList = RouterInsertTaskList(jobQuery, &planningError);
+	List *taskList = RouterInsertTaskList(jobQuery, &planningError);
 
 	if (planningError != NULL)
 	{
@@ -344,7 +342,6 @@ HandleDeferredShardPruningForFastPathQueries(DistributedPlan *distributedPlan)
 	Query *jobQuery = workerJob->jobQuery;
 
 	bool isMultiShardQuery = false;
-	List *relationShardList = NIL;
 	List *shardIntervalList =
 		TargetShardIntervalForFastPathQuery(workerJob->jobQuery,
 											&workerJob->partitionKeyValue,
@@ -366,7 +363,7 @@ HandleDeferredShardPruningForFastPathQueries(DistributedPlan *distributedPlan)
 
 	shardIntervalList = list_make1(shardIntervalList);
 	bool shardsPresent = false;
-	relationShardList =
+	List *relationShardList =
 		RelationShardListForShardIntervalList(shardIntervalList, &shardsPresent);
 
 	UpdateRelationToShardNames((Node *) workerJob->jobQuery, relationShardList);
