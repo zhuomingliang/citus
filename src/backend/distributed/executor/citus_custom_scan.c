@@ -399,6 +399,11 @@ HandleDeferredShardPruningForFastPathQueries(DistributedPlan *distributedPlan)
 														placementList);
 		}
 	}
+	else if (shardId == INVALID_SHARD_ID)
+	{
+		/* modification that prunes to 0 shards */
+		workerJob->taskList = NIL;
+	}
 	else
 	{
 		workerJob->taskList =
