@@ -132,6 +132,7 @@ static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
  *
  * The function returns totalRowsProcessed.
  */
+static List *savedLocalPlanList = NIL;
 uint64
 ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 {
@@ -153,7 +154,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 											&parameterTypes);
 
 		ListCell *savedLocalPlanCell = NULL;
-		foreach(savedLocalPlanCell, distributedPlan->localPlannedStatements)
+		foreach(savedLocalPlanCell, savedLocalPlanList)
 		{
 			LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
 
@@ -184,14 +185,13 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 
 			localPlan = planner(shardQuery, cursorOptions, paramListInfo);
 
-			MemoryContext cachedContext = GetMemoryChunkContext(distributedPlan);
-			MemoryContext oldContext = MemoryContextSwitchTo(cachedContext);
+			MemoryContext oldContext = MemoryContextSwitchTo(CacheMemoryContext);
 
 			LocalPlannedStatement *lps = palloc0(sizeof(LocalPlannedStatement));
 
 			lps->localPlan = copyObject(localPlan);
 			lps->shardId = task->anchorShardId;
-
+			savedLocalPlanList = lappend(savedLocalPlanList, lps);
 			MemoryContextSwitchTo(oldContext);
 		}
 
