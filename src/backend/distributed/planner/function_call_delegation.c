@@ -24,6 +24,7 @@
 #include "distributed/function_call_delegation.h"
 #include "distributed/insert_select_planner.h"
 #include "distributed/insert_select_executor.h"
+#include "distributed/local_executor.h"
 #include "distributed/master_metadata_utility.h"
 #include "distributed/master_protocol.h"
 #include "distributed/metadata_cache.h"
@@ -111,7 +112,6 @@ TryToDelegateFunctionCall(DistributedPlanningContext *planContext)
 	Var *partitionColumn = NULL;
 	ShardPlacement *placement = NULL;
 	WorkerNode *workerNode = NULL;
-	StringInfo queryString = NULL;
 	Task *task = NULL;
 	Job *job = NULL;
 	DistributedPlan *distributedPlan = CitusMakeNode(DistributedPlan);
@@ -364,13 +364,9 @@ TryToDelegateFunctionCall(DistributedPlanningContext *planContext)
 
 	ereport(DEBUG1, (errmsg("pushing down the function call")));
 
-	queryString = makeStringInfo();
-	pg_get_query_def(planContext->query, queryString);
-
 	task = CitusMakeNode(Task);
 	task->taskType = SELECT_TASK;
-	task->queryString = queryString->data;
-	task->taskPlacementList = placementList;
+	SetTaskQueryAndPlacementList(task, planContext->query, placementList);
 	task->anchorShardId = shardInterval->shardId;
 	task->replicationModel = distTable->replicationModel;
 
