@@ -238,6 +238,15 @@ typedef struct RangeTableFragment
 } RangeTableFragment;
 
 
+typedef struct LocalPlannedStatement
+{
+	CitusNode type;
+
+	PlannedStmt *localPlan;
+	uint64 shardId;
+
+} LocalPlannedStatement;
+
 /*
  * JoinSequenceNode represents a range table in an ordered sequence of tables
  * joined together. This representation helps build combinations of all range
@@ -323,6 +332,8 @@ typedef struct DistributedPlan
 	 * or if prepared statement parameters prevented successful planning.
 	 */
 	DeferredErrorMessage *planningError;
+
+	List *localPlannedStatements;
 } DistributedPlan;
 
 

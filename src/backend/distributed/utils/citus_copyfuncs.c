@@ -119,8 +119,17 @@ CopyNodeDistributedPlan(COPYFUNC_ARGS)
 	COPY_NODE_FIELD(usedSubPlanNodeList);
 	COPY_SCALAR_FIELD(fastPathRouterPlan);
 	COPY_NODE_FIELD(planningError);
+	COPY_NODE_FIELD(localPlannedStatements);
 }
 
+void
+CopyNodeLocalPlannedStatement(COPYFUNC_ARGS)
+{
+	DECLARE_FROM_AND_NEW_NODE(LocalPlannedStatement);
+
+	COPY_NODE_FIELD(localPlan);
+	COPY_SCALAR_FIELD(shardId);
+}
 
 void
 CopyNodeDistributedSubPlan(COPYFUNC_ARGS)

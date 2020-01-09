@@ -142,12 +142,26 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 	int numParams = -1;
 	Oid *parameterTypes = NULL;
 
+	DistributedPlan *distributedPlan = scanState->distributedPlan;
+
 	foreach(taskCell, taskList)
 	{
 		Task *task = (Task *) lfirst(taskCell);
+		PlannedStmt *localPlan = NULL;
 
 		Query *shardQuery = LocalShardQuery(task, paramListInfo, &numParams,
 											&parameterTypes);
+
+		ListCell *savedLocalPlanCell = NULL;
+		foreach(savedLocalPlanCell, distributedPlan->localPlannedStatements)
+		{
+			LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
+
+			if (lps->shardId == task->anchorShardId)
+			{
+				localPlan = lps->localPlan;
+			}
+		}
 
 		/*
 		 * We should not consider using CURSOR_OPT_FORCE_DISTRIBUTED in case of
@@ -165,7 +179,21 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		 * implemented. So, let planner to call distributed_planner() which
 		 * eventually calls standard_planner().
 		 */
-		PlannedStmt *localPlan = planner(shardQuery, cursorOptions, paramListInfo);
+		if (localPlan == NULL)
+		{
+
+			localPlan = planner(shardQuery, cursorOptions, paramListInfo);
+
+			MemoryContext cachedContext = GetMemoryChunkContext(distributedPlan);
+			MemoryContext oldContext = MemoryContextSwitchTo(cachedContext);
+
+			LocalPlannedStatement *lps = palloc0(sizeof(LocalPlannedStatement));
+
+			lps->localPlan = copyObject(localPlan);
+			lps->shardId = task->anchorShardId;
+
+			MemoryContextSwitchTo(oldContext);
+		}
 
 		LogLocalCommand(task);
 

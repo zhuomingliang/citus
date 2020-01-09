@@ -198,8 +198,20 @@ OutDistributedPlan(OUTFUNC_ARGS)
 	WRITE_BOOL_FIELD(fastPathRouterPlan);
 
 	WRITE_NODE_FIELD(planningError);
+
+	WRITE_NODE_FIELD(localPlannedStatements);
 }
 
+void
+OutLocalPlannedStatement(OUTFUNC_ARGS)
+{
+	WRITE_LOCALS(LocalPlannedStatement);
+
+	WRITE_NODE_TYPE("LocalPlannedStatement");
+
+	WRITE_NODE_FIELD(localPlan);
+	WRITE_UINT64_FIELD(shardId);
+}
 
 void
 OutDistributedSubPlan(OUTFUNC_ARGS)

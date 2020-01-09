@@ -226,10 +226,20 @@ ReadDistributedPlan(READFUNC_ARGS)
 	READ_BOOL_FIELD(fastPathRouterPlan);
 
 	READ_NODE_FIELD(planningError);
-
+	READ_NODE_FIELD(localPlannedStatements);
 	READ_DONE();
 }
 
+READFUNC_RET
+ReadLocalPlannedStatement(READFUNC_ARGS)
+{
+	READ_LOCALS(LocalPlannedStatement);
+
+	READ_NODE_FIELD(localPlan);
+	READ_UINT64_FIELD(shardId);
+
+	READ_DONE();
+}
 
 READFUNC_RET
 ReadDistributedSubPlan(READFUNC_ARGS)

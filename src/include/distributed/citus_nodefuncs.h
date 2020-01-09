@@ -45,6 +45,7 @@ extern void RegisterNodes(void);
 
 extern READFUNC_RET ReadJob(READFUNC_ARGS);
 extern READFUNC_RET ReadDistributedPlan(READFUNC_ARGS);
+extern READFUNC_RET ReadLocalPlannedStatement(READFUNC_ARGS);
 extern READFUNC_RET ReadDistributedSubPlan(READFUNC_ARGS);
 extern READFUNC_RET ReadShardInterval(READFUNC_ARGS);
 extern READFUNC_RET ReadMapMergeJob(READFUNC_ARGS);
@@ -60,6 +61,7 @@ extern READFUNC_RET ReadUnsupportedCitusNode(READFUNC_ARGS);
 
 extern void OutJob(OUTFUNC_ARGS);
 extern void OutDistributedPlan(OUTFUNC_ARGS);
+extern void OutLocalPlannedStatement(OUTFUNC_ARGS);
 extern void OutDistributedSubPlan(OUTFUNC_ARGS);
 extern void OutShardInterval(OUTFUNC_ARGS);
 extern void OutMapMergeJob(OUTFUNC_ARGS);
@@ -84,6 +86,7 @@ extern void OutMultiExtendedOp(OUTFUNC_ARGS);
 
 extern void CopyNodeJob(COPYFUNC_ARGS);
 extern void CopyNodeDistributedPlan(COPYFUNC_ARGS);
+extern void CopyNodeLocalPlannedStatement(COPYFUNC_ARGS);
 extern void CopyNodeDistributedSubPlan(COPYFUNC_ARGS);
 extern void CopyNodeShardInterval(COPYFUNC_ARGS);
 extern void CopyNodeMapMergeJob(COPYFUNC_ARGS);
