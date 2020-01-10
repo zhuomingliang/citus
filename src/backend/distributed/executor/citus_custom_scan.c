@@ -290,8 +290,6 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 	else
 	{
 		HandleDeferredShardPruningForFastPathQueries(distributedPlan);
-		if (distributedPlan->workerJob->jobQuery->commandType == CMD_INSERT)
-			return;
 
 #include "distributed/local_executor.h"
 		Task *afterPruningTask = linitial(distributedPlan->workerJob->taskList);
