@@ -205,6 +205,8 @@ OutLocalPlannedStatement(OUTFUNC_ARGS)
 {
 	WRITE_LOCALS(LocalPlannedStatement);
 
+	WRITE_NODE_TYPE("LocalPlannedStatement");
+
 	WRITE_UINT64_FIELD(distributedPlanId);
 	WRITE_NODE_FIELD(localPlan);
 	WRITE_UINT64_FIELD(shardId);

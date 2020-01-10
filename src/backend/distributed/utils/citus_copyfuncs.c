@@ -85,8 +85,6 @@ copyJobInfo(Job *newnode, Job *from)
 	COPY_SCALAR_FIELD(requiresMasterEvaluation);
 	COPY_SCALAR_FIELD(deferredPruning);
 	COPY_NODE_FIELD(partitionKeyValue);
-
-	elog(INFO, "Job is called");
 	COPY_NODE_FIELD(localPlannedStatements);
 }
 
@@ -125,7 +123,6 @@ CopyNodeDistributedPlan(COPYFUNC_ARGS)
 }
 
 
-
 void
 CopyNodeDistributedSubPlan(COPYFUNC_ARGS)
 {
@@ -134,6 +131,7 @@ CopyNodeDistributedSubPlan(COPYFUNC_ARGS)
 	COPY_SCALAR_FIELD(subPlanId);
 	COPY_NODE_FIELD(plan);
 }
+
 
 void
 CopyNodeLocalPlannedStatement(COPYFUNC_ARGS)
@@ -144,7 +142,6 @@ CopyNodeLocalPlannedStatement(COPYFUNC_ARGS)
 	COPY_NODE_FIELD(localPlan);
 	COPY_SCALAR_FIELD(shardId);
 }
-
 
 
 void

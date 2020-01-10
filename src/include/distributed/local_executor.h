@@ -19,6 +19,7 @@ extern bool LogLocalCommands;
 
 extern bool LocalExecutionHappened;
 extern bool TaskAccessesLocalNode(Task *task);
+extern bool ReplaceShardReferencesWalker(Node *node, Task *task);
 
 extern uint64 ExecuteLocalTaskList(CitusScanState *scanState, List *taskList);
 extern void ExtractLocalAndRemoteTasks(bool readOnlyPlan, List *taskList,

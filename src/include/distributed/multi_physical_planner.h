@@ -119,7 +119,6 @@ typedef enum RowModifyLevel
 } RowModifyLevel;
 
 
-
 typedef struct LocalPlannedStatement
 {
 	CitusNode type;
@@ -235,7 +234,6 @@ typedef struct Task
 	 */
 	bool partiallyLocalOrRemote;
 	Query *query;
-
 } Task;
 
 
@@ -249,7 +247,6 @@ typedef struct RangeTableFragment
 	void *fragmentReference;
 	uint32 rangeTableId;
 } RangeTableFragment;
-
 
 
 /*

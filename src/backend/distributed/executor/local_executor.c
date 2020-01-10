@@ -111,7 +111,6 @@ bool LocalExecutionHappened = false;
 static void SplitLocalAndRemotePlacements(List *taskPlacementList,
 										  List **localTaskPlacementList,
 										  List **remoteTaskPlacementList);
-static bool ReplaceShardReferencesWalker(Node *node, Task *task);
 static uint64 ExecuteLocalTaskPlan(CitusScanState *scanState, PlannedStmt *taskPlan,
 								   char *queryString);
 static void LogLocalCommand(Task *task);
@@ -128,7 +127,7 @@ static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
  *
  * The function returns totalRowsProcessed.
  */
-//static List *cachedPlans = NIL;
+/*static List *cachedPlans = NIL; */
 static bool ParamListEqual(ParamListInfo l, ParamListInfo r);
 uint64
 ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
@@ -157,7 +156,6 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 				lps->distributedPlanId &&
 				lps->shardId == task->anchorShardId)
 			{
-				elog(INFO, "local plan found");
 				localPlan = lps->localPlan;
 			}
 		}
@@ -181,7 +179,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		if (localPlan == NULL)
 		{
 			Query *shardQuery = LocalShardQuery(task, paramListInfo, &numParams,
-													&parameterTypes);
+												&parameterTypes);
 
 			localPlan = planner(shardQuery, cursorOptions, paramListInfo);
 		}
@@ -292,7 +290,7 @@ LocalShardQuery(Task *task, ParamListInfo boundParams,
  * the required locks on the local shards when we replace them, for PG11 these
  * locks should be taken manually.
  */
-static bool
+bool
 ReplaceShardReferencesWalker(Node *node, Task *task)
 {
 	if (node == NULL)
