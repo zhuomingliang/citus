@@ -160,7 +160,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		{
 			LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
 
-			if (distributedPlan->planId == lps->distributedPlanId &&
+			if (distributedPlan->planId == lps->distributedPlanId && distributedPlan->workerJob->jobQuery->commandType != CMD_INSERT &&
 				lps->shardId == task->anchorShardId && ParamListEqual(lps->paramList, paramListInfo))
 			{
 				//elog(INFO, "Using cached plan");
