@@ -231,6 +231,12 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 	 * executions of a prepared statement. Instead we create a deep copy that we only
 	 * use for the current execution.
 	 */
+	DistributedPlan *originalPlan = scanState->distributedPlan;
+	elog(INFO, "originalPlan start: %d", list_length(originalPlan->workerJob->localPlannedStatements));
+
+	MemoryContext originalContext = GetMemoryChunkContext(originalPlan);
+	elog(INFO, "Context: %s", originalContext->name );
+
 	DistributedPlan *distributedPlan = copyObject(scanState->distributedPlan);
 	scanState->distributedPlan = distributedPlan;
 
@@ -239,6 +245,14 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 
 	PlanState *planState = &(scanState->customScanState.ss.ps);
 	EState *executorState = planState->state;
+	ParamListInfo originalParamList = copyParamList(executorState->es_param_list_info);
+
+	if (executorState->es_param_list_info == NULL)
+	{
+		elog(INFO, "Params NULL begin scan: %s", originalContext->name );
+	}		elog(INFO, "Params NOT NULL begin scan: %s", originalContext->name );
+
+
 
 	/* citus only evaluates functions for modification queries */
 	bool modifyQueryRequiresMasterEvaluation =
@@ -260,7 +274,7 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 		 * represented as constants in the deparsed query. To avoid sending
 		 * parameter values, we set the parameter list to NULL.
 		 */
-		executorState->es_param_list_info = NULL;
+		//executorState->es_param_list_info = NULL;
 	}
 
 
@@ -284,7 +298,64 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 	else
 	{
 		HandleDeferredShardPruningForFastPathQueries(distributedPlan);
+
+
+
+
+
+#include "distributed/local_executor.h"
+		Task *afterPruningTask = linitial(distributedPlan->workerJob->taskList);
+
+		if (TaskAccessesLocalNode(afterPruningTask))
+		{
+
+			ListCell *savedLocalPlanCell = NULL;
+			foreach(savedLocalPlanCell, originalPlan->workerJob->localPlannedStatements)
+			{
+				LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
+
+				if ( distributedPlan->planId ==
+					lps->distributedPlanId &&
+					lps->shardId == afterPruningTask->anchorShardId)
+				{
+					elog(INFO, "local plan already exists");
+					return;
+				}
+			}
+
+		int numParams = -1;
+		Oid *parameterTypes = NULL;
+		Query *shardQuery = LocalShardQuery(afterPruningTask, originalParamList, &numParams, &parameterTypes);
+		MemoryContext oldContext = MemoryContextSwitchTo(originalContext);
+
+			LocalPlannedStatement *lps = palloc0(sizeof(LocalPlannedStatement));
+			PlannedStmt *localPlan = planner(shardQuery, 0, originalParamList);
+
+				lps->localPlan = copyObject(localPlan);
+				lps->shardId = afterPruningTask->anchorShardId;
+				lps->distributedPlanId = distributedPlan->planId;
+
+
+		//Task *originalTask = linitial(originalPlan->workerJob->taskList);
+		//originalTask->localPlannedStatements = lappend(originalTask->localPlannedStatements, lps);
+		//distributedPlan->workerJob->localPlannedStatements = lappend(distributedPlan->workerJob->localPlannedStatements, lps);
+		MemoryContext c1  = GetMemoryChunkContext(originalPlan);
+		MemoryContext c2  = GetMemoryChunkContext(originalPlan->workerJob);
+
+			originalPlan->workerJob->localPlannedStatements =
+				lappend(originalPlan->workerJob->localPlannedStatements, lps);
+			originalPlan = copyObject(originalPlan);
+		MemoryContextSwitchTo(oldContext);
+		MemoryContext c3  = GetMemoryChunkContext(originalPlan->workerJob->localPlannedStatements);
+				elog(INFO, "%s-%s-%s-%s", CurrentMemoryContext->name, c1->name, c2->name, c3->name);
+
+		elog(INFO, "local plan added: %d", list_length(originalPlan->workerJob->localPlannedStatements));
+
 	}
+	}
+
+
+
 }
 
 

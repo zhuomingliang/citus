@@ -198,17 +198,12 @@ OutDistributedPlan(OUTFUNC_ARGS)
 	WRITE_BOOL_FIELD(fastPathRouterPlan);
 
 	WRITE_NODE_FIELD(planningError);
-
-	WRITE_NODE_FIELD(localPlannedStatements);
 }
 
 void
 OutLocalPlannedStatement(OUTFUNC_ARGS)
 {
 	WRITE_LOCALS(LocalPlannedStatement);
-
-	WRITE_NODE_TYPE("LocalPlannedStatement");
-
 
 	WRITE_UINT64_FIELD(distributedPlanId);
 	WRITE_NODE_FIELD(localPlan);
@@ -341,6 +336,7 @@ OutJobFields(StringInfo str, const Job *node)
 	WRITE_BOOL_FIELD(requiresMasterEvaluation);
 	WRITE_BOOL_FIELD(deferredPruning);
 	WRITE_NODE_FIELD(partitionKeyValue);
+	WRITE_NODE_FIELD(localPlannedStatements);
 }
 
 

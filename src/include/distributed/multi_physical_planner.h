@@ -118,6 +118,17 @@ typedef enum RowModifyLevel
 	ROW_MODIFY_NONCOMMUTATIVE = 3
 } RowModifyLevel;
 
+
+
+typedef struct LocalPlannedStatement
+{
+	CitusNode type;
+
+	uint64 distributedPlanId;
+	PlannedStmt *localPlan;
+	uint64 shardId;
+} LocalPlannedStatement;
+
 /*
  * Job represents a logical unit of work that contains one set of data transfers
  * in our physical plan. The physical planner maps each SQL query into one or
@@ -136,6 +147,7 @@ typedef struct Job
 	bool requiresMasterEvaluation; /* only applies to modify jobs */
 	bool deferredPruning;
 	Const *partitionKeyValue;
+	List *localPlannedStatements;
 } Job;
 
 
@@ -223,6 +235,7 @@ typedef struct Task
 	 */
 	bool partiallyLocalOrRemote;
 	Query *query;
+
 } Task;
 
 
@@ -238,15 +251,6 @@ typedef struct RangeTableFragment
 } RangeTableFragment;
 
 
-typedef struct LocalPlannedStatement
-{
-	CitusNode type;
-
-	uint64 distributedPlanId;
-	PlannedStmt *localPlan;
-	uint64 shardId;
-	ParamListInfo paramList;
-} LocalPlannedStatement;
 
 /*
  * JoinSequenceNode represents a range table in an ordered sequence of tables
@@ -333,8 +337,6 @@ typedef struct DistributedPlan
 	 * or if prepared statement parameters prevented successful planning.
 	 */
 	DeferredErrorMessage *planningError;
-
-	List *localPlannedStatements;
 } DistributedPlan;
 
 

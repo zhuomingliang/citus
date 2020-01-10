@@ -1103,7 +1103,7 @@ GetDistributedPlan(CustomScan *customScan)
 	Node *node = (Node *) linitial(customScan->custom_private);
 	Assert(CitusIsA(node, DistributedPlan));
 
-	CheckNodeCopyAndSerialization(node);
+	//CheckNodeCopyAndSerialization(node);
 
 	DistributedPlan *distributedPlan = (DistributedPlan *) node;
 

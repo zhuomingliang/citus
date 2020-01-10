@@ -189,6 +189,9 @@ readJobInfo(Job *local_node)
 	READ_BOOL_FIELD(requiresMasterEvaluation);
 	READ_BOOL_FIELD(deferredPruning);
 	READ_NODE_FIELD(partitionKeyValue);
+
+	READ_NODE_FIELD(localPlannedStatements);
+
 }
 
 
@@ -226,7 +229,6 @@ ReadDistributedPlan(READFUNC_ARGS)
 	READ_BOOL_FIELD(fastPathRouterPlan);
 
 	READ_NODE_FIELD(planningError);
-	READ_NODE_FIELD(localPlannedStatements);
 	READ_DONE();
 }
 

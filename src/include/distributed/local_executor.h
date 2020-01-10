@@ -18,6 +18,7 @@ extern bool EnableLocalExecution;
 extern bool LogLocalCommands;
 
 extern bool LocalExecutionHappened;
+extern bool TaskAccessesLocalNode(Task *task);
 
 extern uint64 ExecuteLocalTaskList(CitusScanState *scanState, List *taskList);
 extern void ExtractLocalAndRemoteTasks(bool readOnlyPlan, List *taskList,
@@ -28,5 +29,7 @@ void SetTaskQueryAndPlacementList(Task *task, Query *query, List *placementList)
 extern char * TaskQueryString(Task *task);
 extern void DisableLocalExecution(void);
 extern bool AnyTaskAccessesRemoteNode(List *taskList);
-
+extern Query * LocalShardQuery(Task *task, ParamListInfo
+							   boundParams, int *numParams,
+							   Oid **parameterTypes);
 #endif /* LOCAL_EXECUTION_H */

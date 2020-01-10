@@ -111,13 +111,9 @@ bool LocalExecutionHappened = false;
 static void SplitLocalAndRemotePlacements(List *taskPlacementList,
 										  List **localTaskPlacementList,
 										  List **remoteTaskPlacementList);
-static Query * LocalShardQuery(Task *task, ParamListInfo
-							   boundParams, int *numParams,
-							   Oid **parameterTypes);
 static bool ReplaceShardReferencesWalker(Node *node, Task *task);
 static uint64 ExecuteLocalTaskPlan(CitusScanState *scanState, PlannedStmt *taskPlan,
 								   char *queryString);
-static bool TaskAccessesLocalNode(Task *task);
 static void LogLocalCommand(Task *task);
 static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
 											   Oid **parameterTypes,
@@ -132,7 +128,7 @@ static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
  *
  * The function returns totalRowsProcessed.
  */
-static List *cachedPlans = NIL;
+//static List *cachedPlans = NIL;
 static bool ParamListEqual(ParamListInfo l, ParamListInfo r);
 uint64
 ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
@@ -151,19 +147,17 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		Task *task = (Task *) lfirst(taskCell);
 		PlannedStmt *localPlan = NULL;
 
-		Query *shardQuery = LocalShardQuery(task, paramListInfo, &numParams,
-											&parameterTypes);
 
 		ListCell *savedLocalPlanCell = NULL;
-		foreach(savedLocalPlanCell, cachedPlans)
+		foreach(savedLocalPlanCell, distributedPlan->workerJob->localPlannedStatements)
 		{
 			LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
 
 			if (task->queryStringLazy == NULL && distributedPlan->planId ==
 				lps->distributedPlanId &&
-				lps->shardId == task->anchorShardId && paramListInfo == NULL &&
-				ParamListEqual(lps->paramList, paramListInfo))
+				lps->shardId == task->anchorShardId)
 			{
+				elog(INFO, "local plan found");
 				localPlan = lps->localPlan;
 			}
 		}
@@ -186,21 +180,10 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		 */
 		if (localPlan == NULL)
 		{
+			Query *shardQuery = LocalShardQuery(task, paramListInfo, &numParams,
+													&parameterTypes);
+
 			localPlan = planner(shardQuery, cursorOptions, paramListInfo);
-
-			MemoryContext oldContext = MemoryContextSwitchTo(CacheMemoryContext);
-			if (paramListInfo == NULL && task->queryStringLazy == NULL)
-			{
-				LocalPlannedStatement *lps = palloc0(sizeof(LocalPlannedStatement));
-
-				lps->localPlan = copyObject(localPlan);
-				lps->shardId = task->anchorShardId;
-				lps->distributedPlanId = distributedPlan->planId;
-				lps->paramList = copyParamList(paramListInfo);
-				cachedPlans = lappend(cachedPlans, lps);
-			}
-
-			MemoryContextSwitchTo(oldContext);
 		}
 
 		LogLocalCommand(task);
@@ -253,7 +236,7 @@ ParamListEqual(ParamListInfo l, ParamListInfo r)
  * The function behaves differently when the task->queryString is avaliable
  * or not. See the comments in the function for the details.
  */
-static Query *
+Query *
 LocalShardQuery(Task *task, ParamListInfo boundParams,
 				int *numParams, Oid **parameterTypes)
 {
@@ -619,7 +602,7 @@ ShouldExecuteTasksLocally(List *taskList)
  * TaskAccessesLocalNode returns true if any placements of the task reside on the
  * node that we're executing the query.
  */
-static bool
+bool
 TaskAccessesLocalNode(Task *task)
 {
 	ListCell *placementCell = NULL;
