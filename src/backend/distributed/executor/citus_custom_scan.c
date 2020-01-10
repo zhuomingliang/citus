@@ -329,7 +329,11 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 			MemoryContext oldContext = MemoryContextSwitchTo(originalContext);
 
 			LocalPlannedStatement *lps = CitusMakeNode(LocalPlannedStatement);
+#if PG_VERSION_NUM >= 120000
 #include "optimizer/optimizer.h"
+#else
+#include "optimizer/planner.h"
+#endif
 			PlannedStmt *localPlan = planner(shardQuery, 0, originalParamList);
 
 			lps->localPlan = copyObject(localPlan);
