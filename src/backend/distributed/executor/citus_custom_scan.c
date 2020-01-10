@@ -310,7 +310,7 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 				if (distributedPlan->planId == lps->distributedPlanId &&
 					lps->shardId == afterPruningTask->anchorShardId)
 				{
-	LockRelationOid(linitial_oid(lps->localPlan->relationOids), RowExclusiveLock);
+//	LockRelationOid(linitial_oid(lps->localPlan->relationOids), RowExclusiveLock);
 //#if PG_VERSION_NUM < 120000
 				//	ReplaceShardReferencesWalker((Node *) afterPruningTask->query, afterPruningTask);
 //
