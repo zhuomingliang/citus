@@ -161,7 +161,6 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 			if (distributedPlan->planId == lps->distributedPlanId &&
 				lps->shardId == task->anchorShardId)
 			{
-				elog(INFO, "found local: %ld", task->anchorShardId);
 				localPlan = lps->localPlan;
 			}
 		}
