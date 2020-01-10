@@ -122,6 +122,7 @@ CopyNodeDistributedPlan(COPYFUNC_ARGS)
 	COPY_NODE_FIELD(localPlannedStatements);
 }
 
+
 void
 CopyNodeLocalPlannedStatement(COPYFUNC_ARGS)
 {
@@ -131,6 +132,7 @@ CopyNodeLocalPlannedStatement(COPYFUNC_ARGS)
 	COPY_NODE_FIELD(localPlan);
 	COPY_SCALAR_FIELD(shardId);
 }
+
 
 void
 CopyNodeDistributedSubPlan(COPYFUNC_ARGS)

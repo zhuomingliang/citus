@@ -133,8 +133,7 @@ static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
  * The function returns totalRowsProcessed.
  */
 static List *cachedPlans = NIL;
-static bool
-ParamListEqual(ParamListInfo l, ParamListInfo r);
+static bool ParamListEqual(ParamListInfo l, ParamListInfo r);
 uint64
 ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 {
@@ -160,7 +159,8 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		{
 			LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
 
-			if (task->queryStringLazy == NULL && distributedPlan->planId == lps->distributedPlanId &&
+			if (task->queryStringLazy == NULL && distributedPlan->planId ==
+				lps->distributedPlanId &&
 				lps->shardId == task->anchorShardId && paramListInfo == NULL &&
 				ParamListEqual(lps->paramList, paramListInfo))
 			{
@@ -186,19 +186,18 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		 */
 		if (localPlan == NULL)
 		{
-
 			localPlan = planner(shardQuery, cursorOptions, paramListInfo);
 
 			MemoryContext oldContext = MemoryContextSwitchTo(CacheMemoryContext);
-			if(paramListInfo == NULL && task->queryStringLazy == NULL)
+			if (paramListInfo == NULL && task->queryStringLazy == NULL)
 			{
-			LocalPlannedStatement *lps = palloc0(sizeof(LocalPlannedStatement));
+				LocalPlannedStatement *lps = palloc0(sizeof(LocalPlannedStatement));
 
-			lps->localPlan = copyObject(localPlan);
-			lps->shardId = task->anchorShardId;
-			lps->distributedPlanId = distributedPlan->planId;
-			lps->paramList = copyParamList(paramListInfo);
-			cachedPlans = lappend(cachedPlans, lps);
+				lps->localPlan = copyObject(localPlan);
+				lps->shardId = task->anchorShardId;
+				lps->distributedPlanId = distributedPlan->planId;
+				lps->paramList = copyParamList(paramListInfo);
+				cachedPlans = lappend(cachedPlans, lps);
 			}
 
 			MemoryContextSwitchTo(oldContext);
@@ -213,15 +212,19 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 	return totalRowsProcessed;
 }
 
+
 static bool
 ParamListEqual(ParamListInfo l, ParamListInfo r)
 {
-
 	if (l == NULL && r == NULL)
+	{
 		return true;
+	}
 
 	if (l == NULL || r == NULL)
-			return false;
+	{
+		return false;
+	}
 
 	if (l->numParams != r->numParams)
 	{
@@ -242,6 +245,7 @@ ParamListEqual(ParamListInfo l, ParamListInfo r)
 
 	return false;
 }
+
 
 /*
  * LocalTaskPlannedStmt creates the PlannedStmt for the input task.
