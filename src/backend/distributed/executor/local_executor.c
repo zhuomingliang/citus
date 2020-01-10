@@ -190,7 +190,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 			localPlan = planner(shardQuery, cursorOptions, paramListInfo);
 
 			MemoryContext oldContext = MemoryContextSwitchTo(CacheMemoryContext);
-			if(paramListInfo == NULL)
+			if(paramListInfo == NULL && task->queryStringLazy == NULL)
 			{
 			LocalPlannedStatement *lps = palloc0(sizeof(LocalPlannedStatement));
 
