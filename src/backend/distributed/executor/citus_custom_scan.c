@@ -233,7 +233,7 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 	 */
 	DistributedPlan *distributedPlan = copyObject(scanState->distributedPlan);
 	scanState->distributedPlan = distributedPlan;
-//elog(INFO, "distributedPlan:%ld",distributedPlan->planId);
+
 	Job *workerJob = distributedPlan->workerJob;
 	Query *jobQuery = workerJob->jobQuery;
 
