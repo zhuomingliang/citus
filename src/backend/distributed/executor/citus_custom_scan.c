@@ -216,7 +216,8 @@ CitusModifyBeginScan(CustomScanState *node, EState *estate, int eflags)
 	workerJob->taskList = FirstReplicaAssignTaskList(taskList);
 }
 #include "rewrite/rewriteHandler.h"
-
+static Oid
+ExtractFirstTableId(Query *query);
 /*
  * CitusGenerateDeferredQueryStrings generates query strings at the start of the execution
  * in two cases: when the query requires master evaluation and/or deferred shard pruning.
@@ -290,8 +291,6 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 	else
 	{
 		HandleDeferredShardPruningForFastPathQueries(distributedPlan);
-		if (distributedPlan->workerJob->jobQuery->commandType == CMD_INSERT)
-			return;
 
 #include "distributed/local_executor.h"
 		Task *afterPruningTask = linitial(distributedPlan->workerJob->taskList);
@@ -306,12 +305,11 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 				if (distributedPlan->planId == lps->distributedPlanId &&
 					lps->shardId == afterPruningTask->anchorShardId)
 				{
-
-
+	LockRelationOid(linitial_oid(lps->localPlan->relationOids), RowExclusiveLock);
 //#if PG_VERSION_NUM < 120000
-					ReplaceShardReferencesWalker((Node *) afterPruningTask->query, afterPruningTask);
-
-					AcquireRewriteLocks(afterPruningTask->query, true, false);
+				//	ReplaceShardReferencesWalker((Node *) afterPruningTask->query, afterPruningTask);
+//
+			//		AcquireRewriteLocks(afterPruningTask->query, true, false);
 //#else
 
 					/*
@@ -352,6 +350,7 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 		}
 	}
 }
+
 
 
 /*
