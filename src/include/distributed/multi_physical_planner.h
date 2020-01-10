@@ -242,6 +242,7 @@ typedef struct LocalPlannedStatement
 {
 	CitusNode type;
 
+	uint64 distributedPlanId;
 	PlannedStmt *localPlan;
 	uint64 shardId;
 

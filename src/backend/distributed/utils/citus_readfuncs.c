@@ -235,6 +235,7 @@ ReadLocalPlannedStatement(READFUNC_ARGS)
 {
 	READ_LOCALS(LocalPlannedStatement);
 
+	READ_UINT64_FIELD(distributedPlanId);
 	READ_NODE_FIELD(localPlan);
 	READ_UINT64_FIELD(shardId);
 

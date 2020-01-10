@@ -126,6 +126,7 @@ void
 CopyNodeLocalPlannedStatement(COPYFUNC_ARGS)
 {
 	DECLARE_FROM_AND_NEW_NODE(LocalPlannedStatement);
+	COPY_SCALAR_FIELD(distributedPlanId);
 
 	COPY_NODE_FIELD(localPlan);
 	COPY_SCALAR_FIELD(shardId);
