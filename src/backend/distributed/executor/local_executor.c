@@ -161,9 +161,9 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 			LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
 
 			if (distributedPlan->planId == lps->distributedPlanId &&
-				lps->shardId == task->anchorShardId && ParamListEqual(lps->paramList, paramListInfo))
+				lps->shardId == task->anchorShardId && paramListInfo == NULL &&
+				ParamListEqual(lps->paramList, paramListInfo))
 			{
-				//elog(INFO, "Using cached plan");
 				localPlan = lps->localPlan;
 			}
 		}
@@ -190,7 +190,8 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 			localPlan = planner(shardQuery, cursorOptions, paramListInfo);
 
 			MemoryContext oldContext = MemoryContextSwitchTo(CacheMemoryContext);
-
+			if(paramListInfo == NULL && shardQuery->commandType != CMD_INSERT)
+			{
 			LocalPlannedStatement *lps = palloc0(sizeof(LocalPlannedStatement));
 
 			lps->localPlan = copyObject(localPlan);
@@ -198,7 +199,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 			lps->distributedPlanId = distributedPlan->planId;
 			lps->paramList = copyParamList(paramListInfo);
 			cachedPlans = lappend(cachedPlans, lps);
-			//elog(INFO, "caching plan");
+			}
 
 			MemoryContextSwitchTo(oldContext);
 		}
