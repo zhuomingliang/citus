@@ -133,6 +133,8 @@ static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
  * The function returns totalRowsProcessed.
  */
 static List *cachedPlans = NIL;
+static bool
+ParamListEqual(ParamListInfo l, ParamListInfo r);
 uint64
 ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 {
@@ -159,8 +161,9 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 			LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
 
 			if (distributedPlan->planId == lps->distributedPlanId &&
-				lps->shardId == task->anchorShardId)
+				lps->shardId == task->anchorShardId && ParamListEqual(lps->paramList, paramListInfo))
 			{
+				//elog(INFO, "Using cached plan");
 				localPlan = lps->localPlan;
 			}
 		}
@@ -193,7 +196,10 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 			lps->localPlan = copyObject(localPlan);
 			lps->shardId = task->anchorShardId;
 			lps->distributedPlanId = distributedPlan->planId;
+			lps->paramList = copyParamList(paramListInfo);
 			cachedPlans = lappend(cachedPlans, lps);
+			//elog(INFO, "caching plan");
+
 			MemoryContextSwitchTo(oldContext);
 		}
 
@@ -206,6 +212,35 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 	return totalRowsProcessed;
 }
 
+static bool
+ParamListEqual(ParamListInfo l, ParamListInfo r)
+{
+
+	if (l == NULL && r == NULL)
+		return true;
+
+	if (l == NULL || r == NULL)
+			return false;
+
+	if (l->numParams != r->numParams)
+	{
+		return false;
+	}
+	StringInfo lStr = makeStringInfo();
+	StringInfo rStr = makeStringInfo();
+
+
+	SerializeParamList(l, &lStr->data);
+	SerializeParamList(r, &rStr->data);
+
+	if (strncmp(lStr->data, rStr->data, 2048) == 0)
+	{
+		return true;
+	}
+
+
+	return false;
+}
 
 /*
  * LocalTaskPlannedStmt creates the PlannedStmt for the input task.

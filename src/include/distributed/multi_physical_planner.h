@@ -245,7 +245,7 @@ typedef struct LocalPlannedStatement
 	uint64 distributedPlanId;
 	PlannedStmt *localPlan;
 	uint64 shardId;
-
+	ParamListInfo paramList;
 } LocalPlannedStatement;
 
 /*
