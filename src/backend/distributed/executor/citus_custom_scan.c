@@ -235,8 +235,13 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 	DistributedPlan *originalPlan = scanState->distributedPlan;
 
 	MemoryContext originalContext = GetMemoryChunkContext(originalPlan);
-
+	LocalPlannedStatement *localPlan = scanState->distributedPlan->workerJob->localPlannedStatements;
+	scanState->distributedPlan->workerJob->localPlannedStatements = NULL;
 	DistributedPlan *distributedPlan = copyObject(scanState->distributedPlan);
+	scanState->distributedPlan->workerJob->localPlannedStatements = localPlan;
+	distributedPlan->workerJob->localPlannedStatements = localPlan;
+
+
 	scanState->distributedPlan = distributedPlan;
 
 	Job *workerJob = distributedPlan->workerJob;
