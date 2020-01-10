@@ -160,7 +160,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		{
 			LocalPlannedStatement *lps = lfirst(savedLocalPlanCell);
 
-			if (distributedPlan->planId == lps->distributedPlanId &&
+			if (task->queryStringLazy == NULL && distributedPlan->planId == lps->distributedPlanId &&
 				lps->shardId == task->anchorShardId && paramListInfo == NULL &&
 				ParamListEqual(lps->paramList, paramListInfo))
 			{
@@ -190,7 +190,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 			localPlan = planner(shardQuery, cursorOptions, paramListInfo);
 
 			MemoryContext oldContext = MemoryContextSwitchTo(CacheMemoryContext);
-			if(paramListInfo == NULL && shardQuery->commandType == CMD_SELECT)
+			if(paramListInfo == NULL)
 			{
 			LocalPlannedStatement *lps = palloc0(sizeof(LocalPlannedStatement));
 
