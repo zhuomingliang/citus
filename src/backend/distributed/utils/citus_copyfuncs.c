@@ -85,6 +85,7 @@ copyJobInfo(Job *newnode, Job *from)
 	COPY_SCALAR_FIELD(requiresMasterEvaluation);
 	COPY_SCALAR_FIELD(deferredPruning);
 	COPY_NODE_FIELD(partitionKeyValue);
+	COPY_NODE_FIELD(localPlannedStatements);
 }
 
 
@@ -261,6 +262,16 @@ CopyNodeTask(COPYFUNC_ARGS)
 	COPY_NODE_FIELD(relationRowLockList);
 	COPY_NODE_FIELD(rowValuesLists);
 	COPY_SCALAR_FIELD(partiallyLocalOrRemote);
+}
+
+
+void
+CopyNodeLocalPlannedStatement(COPYFUNC_ARGS)
+{
+	DECLARE_FROM_AND_NEW_NODE(LocalPlannedStatement);
+
+	COPY_SCALAR_FIELD(shardId);
+	COPY_NODE_FIELD(localPlan);
 }
 
 
