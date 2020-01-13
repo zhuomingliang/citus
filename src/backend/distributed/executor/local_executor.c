@@ -93,6 +93,7 @@
 
 /* controlled via a GUC */
 bool EnableLocalExecution = true;
+bool EnableLocalExecutionPlanning = true;
 bool LogLocalCommands = false;
 
 bool LocalPlacementExecutionHappened = false;

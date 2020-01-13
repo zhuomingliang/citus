@@ -25,6 +25,7 @@
 #include "distributed/deparse_shard_query.h"
 #include "distributed/distribution_column.h"
 #include "distributed/errormessage.h"
+#include "distributed/local_executor.h"
 #include "distributed/log_utils.h"
 #include "distributed/insert_select_planner.h"
 #include "distributed/master_metadata_utility.h"
@@ -154,6 +155,7 @@ static bool SelectsFromDistributedTable(List *rangeTableList, Query *query);
 static List * get_all_actual_clauses(List *restrictinfo_list);
 static int CompareInsertValuesByShardId(const void *leftElement,
 										const void *rightElement);
+static ShardPlacement * CreateDummyPlacement(void);
 static uint64 GetAnchorShardId(List *relationShardList);
 static List * TargetShardIntervalForFastPathQuery(Query *query,
 												  Const **partitionValueConst,
@@ -2162,13 +2164,11 @@ PlanRouterQuery(Query *originalQuery,
 	}
 	else if (replacePrunedQueryWithDummy)
 	{
-		ShardPlacement *dummyPlacement =
-			(ShardPlacement *) CitusMakeNode(ShardPlacement);
-		dummyPlacement->nodeName = LOCAL_HOST_NAME;
-		dummyPlacement->nodePort = PostPortNumber;
-		dummyPlacement->groupId = GetLocalGroupId();
-
-		workerList = lappend(workerList, dummyPlacement);
+		ShardPlacement *dummyPlacement = CreateDummyPlacement();
+		if (dummyPlacement != NULL)
+		{
+			workerList = lappend(workerList, dummyPlacement);
+		}
 	}
 	else
 	{
@@ -2204,6 +2204,50 @@ PlanRouterQuery(Query *originalQuery,
 	*anchorShardId = shardId;
 
 	return planningError;
+}
+
+
+/*
+ * CreateDummyPlacement creates a dummy placement that can be used for zero
+ * shard queries.
+ *
+ * If local execution is enabled, the placement points to the local group.
+ * Otherwise an active worker is selected using round robin policy to create the
+ * dummy placement. In case there are no active workers, NULL pointer is returned.
+ */
+static ShardPlacement *
+CreateDummyPlacement(void)
+{
+	static uint32 zeroShardQueryRoundRobin = 0;
+	ShardPlacement *dummyPlacement = CitusMakeNode(ShardPlacement);
+
+	if (!EnableLocalExecutionPlanning)
+	{
+		List *workerNodeList = ActiveReadableWorkerNodeList();
+		if (workerNodeList == NIL)
+		{
+			return NULL;
+		}
+
+		int workerNodeCount = list_length(workerNodeList);
+		int workerNodeIndex = zeroShardQueryRoundRobin % workerNodeCount;
+		WorkerNode *workerNode = (WorkerNode *) list_nth(workerNodeList,
+														 workerNodeIndex);
+		dummyPlacement->nodeName = workerNode->workerName;
+		dummyPlacement->nodePort = workerNode->workerPort;
+		dummyPlacement->nodeId = workerNode->nodeId;
+		dummyPlacement->groupId = workerNode->groupId;
+
+		zeroShardQueryRoundRobin++;
+	}
+	else
+	{
+		dummyPlacement->nodeName = LOCAL_HOST_NAME;
+		dummyPlacement->nodePort = PostPortNumber;
+		dummyPlacement->groupId = GetLocalGroupId();
+	}
+
+	return dummyPlacement;
 }
 
 
