@@ -89,6 +89,7 @@
 #endif
 #include "nodes/params.h"
 #include "utils/snapmgr.h"
+#include "utils/lsyscache.h"
 
 
 /* controlled via a GUC */
@@ -103,7 +104,6 @@ static void SplitLocalAndRemotePlacements(List *taskPlacementList,
 										  List **remoteTaskPlacementList);
 static uint64 ExecuteLocalTaskPlan(CitusScanState *scanState, PlannedStmt *taskPlan,
 								   char *queryString);
-static bool TaskAccessesLocalNode(Task *task);
 static void LogLocalCommand(const char *command);
 
 static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
@@ -122,6 +122,7 @@ static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
 uint64
 ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 {
+	DistributedPlan *distributedPlan = scanState->distributedPlan;
 	EState *executorState = ScanStateGetExecutorState(scanState);
 	ParamListInfo paramListInfo = copyParamList(executorState->es_param_list_info);
 	int numParams = 0;
@@ -142,27 +143,56 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 	foreach(taskCell, taskList)
 	{
 		Task *task = (Task *) lfirst(taskCell);
+		PlannedStmt *localPlan = NULL;
 
 		const char *shardQueryString = task->queryString;
-		Query *shardQuery = ParseQueryString(shardQueryString, parameterTypes, numParams);
+		ListCell *savedLocalPlanCell = NULL;
+		foreach(savedLocalPlanCell, distributedPlan->workerJob->localPlannedStatements)
+		{
+			LocalPlannedStatement *localPlannedStatement = lfirst(savedLocalPlanCell);
 
-		/*
-		 * We should not consider using CURSOR_OPT_FORCE_DISTRIBUTED in case of
-		 * intermediate results in the query. That'd trigger ExecuteLocalTaskPlan()
-		 * go through the distributed executor, which we do not want since the
-		 * query is already known to be local.
-		 */
-		int cursorOptions = 0;
+			if (localPlannedStatement->shardId == task->anchorShardId)
+			{
+				/* we're done, the executor will use the plan */
+				localPlan = localPlannedStatement->localPlan;
 
-		/*
-		 * Altough the shardQuery is local to this node, we prefer planner()
-		 * over standard_planner(). The primary reason for that is Citus itself
-		 * is not very tolarent standard_planner() calls that doesn't go through
-		 * distributed_planner() because of the way that restriction hooks are
-		 * implemented. So, let planner to call distributed_planner() which
-		 * eventually calls standard_planner().
-		 */
-		PlannedStmt *localPlan = planner(shardQuery, cursorOptions, paramListInfo);
+				LOCKMODE lockMode =
+					localPlannedStatement->localPlan->commandType == CMD_SELECT ?
+					AccessShareLock : RowExclusiveLock;
+
+				if (task->relationRowLockList != NIL)
+				{
+					lockMode = RowShareLock;
+				}
+				ListCell *oidCell = NULL;
+				foreach(oidCell, localPlan->relationOids)
+				LockRelationOid(lfirst_oid(oidCell), lockMode);
+			}
+		}
+
+		if (localPlan == NULL)
+		{
+			Query *shardQuery = ParseQueryString(shardQueryString, parameterTypes,
+												 numParams);
+
+			/*
+			 * We should not consider using CURSOR_OPT_FORCE_DISTRIBUTED in case of
+			 * intermediate results in the query. That'd trigger ExecuteLocalTaskPlan()
+			 * go through the distributed executor, which we do not want since the
+			 * query is already known to be local.
+			 */
+			int cursorOptions = 0;
+
+			/*
+			 * Altough the shardQuery is local to this node, we prefer planner()
+			 * over standard_planner(). The primary reason for that is Citus itself
+			 * is not very tolarent standard_planner() calls that doesn't go through
+			 * distributed_planner() because of the way that restriction hooks are
+			 * implemented. So, let planner to call distributed_planner() which
+			 * eventually calls standard_planner().
+			 */
+			localPlan = planner(shardQuery, cursorOptions, paramListInfo);
+		}
 
 		LogLocalCommand(shardQueryString);
 
@@ -432,7 +462,7 @@ ShouldExecuteTasksLocally(List *taskList)
  * TaskAccessesLocalNode returns true if any placements of the task reside on the
  * node that we're executing the query.
  */
-static bool
+bool
 TaskAccessesLocalNode(Task *task)
 {
 	ListCell *placementCell = NULL;

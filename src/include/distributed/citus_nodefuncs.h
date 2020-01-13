@@ -22,12 +22,13 @@ extern void SetRangeTblExtraData(RangeTblEntry *rte, CitusRTEKind rteKind,
 extern void ModifyRangeTblExtraData(RangeTblEntry *rte, CitusRTEKind rteKind,
 									char *fragmentSchemaName, char *fragmentTableName,
 									List *tableIdList);
-extern void ExtractRangeTblExtraData(RangeTblEntry *rte, CitusRTEKind *rteKind,
+extern bool ExtractRangeTblExtraData(RangeTblEntry *rte, CitusRTEKind *rteKind,
 									 char **fragmentSchemaName, char **fragmentTableName,
 									 List **tableIdList);
 extern CitusRTEKind GetRangeTblKind(RangeTblEntry *rte);
 
 extern void RegisterNodes(void);
+extern void UnsetRangeTblExtraData(RangeTblEntry *rte);
 
 /*
  * Define read functions for citus nodes in a way they're usable across

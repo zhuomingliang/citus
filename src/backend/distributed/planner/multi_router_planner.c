@@ -1581,6 +1581,12 @@ RouterInsertTaskList(Query *query, DeferredErrorMessage **planningError)
 		modifyTask->replicationModel = cacheEntry->replicationModel;
 		modifyTask->rowValuesLists = modifyRoute->rowValuesLists;
 
+		RelationShard *rs = CitusMakeNode(RelationShard);
+		rs->shardId = modifyRoute->shardId;
+		rs->relationId = distributedTableId;
+
+		modifyTask->relationShardList = list_make1(rs);
+
 		insertTaskList = lappend(insertTaskList, modifyTask);
 	}
 

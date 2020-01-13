@@ -15,19 +15,28 @@
 #include "distributed/backend_data.h"
 #include "distributed/citus_clauses.h"
 #include "distributed/citus_custom_scan.h"
+#include "distributed/citus_nodefuncs.h"
 #include "distributed/deparse_shard_query.h"
 #include "distributed/distributed_execution_locks.h"
 #include "distributed/insert_select_executor.h"
 #include "distributed/insert_select_planner.h"
+#include "distributed/local_executor.h"
 #include "distributed/multi_executor.h"
 #include "distributed/multi_server_executor.h"
 #include "distributed/multi_router_planner.h"
+#if PG_VERSION_NUM >= 120000
+#include "optimizer/optimizer.h"
+#else
+#include "optimizer/planner.h"
+#endif
+#include "optimizer/clauses.h"
 #include "distributed/query_stats.h"
 #include "distributed/subplan_execution.h"
 #include "distributed/worker_protocol.h"
 #include "executor/executor.h"
 #include "nodes/makefuncs.h"
 #include "utils/memutils.h"
+#include "utils/lsyscache.h"
 #include "utils/rel.h"
 
 
@@ -231,14 +240,21 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 	 * executions of a prepared statement. Instead we create a deep copy that we only
 	 * use for the current execution.
 	 */
-	DistributedPlan *distributedPlan = copyObject(scanState->distributedPlan);
+	DistributedPlan *cachedDistributedPlan = scanState->distributedPlan;
+	List *localPlannedStatements = cachedDistributedPlan->workerJob->localPlannedStatements;
+	cachedDistributedPlan->workerJob->localPlannedStatements = NIL;
+
+	DistributedPlan *distributedPlan = copyObject(cachedDistributedPlan);
+
+	cachedDistributedPlan->workerJob->localPlannedStatements = localPlannedStatements;
+	distributedPlan->workerJob->localPlannedStatements = localPlannedStatements;
+
 	scanState->distributedPlan = distributedPlan;
 
 	Job *workerJob = distributedPlan->workerJob;
 	Query *jobQuery = workerJob->jobQuery;
 
 	PlanState *planState = &(scanState->customScanState.ss.ps);
-	EState *executorState = planState->state;
 
 	/* citus only evaluates functions for modification queries */
 	bool modifyQueryRequiresMasterEvaluation =
@@ -260,7 +276,8 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 		 * represented as constants in the deparsed query. To avoid sending
 		 * parameter values, we set the parameter list to NULL.
 		 */
-		executorState->es_param_list_info = NULL;
+
+		/*executorState->es_param_list_info = NULL; */
 	}
 
 
@@ -280,10 +297,69 @@ CitusGenerateDeferredQueryStrings(CustomScanState *node, EState *estate, int efl
 	if (jobQuery->commandType == CMD_INSERT)
 	{
 		HandleDeferredShardPruningForInserts(distributedPlan);
+
+		/* modify tasks are always assigned using first-replica policy */
+		workerJob->taskList = FirstReplicaAssignTaskList(
+			distributedPlan->workerJob->taskList);
 	}
 	else
 	{
 		HandleDeferredShardPruningForFastPathQueries(distributedPlan);
+	}
+
+	if (list_length(distributedPlan->workerJob->taskList) != 1)
+	{
+		return;
+	}
+
+	Task *afterPruningTask = linitial(distributedPlan->workerJob->taskList);
+	if (TaskAccessesLocalNode(afterPruningTask) &&
+		!contain_volatile_functions((Node *) cachedDistributedPlan->workerJob->jobQuery))
+	{
+		ListCell *savedLocalPlanCell = NULL;
+		foreach(savedLocalPlanCell, distributedPlan->workerJob->localPlannedStatements)
+		{
+			LocalPlannedStatement *localPlannedStatement = lfirst(savedLocalPlanCell);
+
+			if (localPlannedStatement->shardId == afterPruningTask->anchorShardId)
+			{
+				return;
+			}
+		}
+
+		/* we couldn't find a saved local plan, try to save the plan */
+		MemoryContext oldContext =
+			MemoryContextSwitchTo(GetMemoryChunkContext(cachedDistributedPlan));
+
+		Query *shardQuery = copyObject(cachedDistributedPlan->workerJob->jobQuery);
+
+		UpdateRelationToShardNames((Node *) shardQuery,
+								   afterPruningTask->relationShardList);
+		RangeTblEntry *rte = (RangeTblEntry *) linitial(shardQuery->rtable);
+		UnsetRangeTblExtraData(rte);
+
+		/*elog(DEBUG4, "Found in execution: %s", get_rel_name(rte->relid)); */
+
+		LOCKMODE lockMode = shardQuery->commandType == CMD_SELECT ? AccessShareLock :
+							RowExclusiveLock;
+
+		if (shardQuery->hasForUpdate)
+		{
+			lockMode = RowShareLock;
+		}
+
+		LockRelationOid(rte->relid, lockMode);
+
+		LocalPlannedStatement *localPlannedStatement = CitusMakeNode(
+			LocalPlannedStatement);
+		PlannedStmt *localPlan = planner(shardQuery, 0, NULL);
+		localPlannedStatement->localPlan = localPlan;
+		localPlannedStatement->shardId = afterPruningTask->anchorShardId;
+		cachedDistributedPlan->workerJob->localPlannedStatements =
+			lappend(cachedDistributedPlan->workerJob->localPlannedStatements,
+					localPlannedStatement);
+
+		MemoryContextSwitchTo(oldContext);
 	}
 }
 

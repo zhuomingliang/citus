@@ -152,7 +152,7 @@ typedef struct Job
 	Const *partitionKeyValue;
 
 	/* for local shard queries, we may save the local plan here */
-	LocalPlannedStatement *localPlannedStatements;
+	List *localPlannedStatements;
 } Job;
 
 
@@ -169,7 +169,6 @@ typedef struct MapMergeJob
 	List *mapTaskList;
 	List *mergeTaskList;
 } MapMergeJob;
-
 
 
 /*
