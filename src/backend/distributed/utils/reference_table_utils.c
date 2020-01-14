@@ -15,6 +15,7 @@
 #include "access/heapam.h"
 #include "access/htup_details.h"
 #include "access/genam.h"
+#include "catalog/pg_constraint.h"
 #include "distributed/colocation_utils.h"
 #include "distributed/commands.h"
 #include "distributed/listutils.h"
@@ -391,15 +392,18 @@ CreateReferenceTableColocationId()
 
 
 /*
- * DeleteAllReferenceTablePlacementsFromNodeGroup function iterates over list of reference
- * tables and deletes all reference table placements from pg_dist_placement table
- * for given group.
+ * DeleteAllReferenceTablePlacementsFromNodeGroup function iterates over list of
+ * reference tables and deletes all reference table placements from pg_dist_placement
+ * table for given group.
+ *
+ * Error out if we are to remove coordinator if it has reference table replicas and
+ * if any of those replicas is involved in a foreign constraint with a coordinator
+ * local table.
  */
 void
 DeleteAllReferenceTablePlacementsFromNodeGroup(int32 groupId)
 {
 	List *referenceTableList = ReferenceTableOidList();
-	List *referenceShardIntervalList = NIL;
 
 	/* if there are no reference tables, we do not need to do anything */
 	if (list_length(referenceTableList) == 0)
@@ -414,7 +418,8 @@ DeleteAllReferenceTablePlacementsFromNodeGroup(int32 groupId)
 	referenceTableList = SortList(referenceTableList, CompareOids);
 	if (ClusterHasKnownMetadataWorkers())
 	{
-		referenceShardIntervalList = GetSortedReferenceShardIntervals(referenceTableList);
+		List *referenceShardIntervalList = GetSortedReferenceShardIntervals(
+			referenceTableList);
 
 		BlockWritesToShardList(referenceShardIntervalList);
 	}
@@ -432,12 +437,24 @@ DeleteAllReferenceTablePlacementsFromNodeGroup(int32 groupId)
 		}
 
 		GroupShardPlacement *placement = (GroupShardPlacement *) linitial(placements);
+		uint64 referenceTableShardId = placement->shardId;
 
-		LockShardDistributionMetadata(placement->shardId, ExclusiveLock);
+		LockShardDistributionMetadata(referenceTableShardId, ExclusiveLock);
 
 		DeleteShardPlacementRow(placement->placementId);
 
+		/*
+		 * Error out if we are to remove coordinator and if reference table with
+		 * referenceTableId is involved in a foreign constraint with a coordinator
+		 * local table.
+		 */
+		if (groupId == COORDINATOR_GROUP_ID)
+		{
+			ErrorIfCoordinatorHasLocalTableReferencingReferenceTable(referenceTableId);
+		}
+
 		resetStringInfo(deletePlacementCommand);
+
 		appendStringInfo(deletePlacementCommand,
 						 "DELETE FROM pg_dist_placement WHERE placementid = "
 						 UINT64_FORMAT,
