@@ -104,6 +104,8 @@ extern void ErrorIfUnsupportedAlterAddDropFKeyBetweenReferecenceAndLocalTable(Oi
 																			  referencedTableOid,
 																			  Constraint *
 																			  constraint);
+extern void ErrorIfCoordinatorHasLocalTableReferencingReferenceTable(Oid
+																	 referenceTableOid);
 extern bool ColumnAppearsInForeignKeyToReferenceTable(char *columnName, Oid
 													  relationId);
 extern List * GetTableForeignConstraintCommands(Oid relationId);
