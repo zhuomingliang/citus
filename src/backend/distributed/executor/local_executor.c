@@ -72,22 +72,32 @@
 #include "postgres.h"
 #include "miscadmin.h"
 
+#include "catalog/namespace.h"
 #include "distributed/citus_custom_scan.h"
+#include "distributed/citus_nodefuncs.h"
+#include "distributed/citus_ruleutils.h"
+#include "distributed/deparse_shard_query.h"
 #include "distributed/local_executor.h"
 #include "distributed/multi_executor.h"
 #include "distributed/master_protocol.h"
 #include "distributed/metadata_cache.h"
 #include "distributed/relation_access_tracking.h"
 #include "distributed/remote_commands.h" /* to access LogRemoteCommands */
+#include "distributed/version_compat.h"
 #include "distributed/transaction_management.h"
 #include "executor/tstoreReceiver.h"
 #include "executor/tuptable.h"
+#include "nodes/makefuncs.h"
+#include "nodes/nodeFuncs.h"
 #if PG_VERSION_NUM >= 120000
 #include "optimizer/optimizer.h"
 #else
 #include "optimizer/planner.h"
 #endif
+#include "parser/parsetree.h"
+#include "rewrite/rewriteHandler.h"
 #include "nodes/params.h"
+#include "utils/lsyscache.h"
 #include "utils/snapmgr.h"
 
 
@@ -101,11 +111,14 @@ bool LocalExecutionHappened = false;
 static void SplitLocalAndRemotePlacements(List *taskPlacementList,
 										  List **localTaskPlacementList,
 										  List **remoteTaskPlacementList);
+static Query * LocalShardQuery(Task *task, ParamListInfo
+							   boundParams, int *numParams,
+							   Oid **parameterTypes);
+static bool ReplaceShardReferencesWalker(Node *node, Task *task);
 static uint64 ExecuteLocalTaskPlan(CitusScanState *scanState, PlannedStmt *taskPlan,
 								   char *queryString);
 static bool TaskAccessesLocalNode(Task *task);
-static void LogLocalCommand(const char *command);
-
+static void LogLocalCommand(Task *task);
 static void ExtractParametersForLocalExecution(ParamListInfo paramListInfo,
 											   Oid **parameterTypes,
 											   const char ***parameterValues);
@@ -124,27 +137,17 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 {
 	EState *executorState = ScanStateGetExecutorState(scanState);
 	ParamListInfo paramListInfo = copyParamList(executorState->es_param_list_info);
-	int numParams = 0;
-	Oid *parameterTypes = NULL;
 	ListCell *taskCell = NULL;
 	uint64 totalRowsProcessed = 0;
-
-	if (paramListInfo != NULL)
-	{
-		const char **parameterValues = NULL; /* not used anywhere, so decleare here */
-
-		ExtractParametersForLocalExecution(paramListInfo, &parameterTypes,
-										   &parameterValues);
-
-		numParams = paramListInfo->numParams;
-	}
+	int numParams = -1;
+	Oid *parameterTypes = NULL;
 
 	foreach(taskCell, taskList)
 	{
 		Task *task = (Task *) lfirst(taskCell);
 
-		const char *shardQueryString = task->queryString;
-		Query *shardQuery = ParseQueryString(shardQueryString, parameterTypes, numParams);
+		Query *shardQuery = LocalShardQuery(task, paramListInfo, &numParams,
+											&parameterTypes);
 
 		/*
 		 * We should not consider using CURSOR_OPT_FORCE_DISTRIBUTED in case of
@@ -164,13 +167,130 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 		 */
 		PlannedStmt *localPlan = planner(shardQuery, cursorOptions, paramListInfo);
 
-		LogLocalCommand(shardQueryString);
+		LogLocalCommand(task);
 
+		char *queryString = task->queryStringLazy
+							? task->queryStringLazy
+							: "<optimized out by local execution>";
 		totalRowsProcessed +=
-			ExecuteLocalTaskPlan(scanState, localPlan, task->queryString);
+			ExecuteLocalTaskPlan(scanState, localPlan, queryString);
 	}
 
 	return totalRowsProcessed;
+}
+
+
+/*
+ * LocalTaskPlannedStmt creates the PlannedStmt for the input task.
+ *
+ * The function behaves differently when the task->queryString is avaliable
+ * or not. See the comments in the function for the details.
+ */
+static Query *
+LocalShardQuery(Task *task, ParamListInfo boundParams,
+				int *numParams, Oid **parameterTypes)
+{
+	/*
+	 * For performance reasons, the queryString is not generated for
+	 * local-fast path queries. Instead, we simply update the shard
+	 * references to the actual shard relations.
+	 *
+	 * Otherwise, like multi-shard queries going through the local execution,
+	 * we'd need to parse the queryString back to Query before passing it
+	 * to the planner,
+	 */
+	if (task->query != NULL)
+	{
+		Query *shardQuery = copyObject(task->query);
+
+		ReplaceShardReferencesWalker((Node *) shardQuery, task);
+
+#if PG_VERSION_NUM < 120000
+		AcquireRewriteLocks(shardQuery, true, false);
+#else
+
+		/*
+		 * We acquire the required locks for PG12+ inside
+		 * ReplaceShardReferencesWalker.
+		 */
+#endif
+		return shardQuery;
+	}
+
+	if (*numParams == -1)
+	{
+		*numParams = 0;
+
+		if (boundParams != NULL)
+		{
+			const char **parameterValues = NULL;     /* not used anywhere, so decleare here */
+
+			ExtractParametersForLocalExecution(boundParams, parameterTypes,
+											   &parameterValues);
+
+			*numParams = boundParams->numParams;
+		}
+	}
+
+	return ParseQueryString(TaskQueryString(task), *parameterTypes, *numParams);
+}
+
+
+/*
+ * ReplaceShardReferencesWalker update RTE_RELATIONs that are the distributed
+ * relations to RTE_RELATIONs that are the local shards. In PG12+ we acquire
+ * the required locks on the local shards when we replace them, for PG11 these
+ * locks should be taken manually.
+ */
+static bool
+ReplaceShardReferencesWalker(Node *node, Task *task)
+{
+	if (node == NULL)
+	{
+		return false;
+	}
+
+	if (IsA(node, RangeTblEntry))
+	{
+		RangeTblEntry *rangeTableEntry = (RangeTblEntry *) node;
+
+		/*
+		 * We should have converted all RTE_RELATIONs to
+		 * citus_extradata_container function calls
+		 */
+		Assert(rangeTableEntry->rtekind != RTE_RELATION);
+
+		if (rangeTableEntry->rtekind == RTE_FUNCTION)
+		{
+			UnsetRangeTblExtraData(rangeTableEntry);
+		}
+
+		/* RTE_FUNCTION can be changed to a RTE_RELATION after UnsetTblExtraData */
+		if (rangeTableEntry->rtekind == RTE_RELATION)
+		{
+#if PG_VERSION_NUM >= 120000
+			LockRelationOid(rangeTableEntry->relid, rangeTableEntry->rellockmode);
+#else
+
+			/*
+			 * We acquire the required locks for PG11 outside this function
+			 * using AcquireRewriteLocks.
+			 */
+#endif
+		}
+
+		/* caller will descend into range table entry */
+		return false;
+	}
+	else if (IsA(node, Query))
+	{
+		return query_tree_walker((Query *) node, ReplaceShardReferencesWalker, task,
+								 QTW_EXAMINE_RTES_BEFORE);
+	}
+	else
+	{
+		return expression_tree_walker(node, ReplaceShardReferencesWalker, task);
+	}
 }
 
 
@@ -482,15 +602,20 @@ ErrorIfLocalExecutionHappened(void)
  * meaning it is part of distributed execution.
  */
 static void
-LogLocalCommand(const char *command)
+LogLocalCommand(Task *task)
 {
 	if (!(LogRemoteCommands || LogLocalCommands))
 	{
 		return;
 	}
 
+	if (!IsLoggableLevel(LOG))
+	{
+		return;
+	}
+
 	ereport(LOG, (errmsg("executing the command locally: %s",
-						 ApplyLogRedaction(command))));
+						 ApplyLogRedaction(TaskQueryString(task)))));
 }
 
 
@@ -505,4 +630,61 @@ DisableLocalExecution(void)
 	set_config_option("citus.enable_local_execution", "off",
 					  (superuser() ? PGC_SUSET : PGC_USERSET), PGC_S_SESSION,
 					  GUC_ACTION_LOCAL, true, 0, false);
+}
+
+
+void
+SetTaskQueryAndPlacementList(Task *task, Query *query, List *placementList)
+{
+	task->taskPlacementList = placementList;
+
+	/*TODO: get the right condition here */
+	if (true || TaskAccessesLocalNode(task))
+	{
+		task->query = query;
+		task->queryStringLazy = NULL;
+		return;
+	}
+
+	task->query = NULL;
+	MemoryContext previousContext = MemoryContextSwitchTo(GetMemoryChunkContext(task));
+	StringInfo queryString = makeStringInfo();
+
+	pg_get_query_def(query, queryString);
+
+	task->queryStringLazy = queryString->data;
+	MemoryContextSwitchTo(previousContext);
+}
+
+
+/*
+ * TaskQueryString generates task->queryStringLazy if missing.
+ *
+ * For performance reasons, the queryString is generated lazily. For example
+ * for local queries it is usually not needed to generate it, so this way we
+ * can skip the expensive deparsing+parsing.
+ */
+char *
+TaskQueryString(Task *task)
+{
+	if (task->queryStringLazy != NULL)
+	{
+		return task->queryStringLazy;
+	}
+	Assert(task->query != NULL);
+
+
+	/*
+	 * Switch to the memory context of the task before generating the query
+	 * string. This way the query string is not freed in between multiple
+	 * executions of a prepared statement.
+	 */
+	MemoryContext previousContext = MemoryContextSwitchTo(GetMemoryChunkContext(task));
+	StringInfo queryString = makeStringInfo();
+
+	pg_get_query_def(task->query, queryString);
+
+	task->queryStringLazy = queryString->data;
+	MemoryContextSwitchTo(previousContext);
+	return queryString->data;
 }

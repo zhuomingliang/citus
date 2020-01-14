@@ -905,7 +905,8 @@ ExecuteTaskListExtended(RowModifyLevel modLevel, List *taskList,
  * a distributed plan.
  */
 static DistributedExecution *
-CreateDistributedExecution(RowModifyLevel modLevel, List *taskList, bool hasReturning,
+CreateDistributedExecution(RowModifyLevel modLevel, List *taskList,
+						   bool hasReturning,
 						   ParamListInfo paramListInfo, TupleDesc tupleDescriptor,
 						   Tuplestorestate *tupleStore, int targetPoolSize,
 						   TransactionProperties *xactProperties)
@@ -3127,7 +3128,7 @@ StartPlacementExecutionOnSession(TaskPlacementExecution *placementExecution,
 	Task *task = shardCommandExecution->task;
 	ShardPlacement *taskPlacement = placementExecution->shardPlacement;
 	List *placementAccessList = PlacementAccessListForTask(task, taskPlacement);
-	char *queryString = task->queryString;
+	const char *queryString = TaskQueryString(task);
 	int querySent = 0;
 
 	if (execution->transactionProperties->useRemoteTransactionBlocks !=
