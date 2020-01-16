@@ -44,8 +44,7 @@
 /* Local functions forward declarations for unsupported command checks */
 static Oid GetReferencedTableOidByFKeyConstraintName(Oid referencingRelationOid, const
 													 char *constraintName);
-static void AlterTableUpdateRefTableAddDropFKeyConstraints(
-	AlterTableStmt *alterTableStatement);
+static void PreprocessAlterTableAddDropFKey(AlterTableStmt *alterTableStatement);
 static void ErrorIfUnsupportedAlterTableStmt(AlterTableStmt *alterTableStatement);
 static List * InterShardDDLTaskList(Oid leftRelationId, Oid rightRelationId,
 									const char *commandString);
@@ -313,7 +312,7 @@ PreprocessAlterTableStmt(Node *node, const char *alterTableCommand)
 	 * In the mean time, set skip_validation fields to true if needed.
 	 * See function's leading comment.
 	 */
-	AlterTableUpdateRefTableAddDropFKeyConstraints(alterTableStatement);
+	PreprocessAlterTableAddDropFKey(alterTableStatement);
 
 	LOCKMODE lockmode = AlterTableGetLockLevel(alterTableStatement->cmds);
 	Oid leftRelationId = AlterTableLookupRelation(alterTableStatement, lockmode);
@@ -347,7 +346,7 @@ PreprocessAlterTableStmt(Node *node, const char *alterTableCommand)
 	 *  - is a distributed table, then we already error'ed out in CreateDistributedPlan
 	 *  - is a reference table, then PostgreSQL will just handle the rest as we already
 	 * replaced reference table with its only shard while traversing the constraints in
-	 * AlterTableUpdateRefTableAddDropFKeyConstraints function
+	 * PreprocessAlterTableAddDropFKey function
 	 */
 	if (referencingIsLocalTable)
 	{
@@ -408,7 +407,7 @@ PreprocessAlterTableStmt(Node *node, const char *alterTableCommand)
 
 				/*
 				 * We already inspected this case and performed other needed changes in
-				 * AlterTableUpdateRefTableAddDropFKeyConstraints function
+				 * PreprocessAlterTableAddDropFKey function
 				 */
 			}
 		}
@@ -509,7 +508,7 @@ PreprocessAlterTableStmt(Node *node, const char *alterTableCommand)
 		 * Here we return NIL if referenced table is a local table and referencing
 		 * table is a local table for PostgreSQL to handle the rest as we already
 		 * replaced reference table with its only shard while traversing the
-		 * constraints in AlterTableUpdateRefTableAddDropFKeyConstraints
+		 * constraints in PreprocessAlterTableAddDropFKey
 		 */
 		if (referencedIsLocalTable)
 		{
@@ -542,7 +541,7 @@ PreprocessAlterTableStmt(Node *node, const char *alterTableCommand)
 
 
 /*
- * AlterTableUpdateRefTableAddDropFKeyConstraints function replaces reference table name on
+ * PreprocessAlterTableAddDropFKey function replaces reference table name on
  * table(s) if we are to define foreign key constraint between a local table and
  * a reference table. It can be the the referencing relation or the referenced
  * relation indicated in a "constraint" field within the subcommands.
@@ -552,7 +551,7 @@ PreprocessAlterTableStmt(Node *node, const char *alterTableCommand)
  * constraint subcommands if the referencing table not a local table
  */
 static void
-AlterTableUpdateRefTableAddDropFKeyConstraints(AlterTableStmt *alterTableStatement)
+PreprocessAlterTableAddDropFKey(AlterTableStmt *alterTableStatement)
 {
 	/* TODO: should I take lock here */
 	Oid referencingRelationOid = AlterTableLookupRelation(alterTableStatement, NoLock);
