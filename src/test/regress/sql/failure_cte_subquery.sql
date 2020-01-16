@@ -4,7 +4,7 @@ SET SEARCH_PATH=cte_failure;
 SET citus.shard_count to 2;
 SET citus.shard_replication_factor to 1;
 SET citus.next_shard_id TO 16000000;
-SET citus.enable_local_execution_planning TO OFF;
+SET citus.task_assignment_policy TO 'round-robin';
 
 SELECT pg_backend_pid() as pid \gset
 
@@ -47,7 +47,7 @@ FROM
 	  WHERE foo.user_id = cte.user_id;
 
 -- Verify that the query is executed locally, and we do not push the results to worker
-SET citus.enable_local_execution_planning TO ON;
+SET citus.task_assignment_policy TO 'greedy';
 SELECT citus.mitmproxy('conn.onQuery(query="^COPY").kill()');
 
 WITH cte AS (
@@ -73,7 +73,7 @@ FROM
      ORDER BY 1 DESC LIMIT 5
      ) as foo
 	  WHERE foo.user_id = cte.user_id;
-SET citus.enable_local_execution_planning TO OFF;
+SET citus.task_assignment_policy TO 'round-robin';
 
 -- kill at the second copy (pull)
 SELECT citus.mitmproxy('conn.onQuery(query="SELECT user_id FROM cte_failure.events_table_16000002").kill()');

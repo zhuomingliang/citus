@@ -250,29 +250,27 @@ SELECT parse_explain_output($cmd$
 EXPLAIN WITH q1 AS (SELECT * FROM task_assignment_test_table_2) SELECT * FROM q1
 $cmd$, 'task_assignment_test_table_2');
 
+-- The count should be 2 since the intermediate results are processed on
+-- different workers
+SELECT COUNT(DISTINCT value) FROM explain_outputs;
+TRUNCATE explain_outputs;
+
+-- Disable round-robin and make sure it is locally executed
+RESET citus.task_assignment_policy
+INSERT INTO explain_outputs
+SELECT parse_explain_output($cmd$
+EXPLAIN WITH q1 AS (SELECT * FROM task_assignment_test_table_2) SELECT * FROM q1
+$cmd$, 'task_assignment_test_table_2');
+
+INSERT INTO explain_outputs
+SELECT parse_explain_output($cmd$
+EXPLAIN WITH q1 AS (SELECT * FROM task_assignment_test_table_2) SELECT * FROM q1
+$cmd$, 'task_assignment_test_table_2');
+
 -- There should be one record for local execution since the intermediate results
 -- are processed only on coordinator
 SELECT DISTINCT value FROM explain_outputs;
-TRUNCATE explain_outputs;
 
--- Disable local execution and make sure it hits two different workers
-SET citus.enable_local_execution_planning TO FALSE;
-INSERT INTO explain_outputs
-SELECT parse_explain_output($cmd$
-EXPLAIN WITH q1 AS (SELECT * FROM task_assignment_test_table_2) SELECT * FROM q1
-$cmd$, 'task_assignment_test_table_2');
-
-INSERT INTO explain_outputs
-SELECT parse_explain_output($cmd$
-EXPLAIN WITH q1 AS (SELECT * FROM task_assignment_test_table_2) SELECT * FROM q1
-$cmd$, 'task_assignment_test_table_2');
-
--- The count should be 2 since the intermediate results are processed on
--- different workers
-SELECT count(DISTINCT value) FROM explain_outputs;
-
-RESET citus.enable_local_execution_planning;
-RESET citus.task_assignment_policy;
 RESET client_min_messages;
 
 DROP TABLE task_assignment_replicated_hash, task_assignment_nonreplicated_hash,
