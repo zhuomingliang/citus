@@ -239,7 +239,24 @@ SELECT create_distributed_table('task_assignment_test_table_2', 'test_id');
 SET citus.task_assignment_policy TO 'round-robin';
 
 -- Run the query two times to make sure that it hits two different workers
--- on consecutive runs
+-- on consecutive runs only when local execution is not enabled
+INSERT INTO explain_outputs
+SELECT parse_explain_output($cmd$
+EXPLAIN WITH q1 AS (SELECT * FROM task_assignment_test_table_2) SELECT * FROM q1
+$cmd$, 'task_assignment_test_table_2');
+
+INSERT INTO explain_outputs
+SELECT parse_explain_output($cmd$
+EXPLAIN WITH q1 AS (SELECT * FROM task_assignment_test_table_2) SELECT * FROM q1
+$cmd$, 'task_assignment_test_table_2');
+
+-- There should be one record for local execution since the intermediate results
+-- are processed only on coordinator
+SELECT DISTINCT value FROM explain_outputs;
+TRUNCATE explain_outputs;
+
+-- Disable local execution and make sure it hits two different workers
+SET citus.enable_local_execution_planning TO FALSE;
 INSERT INTO explain_outputs
 SELECT parse_explain_output($cmd$
 EXPLAIN WITH q1 AS (SELECT * FROM task_assignment_test_table_2) SELECT * FROM q1
@@ -254,6 +271,7 @@ $cmd$, 'task_assignment_test_table_2');
 -- different workers
 SELECT count(DISTINCT value) FROM explain_outputs;
 
+RESET citus.enable_local_execution_planning;
 RESET citus.task_assignment_policy;
 RESET client_min_messages;
 
