@@ -102,6 +102,8 @@ extern void ErrorIfUnsupportedAlterAddDropFKeyBetweenReferecenceAndLocalTable(Oi
 																			  referencingTableOid,
 																			  Oid
 																			  referencedTableOid,
+																			  AlterTableType
+																			  alterTableType,
 																			  Constraint *
 																			  constraint);
 extern void ErrorIfCoordinatorHasLocalTableHavingFKeyWithReferenceTable(Oid
