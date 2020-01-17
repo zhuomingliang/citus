@@ -4,6 +4,7 @@ SET SEARCH_PATH=cte_failure;
 SET citus.shard_count to 2;
 SET citus.shard_replication_factor to 1;
 SET citus.next_shard_id TO 16000000;
+SET citus.task_assignment_policy TO 'round-robin';
 
 -- CTE inlining should not happen because
 -- the tests rely on intermediate results
@@ -15,6 +16,11 @@ CREATE TABLE users_table (user_id int, user_name text);
 CREATE TABLE events_table(user_id int, event_id int, event_type int);
 SELECT create_distributed_table('users_table', 'user_id');
 SELECT create_distributed_table('events_table', 'user_id');
+
+-- insert some rows
+INSERT INTO users_table VALUES (1, 'A'), (2, 'B'), (3, 'C'), (4, 'D'), (5, 'E');
+INSERT INTO events_table VALUES (1,1,1), (1,2,1), (1,3,1), (2,1, 4), (3, 4,1), (5, 1, 2), (5, 2, 1), (5, 2,2);
+
 CREATE TABLE users_table_local AS SELECT * FROM users_table;
 
 -- kill at the first copy (push)
@@ -43,6 +49,35 @@ FROM
      ORDER BY 1 DESC LIMIT 5
      ) as foo
 	  WHERE foo.user_id = cte.user_id;
+
+-- Verify that the query is executed locally, and we do not push the results to worker
+SET citus.task_assignment_policy TO 'greedy';
+SELECT citus.mitmproxy('conn.onQuery(query="^COPY").kill()');
+
+WITH cte AS (
+	WITH local_cte AS (
+		SELECT * FROM users_table_local
+	),
+	dist_cte AS (
+		SELECT user_id FROM events_table
+	)
+	SELECT dist_cte.user_id FROM local_cte join dist_cte on dist_cte.user_id=local_cte.user_id
+)
+SELECT
+	count(*)
+FROM
+	cte,
+	  (SELECT
+    	DISTINCT users_table.user_id
+     FROM
+     	users_table, events_table
+     WHERE
+     	users_table.user_id = events_table.user_id AND
+     event_type IN (1,2,3,4)
+     ORDER BY 1 DESC LIMIT 5
+     ) as foo
+	  WHERE foo.user_id = cte.user_id;
+SET citus.task_assignment_policy TO 'round-robin';
 
 -- kill at the second copy (pull)
 SELECT citus.mitmproxy('conn.onQuery(query="SELECT user_id FROM cte_failure.events_table_16000002").kill()');
@@ -181,10 +216,6 @@ FROM
 
 -- distributed update tests
 SELECT citus.mitmproxy('conn.allow()');
-
--- insert some rows
-INSERT INTO users_table VALUES (1, 'A'), (2, 'B'), (3, 'C'), (4, 'D'), (5, 'E');
-INSERT INTO events_table VALUES (1,1,1), (1,2,1), (1,3,1), (2,1, 4), (3, 4,1), (5, 1, 2), (5, 2, 1), (5, 2,2);
 
 SELECT * FROM users_table ORDER BY 1, 2;
 -- following will delete and insert the same rows

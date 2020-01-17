@@ -72,6 +72,7 @@
 #include "postgres.h"
 #include "miscadmin.h"
 
+#include "distributed/adaptive_executor.h"
 #include "distributed/citus_custom_scan.h"
 #include "distributed/citus_ruleutils.h"
 #include "distributed/deparse_shard_query.h"
@@ -97,7 +98,7 @@
 bool EnableLocalExecution = true;
 bool LogLocalCommands = false;
 
-bool LocalExecutionHappened = false;
+bool TransactionAccessedLocalPlacement = false;
 
 
 static void SplitLocalAndRemotePlacements(List *taskPlacementList,
@@ -388,14 +389,14 @@ ExecuteLocalTaskPlan(CitusScanState *scanState, PlannedStmt *taskPlan, char *que
  *  guarantee that any task have to be executed locally.
  */
 bool
-ShouldExecuteTasksLocally(List *taskList)
+ShouldExecuteTasksLocally(List *taskList, DistributedExecution *execution)
 {
 	if (!EnableLocalExecution)
 	{
 		return false;
 	}
 
-	if (LocalExecutionHappened)
+	if (TransactionAccessedLocalPlacement)
 	{
 		/*
 		 * For various reasons, including the transaction visibility
@@ -433,10 +434,11 @@ ShouldExecuteTasksLocally(List *taskList)
 		 * Still, we'll be avoding the network round trip for this node.
 		 *
 		 * Note that we shouldn't use local execution if any distributed execution
-		 * has happened because that'd break transaction visibility rules and
-		 * many other things.
+		 * modified a distributed table because that'd break transaction visibility
+		 * rules and many other things. Therefore it is the callers responsibility
+		 * to make sure no modifications are made in a distributed transaction
 		 */
-		return !AnyConnectionAccessedPlacements();
+		return !TransactionModifiedDistributedTable(execution);
 	}
 
 	if (!singleTask)
@@ -447,7 +449,7 @@ ShouldExecuteTasksLocally(List *taskList)
 		 * execution is happening one task at a time (e.g., similar to sequential
 		 * distributed execution).
 		 */
-		Assert(!LocalExecutionHappened);
+		Assert(!TransactionAccessedLocalPlacement);
 
 		return false;
 	}
@@ -481,20 +483,20 @@ TaskAccessesLocalNode(Task *task)
 
 
 /*
- * ErrorIfLocalExecutionHappened() errors out if a local query has already been executed
- * in the same transaction.
+ * ErrorIfTransactionAccessedLocalPlacement() errors out if a local query that accessed
+ * a placement has already been executed in the same transaction.
  *
  * This check is required because Citus currently hasn't implemented local execution
  * infrastructure for all the commands/executors. As we implement local execution for
  * the command/executor that this function call exists, we should simply remove the check.
  */
 void
-ErrorIfLocalExecutionHappened(void)
+ErrorIfTransactionAccessedLocalPlacement(void)
 {
-	if (LocalExecutionHappened)
+	if (TransactionAccessedLocalPlacement)
 	{
 		ereport(ERROR, (errmsg("cannot execute command because a local execution has "
-							   "already been done in the transaction"),
+							   "accessed a placement in the transaction"),
 						errhint("Try re-running the transaction with "
 								"\"SET LOCAL citus.enable_local_execution TO OFF;\""),
 						errdetail("Some parallel commands cannot be executed if a "

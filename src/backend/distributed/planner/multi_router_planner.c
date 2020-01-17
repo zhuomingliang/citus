@@ -18,35 +18,37 @@
 #include "access/xact.h"
 #include "catalog/pg_opfamily.h"
 #include "catalog/pg_type.h"
-#include "distributed/colocation_utils.h"
 #include "distributed/citus_clauses.h"
-#include "distributed/citus_nodes.h"
 #include "distributed/citus_nodefuncs.h"
+#include "distributed/citus_nodes.h"
+#include "distributed/citus_ruleutils.h"
+#include "distributed/colocation_utils.h"
 #include "distributed/deparse_shard_query.h"
 #include "distributed/distribution_column.h"
 #include "distributed/errormessage.h"
-#include "distributed/log_utils.h"
 #include "distributed/insert_select_planner.h"
+#include "distributed/intermediate_result_pruning.h"
+#include "distributed/listutils.h"
+#include "distributed/local_executor.h"
+#include "distributed/log_utils.h"
 #include "distributed/master_metadata_utility.h"
 #include "distributed/master_protocol.h"
 #include "distributed/metadata_cache.h"
 #include "distributed/multi_executor.h"
 #include "distributed/multi_join_order.h"
-#include "distributed/multi_logical_planner.h"
 #include "distributed/multi_logical_optimizer.h"
+#include "distributed/multi_logical_planner.h"
 #include "distributed/multi_partitioning_utils.h"
 #include "distributed/multi_physical_planner.h"
 #include "distributed/multi_router_planner.h"
 #include "distributed/multi_server_executor.h"
-#include "distributed/listutils.h"
-#include "distributed/citus_ruleutils.h"
 #include "distributed/query_pushdown_planning.h"
 #include "distributed/query_utils.h"
 #include "distributed/relation_restriction_equivalence.h"
 #include "distributed/relay_utility.h"
 #include "distributed/resource_lock.h"
-#include "distributed/shardinterval_utils.h"
 #include "distributed/shard_pruning.h"
+#include "distributed/shardinterval_utils.h"
 #include "executor/execdesc.h"
 #include "lib/stringinfo.h"
 #include "nodes/makefuncs.h"
@@ -62,12 +64,15 @@
 #if PG_VERSION_NUM >= 120000
 #include "optimizer/optimizer.h"
 #else
-#include "optimizer/var.h"
 #include "optimizer/predtest.h"
+#include "optimizer/var.h"
 #endif
+#include "catalog/pg_proc.h"
+#include "optimizer/planmain.h"
 #include "optimizer/restrictinfo.h"
-#include "parser/parsetree.h"
 #include "parser/parse_oper.h"
+#include "parser/parsetree.h"
+#include "postmaster/postmaster.h"
 #include "storage/lock.h"
 #include "utils/builtins.h"
 #include "utils/elog.h"
@@ -75,9 +80,6 @@
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/typcache.h"
-
-#include "catalog/pg_proc.h"
-#include "optimizer/planmain.h"
 
 /* intermediate value for INSERT processing */
 typedef struct InsertValues
@@ -153,6 +155,12 @@ static bool SelectsFromDistributedTable(List *rangeTableList, Query *query);
 static List * get_all_actual_clauses(List *restrictinfo_list);
 static int CompareInsertValuesByShardId(const void *leftElement,
 										const void *rightElement);
+static ShardPlacement * CreateDummyPlacement(void);
+static uint64 GetAnchorShardId(List *relationShardList);
+static List * TargetShardIntervalForFastPathQuery(Query *query,
+												  Const **partitionValueConst,
+												  bool *isMultiShardQuery,
+												  Const *distributionKeyValue);
 static List * SingleShardSelectTaskList(Query *query, uint64 jobId,
 										List *relationShardList, List *placementList,
 										uint64 shardId);
@@ -2230,23 +2238,10 @@ FindRouterWorkerList(List *shardIntervalList, bool shardsPresent,
 	}
 	else if (replacePrunedQueryWithDummy)
 	{
-		List *workerNodeList = ActiveReadableWorkerNodeList();
-		if (workerNodeList != NIL)
+		ShardPlacement *dummyPlacement = CreateDummyPlacement();
+		if (dummyPlacement != NULL)
 		{
-			int workerNodeCount = list_length(workerNodeList);
-			int workerNodeIndex = zeroShardQueryRoundRobin % workerNodeCount;
-			WorkerNode *workerNode = (WorkerNode *) list_nth(workerNodeList,
-															 workerNodeIndex);
-			ShardPlacement *dummyPlacement =
-				(ShardPlacement *) CitusMakeNode(ShardPlacement);
-			dummyPlacement->nodeName = workerNode->workerName;
-			dummyPlacement->nodePort = workerNode->workerPort;
-			dummyPlacement->nodeId = workerNode->nodeId;
-			dummyPlacement->groupId = workerNode->groupId;
-
 			workerList = lappend(workerList, dummyPlacement);
-
-			zeroShardQueryRoundRobin++;
 		}
 	}
 
@@ -2290,6 +2285,51 @@ RelationShardListForShardIntervalList(List *shardIntervalList, bool *shardsPrese
 	}
 
 	return relationShardList;
+}
+
+
+/*
+ * CreateDummyPlacement creates a dummy placement that can be used for zero
+ * shard queries.
+ *
+ * If local execution is enabled, the placement points to the local group.
+ * Otherwise an active worker is selected using round robin policy to create the
+ * dummy placement. In case there are no active workers, NULL pointer is returned.
+ */
+static ShardPlacement *
+CreateDummyPlacement(void)
+{
+	static uint32 zeroShardQueryRoundRobin = 0;
+	ShardPlacement *dummyPlacement = CitusMakeNode(ShardPlacement);
+
+	if (TaskAssignmentPolicy == TASK_ASSIGNMENT_ROUND_ROBIN)
+	{
+		List *workerNodeList = ActiveReadableWorkerNodeList();
+		if (workerNodeList == NIL)
+		{
+			return NULL;
+		}
+
+		int workerNodeCount = list_length(workerNodeList);
+		int workerNodeIndex = zeroShardQueryRoundRobin % workerNodeCount;
+		WorkerNode *workerNode = (WorkerNode *) list_nth(workerNodeList,
+														 workerNodeIndex);
+		dummyPlacement->nodeName = workerNode->workerName;
+		dummyPlacement->nodePort = workerNode->workerPort;
+		dummyPlacement->nodeId = workerNode->nodeId;
+		dummyPlacement->groupId = workerNode->groupId;
+
+		zeroShardQueryRoundRobin++;
+	}
+	else
+	{
+		dummyPlacement->nodeId = DUMMY_NODE_ID;
+		dummyPlacement->nodeName = LOCAL_HOST_NAME;
+		dummyPlacement->nodePort = PostPortNumber;
+		dummyPlacement->groupId = GetLocalGroupId();
+	}
+
+	return dummyPlacement;
 }
 
 

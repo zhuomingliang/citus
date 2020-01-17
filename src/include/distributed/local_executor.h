@@ -11,13 +11,14 @@
 #ifndef LOCAL_EXECUTION_H
 #define LOCAL_EXECUTION_H
 
+#include "distributed/adaptive_executor.h"
 #include "distributed/citus_custom_scan.h"
 
 /* enabled with GUCs*/
 extern bool EnableLocalExecution;
 extern bool LogLocalCommands;
 
-extern bool LocalExecutionHappened;
+extern bool TransactionAccessedLocalPlacement;
 
 extern uint64 ExecuteLocalTaskList(CitusScanState *scanState, List *taskList);
 extern void ExtractLocalAndRemoteTasks(bool readOnlyPlan, List *taskList,
@@ -27,6 +28,8 @@ extern void ErrorIfLocalExecutionHappened(void);
 extern void SetTaskQueryAndPlacementList(Task *task, Query *query, List *placementList);
 extern char * TaskQueryString(Task *task);
 extern bool TaskAccessesLocalNode(Task *task);
+extern bool ShouldExecuteTasksLocally(List *taskList, DistributedExecution *execution);
+extern void ErrorIfTransactionAccessedLocalPlacement(void);
 extern void DisableLocalExecution(void);
 extern bool AnyTaskAccessesRemoteNode(List *taskList);
 extern bool TaskAccessesLocalNode(Task *task);
