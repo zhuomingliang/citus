@@ -92,6 +92,14 @@ CREATE OR REPLACE FUNCTION wait_until_metadata_sync(timeout INTEGER DEFAULT 1500
     RETURNS void
     LANGUAGE C STRICT
     AS 'citus';
+CREATE FUNCTION citus_stop_test_worker(int)
+    RETURNS int
+    AS 'citus'
+    LANGUAGE C;
+CREATE FUNCTION citus_start_test_worker(int)
+    RETURNS void
+    AS 'citus'
+    LANGUAGE C;
 
 -- set sync intervals to less than 15s so wait_until_metadata_sync never times out
 ALTER SYSTEM SET citus.metadata_sync_interval TO 3000;
