@@ -1660,7 +1660,7 @@ CheckInstalledVersion(int elevel)
  * ignored.  Returns true if compatible, false otherwise.
  */
 bool
-MajorVersionsCompatible(char *leftVersion, char *rightVersion)
+MajorVersionsCompatible(const char *leftVersion, const char *rightVersion)
 {
 	const char schemaVersionSeparator = '-';
 
