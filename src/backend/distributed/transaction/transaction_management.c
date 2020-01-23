@@ -29,6 +29,7 @@
 #include "distributed/transaction_management.h"
 #include "distributed/placement_connection.h"
 #include "distributed/subplan_execution.h"
+#include "distributed/remote_commands.h"
 #include "distributed/version_compat.h"
 #include "utils/hsearch.h"
 #include "utils/guc.h"
@@ -299,6 +300,15 @@ CoordinatedTransactionCallback(XactEvent event, void *arg)
 			{
 				ResetPlacementConnectionManagement();
 				AfterXactConnectionHandling(false);
+			}
+
+			dlist_iter iter;
+			dlist_foreach(iter, &InProgressTransactions)
+			{
+				MultiConnection *connection = dlist_container(MultiConnection,
+															  transactionNode, iter.cur);
+
+				SendCancelationRequest(connection);
 			}
 
 			CurrentCoordinatedTransactionState = COORD_TRANS_NONE;
