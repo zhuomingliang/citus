@@ -14,7 +14,9 @@ def main():
 			fname = line[4:tab]
 			file2 = iter(open(fname.replace('.modified', '')))
 			file2line = 1
-			stdout.write(line)
+			stdout.write(line.replace('.modified', ''))
+		elif line.startswith('--- /'):
+			stdout.write(line.replace('.modified', ''))
 		elif line.startswith('@@ '):
 			idx_start = line.index('+') + 1
 			idx_end = idx_start + 1
