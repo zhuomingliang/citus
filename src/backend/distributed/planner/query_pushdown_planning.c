@@ -1896,3 +1896,6 @@ MultiSubqueryPushdownTable(Query *subquery)
 
 	return subqueryTableNode;
 }
+
+
+#include "distributed/banned.h"

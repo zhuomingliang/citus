@@ -127,3 +127,6 @@ wait_until_metadata_sync(PG_FUNCTION_ARGS)
 
 	PG_RETURN_VOID();
 }
+
+
+#include "distributed/banned.h"

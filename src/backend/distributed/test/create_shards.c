@@ -66,3 +66,6 @@ CompareStrings(const void *leftElement, const void *rightElement)
 
 	return strcmp(leftString, rightString);
 }
+
+
+#include "distributed/banned.h"

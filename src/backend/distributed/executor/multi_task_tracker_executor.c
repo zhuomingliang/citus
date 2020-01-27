@@ -2961,3 +2961,6 @@ PrepareMasterJobDirectory(Job *workerJob)
 	ResourceOwnerEnlargeJobDirectories(CurrentResourceOwner);
 	ResourceOwnerRememberJobDirectory(CurrentResourceOwner, workerJob->jobId);
 }
+
+
+#include "distributed/banned.h"

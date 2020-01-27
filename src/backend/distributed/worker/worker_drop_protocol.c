@@ -132,3 +132,6 @@ worker_drop_distributed_table(PG_FUNCTION_ARGS)
 
 	PG_RETURN_VOID();
 }
+
+
+#include "distributed/banned.h"

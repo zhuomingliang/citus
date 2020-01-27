@@ -68,3 +68,6 @@ store_intermediate_result_on_node(PG_FUNCTION_ARGS)
 
 	PG_RETURN_VOID();
 }
+
+
+#include "distributed/banned.h"

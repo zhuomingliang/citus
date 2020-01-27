@@ -317,3 +317,4 @@ CitusIsMutableFunction(Node *node)
 
 
 /* *INDENT-ON* */
+#include "distributed/banned.h"

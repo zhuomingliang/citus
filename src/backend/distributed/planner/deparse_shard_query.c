@@ -500,3 +500,6 @@ TaskQueryString(Task *task)
 	MemoryContextSwitchTo(previousContext);
 	return task->queryStringLazy;
 }
+
+
+#include "distributed/banned.h"

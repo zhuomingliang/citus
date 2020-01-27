@@ -1096,3 +1096,6 @@ ConnectToLocalBackend(const char *databaseName, const char *userName)
 
 	return connectionId;
 }
+
+
+#include "distributed/banned.h"

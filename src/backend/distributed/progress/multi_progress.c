@@ -237,3 +237,6 @@ DetachFromDSMSegments(List *dsmSegmentList)
 		dsm_detach(dsmSegment);
 	}
 }
+
+
+#include "distributed/banned.h"

@@ -131,3 +131,6 @@ AppendGrantOnSchemaGrantees(StringInfo buf, GrantStmt *stmt)
 		}
 	}
 }
+
+
+#include "distributed/banned.h"

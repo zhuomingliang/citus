@@ -1482,3 +1482,6 @@ StatisticsCollectionGucCheckHook(bool *newval, void **extra, GucSource source)
 	}
 #endif
 }
+
+
+#include "distributed/banned.h"

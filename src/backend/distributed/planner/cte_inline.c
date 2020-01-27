@@ -530,3 +530,4 @@ pg_12_range_table_walker(List *rtable,
 #endif
 
 /* *INDENT-ON* */
+#include "distributed/banned.h"

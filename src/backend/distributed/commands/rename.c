@@ -164,3 +164,6 @@ PreprocessRenameAttributeStmt(Node *node, const char *queryString)
 		}
 	}
 }
+
+
+#include "distributed/banned.h"

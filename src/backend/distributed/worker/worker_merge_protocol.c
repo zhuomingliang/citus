@@ -654,3 +654,6 @@ CopyStatement(RangeVar *relation, char *sourceFilename)
 
 	return copyStatement;
 }
+
+
+#include "distributed/banned.h"

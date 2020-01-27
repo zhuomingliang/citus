@@ -605,3 +605,6 @@ PostprocessDefineCollationStmt(Node *node, const char *queryString)
 	return NodeDDLTaskList(ALL_WORKERS, CreateCollationDDLsIdempotent(
 							   collationAddress.objectId));
 }
+
+
+#include "distributed/banned.h"

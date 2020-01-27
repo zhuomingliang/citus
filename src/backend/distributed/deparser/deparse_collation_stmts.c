@@ -179,3 +179,6 @@ AppendNameList(StringInfo buf, List *objects)
 		appendStringInfoString(buf, NameListToQuotedString(name));
 	}
 }
+
+
+#include "distributed/banned.h"

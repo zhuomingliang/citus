@@ -686,3 +686,6 @@ CopyAndConvertToUpperCase(const char *str)
 
 	return result;
 }
+
+
+#include "distributed/banned.h"

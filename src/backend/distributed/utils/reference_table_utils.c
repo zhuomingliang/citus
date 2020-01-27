@@ -521,3 +521,6 @@ ReferenceTableReplicationFactor(void)
 	int replicationFactor = list_length(nodeList);
 	return replicationFactor;
 }
+
+
+#include "distributed/banned.h"

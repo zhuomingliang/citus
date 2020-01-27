@@ -1025,3 +1025,6 @@ HoldsConflictingLockWithReferencingRelations(Oid relationId, ShardPlacementAcces
 
 	return false;
 }
+
+
+#include "distributed/banned.h"

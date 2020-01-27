@@ -46,3 +46,6 @@ AppendAlterTableSchemaStmt(StringInfo buf, AlterObjectSchemaStmt *stmt)
 	const char *newSchemaName = quote_identifier(stmt->newschema);
 	appendStringInfo(buf, "%s SET SCHEMA %s;", tableName, newSchemaName);
 }
+
+
+#include "distributed/banned.h"

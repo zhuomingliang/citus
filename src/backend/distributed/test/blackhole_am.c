@@ -500,3 +500,4 @@ blackhole_am_handler(PG_FUNCTION_ARGS)
 }
 
 #endif
+#include "distributed/banned.h"

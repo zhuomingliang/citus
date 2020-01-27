@@ -121,3 +121,6 @@ get_referenced_relation_id_list(PG_FUNCTION_ARGS)
 		SRF_RETURN_DONE(functionContext);
 	}
 }
+
+
+#include "distributed/banned.h"

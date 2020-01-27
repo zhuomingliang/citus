@@ -119,3 +119,6 @@ find_shard_interval_index(PG_FUNCTION_ARGS)
 
 	PG_RETURN_INT32(shardIndex);
 }
+
+
+#include "distributed/banned.h"

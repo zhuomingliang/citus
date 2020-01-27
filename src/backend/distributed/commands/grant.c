@@ -17,3 +17,6 @@ PreprocessGrantStmt(Node *node, const char *queryString)
 {
 	return NIL;
 }
+
+
+#include "distributed/banned.h"

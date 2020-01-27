@@ -148,3 +148,6 @@ ResourceOwnerForgetJobDirectory(ResourceOwner owner, uint64 jobId)
 	elog(ERROR, "jobId " UINT64_FORMAT " is not owned by resource owner %p",
 		 jobId, owner);
 }
+
+
+#include "distributed/banned.h"

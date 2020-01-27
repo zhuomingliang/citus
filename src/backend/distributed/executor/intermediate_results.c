@@ -1011,3 +1011,6 @@ CopyDataFromConnection(MultiConnection *connection, FileCompat *fileCompat,
 		return CLIENT_COPY_FAILED;
 	}
 }
+
+
+#include "distributed/banned.h"

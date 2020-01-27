@@ -169,3 +169,6 @@ GenerateDeleteJobsCommand(List *jobIds)
 {
 	return GenerateJobCommands(jobIds, WORKER_REPARTITION_CLEANUP_QUERY);
 }
+
+
+#include "distributed/banned.h"

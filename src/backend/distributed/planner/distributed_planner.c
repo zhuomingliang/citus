@@ -2446,3 +2446,6 @@ UpdateReferenceTablesWithShard(Node *node, void *context)
 
 	return false;
 }
+
+
+#include "distributed/banned.h"

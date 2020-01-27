@@ -1245,3 +1245,6 @@ TrimLogLevel(const char *message)
 
 	return chompedMessage + n;
 }
+
+
+#include "distributed/banned.h"

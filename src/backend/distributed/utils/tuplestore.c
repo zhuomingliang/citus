@@ -84,3 +84,6 @@ SetupTuplestore(FunctionCallInfo fcinfo, TupleDesc *tupleDescriptor)
 
 	return tupstore;
 }
+
+
+#include "distributed/banned.h"

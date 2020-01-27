@@ -93,3 +93,6 @@ master_modify_multiple_shards(PG_FUNCTION_ARGS)
 
 	PG_RETURN_INT32(0);
 }
+
+
+#include "distributed/banned.h"

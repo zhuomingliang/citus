@@ -413,3 +413,6 @@ IntegerToText(int32 value)
 
 	return valueText;
 }
+
+
+#include "distributed/banned.h"

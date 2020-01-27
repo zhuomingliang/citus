@@ -128,3 +128,6 @@ TruncateTaskList(Oid relationId)
 
 	return taskList;
 }
+
+
+#include "distributed/banned.h"

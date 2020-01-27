@@ -945,3 +945,6 @@ DropSchemaOrDBInProgress(void)
 {
 	return activeDropSchemaOrDBs > 0;
 }
+
+
+#include "distributed/banned.h"

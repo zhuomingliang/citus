@@ -1430,3 +1430,6 @@ TableOwner(Oid relationId)
 
 	return GetUserNameFromId(userId, false);
 }
+
+
+#include "distributed/banned.h"

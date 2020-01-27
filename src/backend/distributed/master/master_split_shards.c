@@ -86,3 +86,6 @@ worker_hash(PG_FUNCTION_ARGS)
 
 	PG_RETURN_INT32(hashedValueDatum);
 }
+
+
+#include "distributed/banned.h"

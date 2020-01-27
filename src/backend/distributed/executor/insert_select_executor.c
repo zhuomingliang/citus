@@ -1122,3 +1122,6 @@ RelableTargetEntryList(List *selectTargetList, List *insertTargetList)
 		selectTargetEntry->resname = insertTargetEntry->resname;
 	}
 }
+
+
+#include "distributed/banned.h"

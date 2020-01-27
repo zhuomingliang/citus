@@ -4645,3 +4645,6 @@ IsGroupBySubsetOfDistinct(List *groupClauses, List *distinctClauses)
 
 	return true;
 }
+
+
+#include "distributed/banned.h"

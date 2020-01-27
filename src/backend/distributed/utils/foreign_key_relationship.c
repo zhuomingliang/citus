@@ -442,3 +442,6 @@ ClearForeignConstraintRelationshipGraphContext()
 	hash_destroy(fConstraintRelationshipGraph->nodeMap);
 	fConstraintRelationshipGraph = NULL;
 }
+
+
+#include "distributed/banned.h"

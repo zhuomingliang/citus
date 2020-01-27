@@ -745,3 +745,6 @@ ConstraintIsAForeignKey(char *constraintNameInput, Oid relationId)
 
 	return false;
 }
+
+
+#include "distributed/banned.h"

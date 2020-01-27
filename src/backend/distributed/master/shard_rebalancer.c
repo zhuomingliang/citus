@@ -202,3 +202,6 @@ EnsureShardAllowedOnNodeUDF(Oid functionOid)
 	}
 	ReleaseSysCache(proctup);
 }
+
+
+#include "distributed/banned.h"

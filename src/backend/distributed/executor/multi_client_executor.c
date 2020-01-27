@@ -700,3 +700,6 @@ ClientConnectionReady(MultiConnection *connection,
 
 	return clientConnectionReady;
 }
+
+
+#include "distributed/banned.h"

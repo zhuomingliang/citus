@@ -31,3 +31,6 @@ set_local_multi_shard_modify_mode_to_sequential(PG_FUNCTION_ARGS)
 
 	PG_RETURN_VOID();
 }
+
+
+#include "distributed/banned.h"

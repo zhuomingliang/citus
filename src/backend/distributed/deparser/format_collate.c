@@ -98,3 +98,6 @@ FormatCollateExtended(Oid collid, bits16 flags)
 
 	return buf;
 }
+
+
+#include "distributed/banned.h"

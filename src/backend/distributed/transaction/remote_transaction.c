@@ -1449,3 +1449,6 @@ WarnAboutLeakedPreparedTransaction(MultiConnection *connection, bool commit)
 					  errhint("Run \"%s\" on %s:%u",
 							  command.data, connection->hostname, connection->port)));
 }
+
+
+#include "distributed/banned.h"

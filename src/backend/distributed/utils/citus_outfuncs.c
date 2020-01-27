@@ -543,3 +543,4 @@ OutDeferredErrorMessage(OUTFUNC_ARGS)
 	WRITE_INT_FIELD(linenumber);
 	WRITE_STRING_FIELD(functionname);
 }
+#include "distributed/banned.h"

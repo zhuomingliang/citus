@@ -61,3 +61,6 @@ RaiseDeferredErrorInternal(DeferredErrorMessage *error, int elevel)
 
 	ThrowErrorData(errorData);
 }
+
+
+#include "distributed/banned.h"

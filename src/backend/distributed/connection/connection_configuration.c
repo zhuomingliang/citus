@@ -395,3 +395,4 @@ uri_prefix_length(const char *connstr)
 }
 
 /* *INDENT-ON* */
+#include "distributed/banned.h"

@@ -682,3 +682,6 @@ IsLocalReferenceTableJoinPlan(PlannedStmt *plan)
 
 	return false;
 }
+
+
+#include "distributed/banned.h"

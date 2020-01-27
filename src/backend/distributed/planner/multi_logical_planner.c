@@ -2325,3 +2325,6 @@ OperatorImplementsEquality(Oid opno)
 
 	return equalityOperator;
 }
+
+
+#include "distributed/banned.h"

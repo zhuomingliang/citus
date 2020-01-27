@@ -596,3 +596,6 @@ ShardsMatchingDeleteCriteria(Oid relationId, List *shardIntervalList,
 
 	return dropShardIntervalList;
 }
+
+
+#include "distributed/banned.h"

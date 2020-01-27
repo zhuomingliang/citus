@@ -155,3 +155,6 @@ FakeEndForeignScan(ForeignScanState *node)
 {
 	/* this comment is for indentation consistency */
 }
+
+
+#include "distributed/banned.h"

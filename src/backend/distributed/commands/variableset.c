@@ -180,3 +180,6 @@ PostprocessVariableSetStmt(VariableSetStmt *setStmt, const char *setStmtString)
 		appendStringInfoChar(activeSetStmts, ';');
 	}
 }
+
+
+#include "distributed/banned.h"

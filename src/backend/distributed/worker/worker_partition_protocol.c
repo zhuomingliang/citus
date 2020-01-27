@@ -1254,3 +1254,6 @@ HashPartitionId(Datum partitionValue, Oid partitionCollation, const void *contex
 
 	return hashPartitionId;
 }
+
+
+#include "distributed/banned.h"

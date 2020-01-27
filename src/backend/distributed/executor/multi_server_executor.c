@@ -347,3 +347,6 @@ ErrorSizeLimitIsExceeded()
 							"citus.max_intermediate_result_size to a higher"
 							" value or -1 to disable.")));
 }
+
+
+#include "distributed/banned.h"

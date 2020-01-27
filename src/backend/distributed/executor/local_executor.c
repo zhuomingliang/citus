@@ -546,3 +546,6 @@ DisableLocalExecution(void)
 					  (superuser() ? PGC_SUSET : PGC_USERSET), PGC_S_SESSION,
 					  GUC_ACTION_LOCAL, true, 0, false);
 }
+
+
+#include "distributed/banned.h"

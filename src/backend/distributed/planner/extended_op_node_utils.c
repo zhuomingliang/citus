@@ -326,3 +326,6 @@ ShouldPullDistinctColumn(bool repartitionSubquery,
 
 	return false;
 }
+
+
+#include "distributed/banned.h"

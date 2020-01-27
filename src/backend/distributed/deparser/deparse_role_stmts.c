@@ -138,3 +138,6 @@ AppendAlterRoleStmt(StringInfo buf, AlterRoleStmt *stmt)
 		}
 	}
 }
+
+
+#include "distributed/banned.h"

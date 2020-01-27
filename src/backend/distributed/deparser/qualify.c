@@ -66,3 +66,6 @@ QualifyRenameAttributeStmt(Node *node)
 		}
 	}
 }
+
+
+#include "distributed/banned.h"

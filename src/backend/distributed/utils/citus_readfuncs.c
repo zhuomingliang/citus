@@ -452,3 +452,4 @@ ReadUnsupportedCitusNode(READFUNC_ARGS)
 {
 	ereport(ERROR, (errmsg("not implemented")));
 }
+#include "distributed/banned.h"

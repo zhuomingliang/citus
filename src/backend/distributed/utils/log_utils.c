@@ -33,3 +33,6 @@ HashLogMessage(const char *logText)
 {
 	return (char *) logText;
 }
+
+
+#include "distributed/banned.h"

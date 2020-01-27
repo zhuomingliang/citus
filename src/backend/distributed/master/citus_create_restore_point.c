@@ -192,3 +192,6 @@ CreateRemoteRestorePoints(char *restoreName, List *connectionList)
 		CloseConnection(connection);
 	}
 }
+
+
+#include "distributed/banned.h"

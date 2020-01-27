@@ -3938,3 +3938,6 @@ ExtractParametersFromParamList(ParamListInfo paramListInfo,
 																   parameterData->value);
 	}
 }
+
+
+#include "distributed/banned.h"

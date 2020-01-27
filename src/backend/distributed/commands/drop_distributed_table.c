@@ -148,3 +148,6 @@ MasterRemoveDistributedTableMetadataFromWorkers(Oid relationId, char *schemaName
 	char *deleteDistributionCommand = DistributionDeleteCommand(schemaName, tableName);
 	SendCommandToWorkersWithMetadata(deleteDistributionCommand);
 }
+
+
+#include "distributed/banned.h"

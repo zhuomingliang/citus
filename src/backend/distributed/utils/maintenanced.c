@@ -766,3 +766,6 @@ MetadataSyncTriggeredCheckAndReset(MaintenanceDaemonDBData *dbData)
 
 	return metadataSyncTriggered;
 }
+
+
+#include "distributed/banned.h"

@@ -878,3 +878,6 @@ CitusLockTableAclCheck(Oid relationId, LOCKMODE lockmode, Oid userId)
 
 	return aclResult;
 }
+
+
+#include "distributed/banned.h"

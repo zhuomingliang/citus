@@ -507,3 +507,6 @@ RecoverPreparedTransactionOnWorker(MultiConnection *connection, char *transactio
 
 	return true;
 }
+
+
+#include "distributed/banned.h"

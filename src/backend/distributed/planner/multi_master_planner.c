@@ -645,3 +645,6 @@ makeAggNode(List *groupClauseList, List *havingQual, AggStrategy aggrStrategy,
 
 	return aggNode;
 }
+
+
+#include "distributed/banned.h"

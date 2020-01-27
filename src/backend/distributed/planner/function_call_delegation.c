@@ -387,3 +387,6 @@ TryToDelegateFunctionCall(DistributedPlanningContext *planContext)
 
 	return FinalizePlan(planContext->plan, distributedPlan);
 }
+
+
+#include "distributed/banned.h"

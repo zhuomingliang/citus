@@ -620,3 +620,6 @@ GetFirstPrimaryWorkerNode(void)
 
 	return firstWorkerNode;
 }
+
+
+#include "distributed/banned.h"

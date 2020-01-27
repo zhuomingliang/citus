@@ -317,3 +317,6 @@ UnionRelationRestrictionLists(List *firstRelationList, List *secondRelationList)
 
 	return unionedRelationRestrictionList;
 }
+
+
+#include "distributed/banned.h"

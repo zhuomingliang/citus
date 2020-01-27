@@ -5669,3 +5669,6 @@ FinalTargetEntryCount(List *targetEntryList)
 
 	return finalTargetEntryCount;
 }
+
+
+#include "distributed/banned.h"

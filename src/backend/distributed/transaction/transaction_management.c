@@ -726,3 +726,6 @@ MaybeExecutingUDF(void)
 {
 	return ExecutorLevel > 1 || (ExecutorLevel == 1 && PlannerLevel > 0);
 }
+
+
+#include "distributed/banned.h"

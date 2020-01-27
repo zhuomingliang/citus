@@ -490,3 +490,6 @@ ErrorIfAnyMetadataNodeOutOfSync(List *metadataNodeList)
 		}
 	}
 }
+
+
+#include "distributed/banned.h"

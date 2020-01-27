@@ -508,3 +508,6 @@ AppendAlterTypeOwnerStmt(StringInfo buf, AlterOwnerStmt *stmt)
 	appendStringInfo(buf, "ALTER TYPE %s OWNER TO %s;", NameListToQuotedString(names),
 					 RoleSpecString(stmt->newowner, true));
 }
+
+
+#include "distributed/banned.h"

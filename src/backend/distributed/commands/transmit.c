@@ -419,3 +419,6 @@ VerifyTransmitStmt(CopyStmt *copyStatement)
 							   " or PROGRAM parameters ")));
 	}
 }
+
+
+#include "distributed/banned.h"

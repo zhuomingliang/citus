@@ -118,3 +118,6 @@ show_progress(PG_FUNCTION_ARGS)
 
 	return (Datum) 0;
 }
+
+
+#include "distributed/banned.h"

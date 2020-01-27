@@ -33,3 +33,6 @@ MakeNameListFromRangeVar(const RangeVar *rel)
 		return list_make1(makeString(rel->relname));
 	}
 }
+
+
+#include "distributed/banned.h"

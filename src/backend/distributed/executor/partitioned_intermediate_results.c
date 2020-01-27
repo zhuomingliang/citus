@@ -517,3 +517,6 @@ PartitionedResultDestReceiverDestroy(DestReceiver *copyDest)
 	pfree(partitionedDest->partitionDestReceivers);
 	pfree(partitionedDest);
 }
+
+
+#include "distributed/banned.h"

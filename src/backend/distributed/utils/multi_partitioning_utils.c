@@ -472,3 +472,6 @@ PartitionBound(Oid partitionId)
 
 	return partitionBoundString;
 }
+
+
+#include "distributed/banned.h"

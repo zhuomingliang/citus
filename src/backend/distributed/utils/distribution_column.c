@@ -207,3 +207,6 @@ ColumnToColumnName(Oid relationId, char *columnNodeString)
 
 	return columnName;
 }
+
+
+#include "distributed/banned.h"

@@ -474,3 +474,6 @@ UsedSubPlansEqual(UsedDistributedSubPlan *left, UsedDistributedSubPlan *right)
 
 	return false;
 }
+
+
+#include "distributed/banned.h"

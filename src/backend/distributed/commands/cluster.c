@@ -47,3 +47,6 @@ PreprocessClusterStmt(Node *node, const char *clusterCommand)
 
 	return NIL;
 }
+
+
+#include "distributed/banned.h"

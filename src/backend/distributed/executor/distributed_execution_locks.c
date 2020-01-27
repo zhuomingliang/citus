@@ -447,3 +447,6 @@ LockPartitionRelations(Oid relationId, LOCKMODE lockMode)
 		LockRelationOid(partitionRelationId, lockMode);
 	}
 }
+
+
+#include "distributed/banned.h"

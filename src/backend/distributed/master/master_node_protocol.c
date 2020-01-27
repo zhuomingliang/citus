@@ -799,3 +799,6 @@ WorkerNodeGetDatum(WorkerNode *workerNode, TupleDesc tupleDescriptor)
 
 	return workerNodeDatum;
 }
+
+
+#include "distributed/banned.h"

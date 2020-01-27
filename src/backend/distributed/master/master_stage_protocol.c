@@ -976,3 +976,6 @@ ForeignConstraintGetReferencedTableId(char *queryString)
 
 	return InvalidOid;
 }
+
+
+#include "distributed/banned.h"

@@ -789,3 +789,6 @@ AlterExtensionUpdateStmtObjectAddress(Node *node, bool missing_ok)
 
 	return address;
 }
+
+
+#include "distributed/banned.h"

@@ -38,3 +38,6 @@ QualifyAlterTableSchemaStmt(Node *node)
 		stmt->relation->schemaname = get_namespace_name(schemaOid);
 	}
 }
+
+
+#include "distributed/banned.h"

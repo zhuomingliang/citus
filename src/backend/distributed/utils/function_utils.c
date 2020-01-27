@@ -96,3 +96,6 @@ FunctionCallGetTupleStore1(PGFunction function, Oid functionId, Datum argument)
 
 	return rsinfo;
 }
+
+
+#include "distributed/banned.h"

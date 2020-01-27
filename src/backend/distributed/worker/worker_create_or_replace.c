@@ -297,3 +297,6 @@ CreateRenameStatement(const ObjectAddress *address, char *newName)
 		}
 	}
 }
+
+
+#include "distributed/banned.h"

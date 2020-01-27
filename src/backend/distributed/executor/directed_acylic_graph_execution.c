@@ -223,3 +223,6 @@ TaskHashCompare(const void *key1, const void *key2, Size keysize)
 		return 0;
 	}
 }
+
+
+#include "distributed/banned.h"

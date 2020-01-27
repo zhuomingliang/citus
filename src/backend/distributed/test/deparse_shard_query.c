@@ -78,3 +78,6 @@ deparse_shard_query_test(PG_FUNCTION_ARGS)
 
 	PG_RETURN_VOID();
 }
+
+
+#include "distributed/banned.h"

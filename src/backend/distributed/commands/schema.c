@@ -177,3 +177,6 @@ FilterDistributedSchemas(List *schemas)
 
 	return distributedSchemas;
 }
+
+
+#include "distributed/banned.h"

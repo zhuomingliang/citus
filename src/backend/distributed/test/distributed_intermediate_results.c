@@ -185,3 +185,6 @@ redistribute_task_list_results(PG_FUNCTION_ARGS)
 
 	PG_RETURN_DATUM(0);
 }
+
+
+#include "distributed/banned.h"

@@ -1431,3 +1431,6 @@ SyncMetadataToNodes(void)
 
 	return result;
 }
+
+
+#include "distributed/banned.h"

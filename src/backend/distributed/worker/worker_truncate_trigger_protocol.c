@@ -45,3 +45,6 @@ worker_create_truncate_trigger(PG_FUNCTION_ARGS)
 
 	PG_RETURN_VOID();
 }
+
+
+#include "distributed/banned.h"

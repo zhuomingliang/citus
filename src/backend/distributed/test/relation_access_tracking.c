@@ -58,3 +58,6 @@ relation_ddl_access_mode(PG_FUNCTION_ARGS)
 
 	PG_RETURN_INT64(GetRelationDDLAccessMode(relationId));
 }
+
+
+#include "distributed/banned.h"

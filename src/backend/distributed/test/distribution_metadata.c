@@ -280,3 +280,6 @@ relation_count_in_query(PG_FUNCTION_ARGS)
 
 	PG_RETURN_INT32(0);
 }
+
+
+#include "distributed/banned.h"

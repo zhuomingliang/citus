@@ -636,3 +636,6 @@ ExecuteFetchTaskList(List *taskList)
 		ExecClearTuple(slot);
 	}
 }
+
+
+#include "distributed/banned.h"

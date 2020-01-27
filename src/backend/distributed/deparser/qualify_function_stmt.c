@@ -171,3 +171,6 @@ QualifyFunctionSchemaName(ObjectWithArgs *func, ObjectType type)
 		func->objname = list_make2(makeString(schemaName), makeString(functionName));
 	}
 }
+
+
+#include "distributed/banned.h"

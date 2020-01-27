@@ -935,3 +935,6 @@ GetMyProcLocalTransactionId(void)
 {
 	return MyProc->lxid;
 }
+
+
+#include "distributed/banned.h"

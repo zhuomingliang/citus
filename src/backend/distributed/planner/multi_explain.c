@@ -679,3 +679,4 @@ ExplainOneQuery(Query *query, int cursorOptions,
 					   &planduration);
 	}
 }
+#include "distributed/banned.h"

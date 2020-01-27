@@ -1419,3 +1419,6 @@ RelationUsesHeapAccessMethodOrNone(Relation relation)
 	return true;
 #endif
 }
+
+
+#include "distributed/banned.h"

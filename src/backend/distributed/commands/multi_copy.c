@@ -2990,3 +2990,6 @@ UnclaimCopyConnections(List *connectionStateList)
 		UnclaimConnection(connectionState->connection);
 	}
 }
+
+
+#include "distributed/banned.h"

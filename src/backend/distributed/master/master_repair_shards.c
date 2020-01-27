@@ -699,3 +699,6 @@ WorkerApplyShardDDLCommandList(List *ddlCommandList, int64 shardId)
 
 	return applyDdlCommandList;
 }
+
+
+#include "distributed/banned.h"

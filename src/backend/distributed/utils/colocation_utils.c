@@ -1036,3 +1036,6 @@ DeleteColocationGroup(uint32 colocationId)
 	systable_endscan(scanDescriptor);
 	heap_close(pgDistColocation, RowExclusiveLock);
 }
+
+
+#include "distributed/banned.h"

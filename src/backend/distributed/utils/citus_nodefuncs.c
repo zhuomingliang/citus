@@ -420,3 +420,6 @@ RegisterNodes(void)
 		RegisterExtensibleNodeMethods(&nodeMethods[off]);
 	}
 }
+
+
+#include "distributed/banned.h"

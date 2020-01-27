@@ -30,3 +30,6 @@ citus_version(PG_FUNCTION_ARGS)
 {
 	PG_RETURN_TEXT_P(cstring_to_text(CITUS_VERSION_STR GIT_REF));
 }
+
+
+#include "distributed/banned.h"

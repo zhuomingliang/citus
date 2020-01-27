@@ -176,3 +176,6 @@ ExtractRangeTableIndexWalker(Node *node, List **rangeTableIndexList)
 
 	return walkerResult;
 }
+
+
+#include "distributed/banned.h"

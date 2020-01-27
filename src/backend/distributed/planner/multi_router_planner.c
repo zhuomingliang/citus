@@ -3394,3 +3394,6 @@ CompareInsertValuesByShardId(const void *leftElement, const void *rightElement)
 		}
 	}
 }
+
+
+#include "distributed/banned.h"

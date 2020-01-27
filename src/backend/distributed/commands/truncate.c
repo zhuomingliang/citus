@@ -273,3 +273,6 @@ AcquireDistributedLockOnRelations(List *relationIdList, LOCKMODE lockMode)
 		}
 	}
 }
+
+
+#include "distributed/banned.h"

@@ -45,3 +45,6 @@ alter_role_if_exists(PG_FUNCTION_ARGS)
 
 	PG_RETURN_BOOL(true);
 }
+
+
+#include "distributed/banned.h"

@@ -2030,3 +2030,6 @@ JoinRestrictionListExistsInContext(JoinRestriction *joinRestrictionInput,
 
 	return false;
 }
+
+
+#include "distributed/banned.h"

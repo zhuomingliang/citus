@@ -288,3 +288,6 @@ AppendAlterExtensionSchemaStmt(StringInfo buf,
 	appendStringInfo(buf, "ALTER EXTENSION %s SET SCHEMA %s;", extensionName,
 					 newSchemaName);
 }
+
+
+#include "distributed/banned.h"

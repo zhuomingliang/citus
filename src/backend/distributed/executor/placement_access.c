@@ -159,3 +159,6 @@ CreatePlacementAccess(ShardPlacement *placement, ShardPlacementAccessType access
 
 	return placementAccess;
 }
+
+
+#include "distributed/banned.h"

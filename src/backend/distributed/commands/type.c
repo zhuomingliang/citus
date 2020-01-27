@@ -1276,3 +1276,6 @@ ShouldPropagateTypeCreate()
 
 	return true;
 }
+
+
+#include "distributed/banned.h"

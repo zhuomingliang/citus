@@ -129,3 +129,4 @@ make_unique_from_sortclauses(Plan *lefttree, List *distinctList)
 
 
 #endif
+#include "distributed/banned.h"

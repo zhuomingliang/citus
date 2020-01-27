@@ -656,3 +656,6 @@ coord_combine_agg_ffunc(PG_FUNCTION_ARGS)
 	fcinfo->isnull = innerFcinfo->isnull;
 	return result;
 }
+
+
+#include "distributed/banned.h"

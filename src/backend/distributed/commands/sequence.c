@@ -148,3 +148,6 @@ OptionsSpecifyOwnedBy(List *optionList, Oid *ownedByTableId)
 
 	return false;
 }
+
+
+#include "distributed/banned.h"

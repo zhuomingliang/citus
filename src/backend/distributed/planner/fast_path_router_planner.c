@@ -430,3 +430,6 @@ DistKeyInSimpleOpExpression(Expr *clause, Var *distColumn, Node **distributionKe
 
 	return distColumnExists;
 }
+
+
+#include "distributed/banned.h"

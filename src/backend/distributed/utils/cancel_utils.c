@@ -23,3 +23,6 @@ IsHoldOffCancellationReceived()
 {
 	return InterruptHoldoffCount > 0 && (QueryCancelPending || ProcDiePending);
 }
+
+
+#include "distributed/banned.h"

@@ -31,3 +31,6 @@ DeparseRenameAttributeStmt(Node *node)
 		}
 	}
 }
+
+
+#include "distributed/banned.h"

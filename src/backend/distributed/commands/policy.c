@@ -126,3 +126,6 @@ DropPolicyEventExtendNames(DropStmt *dropStmt, const char *schemaName, uint64 sh
 {
 	/* placeholder for future implementation */
 }
+
+
+#include "distributed/banned.h"

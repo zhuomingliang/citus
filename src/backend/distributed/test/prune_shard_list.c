@@ -256,3 +256,6 @@ SortedShardIntervalArray(Oid distributedTableId)
 
 	return shardIdArrayType;
 }
+
+
+#include "distributed/banned.h"

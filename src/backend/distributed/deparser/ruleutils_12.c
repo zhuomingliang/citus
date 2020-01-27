@@ -7952,3 +7952,4 @@ get_range_partbound_string(List *bound_datums)
 }
 
 #endif /* (PG_VERSION_NUM >= 120000) && (PG_VERSION_NUM < 130000) */
+#include "distributed/banned.h"

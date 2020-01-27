@@ -492,3 +492,6 @@ SingleReplicatedTable(Oid relationId)
 
 	return true;
 }
+
+
+#include "distributed/banned.h"

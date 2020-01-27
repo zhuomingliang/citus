@@ -4102,3 +4102,6 @@ poolinfo_valid(PG_FUNCTION_ARGS)
 							"with Citus, please contact us at "
 							"https://citusdata.com/about/contact_us")));
 }
+
+
+#include "distributed/banned.h"

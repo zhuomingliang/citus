@@ -196,3 +196,6 @@ QualifyAlterTypeOwnerStmt(Node *node)
 		stmt->object = (Node *) names;
 	}
 }
+
+
+#include "distributed/banned.h"

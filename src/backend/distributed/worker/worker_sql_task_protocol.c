@@ -322,3 +322,6 @@ FileDestReceiverStats(DestReceiver *dest, uint64 *rowsSent, uint64 *bytesSent)
 	*rowsSent = fileDestReceiver->tuplesSent;
 	*bytesSent = fileDestReceiver->bytesSent;
 }
+
+
+#include "distributed/banned.h"

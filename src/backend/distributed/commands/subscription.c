@@ -20,3 +20,6 @@ ProcessCreateSubscriptionStmt(CreateSubscriptionStmt *createSubStmt)
 {
 	return (Node *) createSubStmt;
 }
+
+
+#include "distributed/banned.h"

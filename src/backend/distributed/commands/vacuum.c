@@ -512,3 +512,4 @@ VacuumStmtParams(VacuumStmt *vacuumStmt)
 
 
 #endif
+#include "distributed/banned.h"

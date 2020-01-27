@@ -119,3 +119,6 @@ table_inherited(PG_FUNCTION_ARGS)
 {
 	return IsParentTable(PG_GETARG_OID(0));
 }
+
+
+#include "distributed/banned.h"

@@ -28,3 +28,6 @@ citus_rm_job_directory(PG_FUNCTION_ARGS)
 
 	PG_RETURN_VOID();
 }
+
+
+#include "distributed/banned.h"

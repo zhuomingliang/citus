@@ -796,3 +796,6 @@ IsCitusCustomScan(Plan *plan)
 
 	return true;
 }
+
+
+#include "distributed/banned.h"

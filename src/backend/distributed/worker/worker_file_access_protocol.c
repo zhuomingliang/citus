@@ -90,3 +90,6 @@ worker_find_block_local_path(PG_FUNCTION_ARGS)
 
 	PG_RETURN_TEXT_P(NULL);
 }
+
+
+#include "distributed/banned.h"

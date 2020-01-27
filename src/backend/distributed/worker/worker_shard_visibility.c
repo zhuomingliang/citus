@@ -271,3 +271,6 @@ ReplaceTableVisibleFunctionWalker(Node *inputNode)
 
 	return expression_tree_walker(inputNode, ReplaceTableVisibleFunctionWalker, NULL);
 }
+
+
+#include "distributed/banned.h"

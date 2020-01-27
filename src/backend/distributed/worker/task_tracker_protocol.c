@@ -451,3 +451,6 @@ CleanupTask(WorkerTask *workerTask)
 		ereport(FATAL, (errmsg("worker task hash corrupted")));
 	}
 }
+
+
+#include "distributed/banned.h"

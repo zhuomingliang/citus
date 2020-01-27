@@ -894,3 +894,6 @@ master_expire_table_cache(PG_FUNCTION_ARGS)
 	ereport(DEBUG2, (errmsg("this function is deprecated and no longer is used")));
 	PG_RETURN_VOID();
 }
+
+
+#include "distributed/banned.h"

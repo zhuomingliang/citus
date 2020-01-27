@@ -131,3 +131,6 @@ QualifyCollationName(List *name)
 
 	return (Node *) name;
 }
+
+
+#include "distributed/banned.h"

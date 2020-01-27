@@ -917,3 +917,6 @@ DropIndexTaskList(Oid relationId, Oid indexId, DropStmt *dropStmt)
 
 	return taskList;
 }
+
+
+#include "distributed/banned.h"

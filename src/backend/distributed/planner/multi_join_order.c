@@ -1390,3 +1390,6 @@ TableReplicationModel(Oid relationId)
 
 	return replicationModel;
 }
+
+
+#include "distributed/banned.h"

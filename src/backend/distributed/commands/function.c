@@ -1877,3 +1877,6 @@ quote_qualified_func_name(Oid funcOid)
 		get_namespace_name(get_func_namespace(funcOid)),
 		get_func_name(funcOid));
 }
+
+
+#include "distributed/banned.h"

@@ -759,3 +759,6 @@ IsInDistributedTransaction(BackendData *backendData)
 {
 	return backendData->transactionId.transactionNumber != 0;
 }
+
+
+#include "distributed/banned.h"

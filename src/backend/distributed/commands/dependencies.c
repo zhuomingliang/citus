@@ -347,3 +347,6 @@ FilterObjectAddressListByPredicate(List *objectAddressList, AddressPredicate pre
 
 	return result;
 }
+
+
+#include "distributed/banned.h"

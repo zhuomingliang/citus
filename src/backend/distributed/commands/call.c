@@ -206,3 +206,6 @@ CallFuncExprRemotely(CallStmt *callStmt, DistObjectCacheEntry *procedure,
 
 	return true;
 }
+
+
+#include "distributed/banned.h"

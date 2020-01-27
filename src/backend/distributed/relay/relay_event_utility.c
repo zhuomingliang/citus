@@ -812,3 +812,6 @@ shard_name(PG_FUNCTION_ARGS)
 
 	PG_RETURN_TEXT_P(cstring_to_text(qualifiedName));
 }
+
+
+#include "distributed/banned.h"

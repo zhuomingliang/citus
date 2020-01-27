@@ -726,3 +726,6 @@ ExpandCitusSupportedTypes(ObjectAddressCollector *collector, const ObjectAddress
 	}
 	return result;
 }
+
+
+#include "distributed/banned.h"

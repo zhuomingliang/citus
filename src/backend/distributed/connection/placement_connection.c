@@ -1168,3 +1168,6 @@ ColocatedPlacementsHashCompare(const void *a, const void *b, Size keysize)
 		return 0;
 	}
 }
+
+
+#include "distributed/banned.h"

@@ -321,3 +321,6 @@ CopyNodeDeferredErrorMessage(COPYFUNC_ARGS)
 	COPY_SCALAR_FIELD(linenumber);
 	COPY_STRING_FIELD(functionname);
 }
+
+
+#include "distributed/banned.h"

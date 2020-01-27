@@ -358,3 +358,6 @@ GetDistributedObjectAddressList(void)
 
 	return objectAddressList;
 }
+
+
+#include "distributed/banned.h"

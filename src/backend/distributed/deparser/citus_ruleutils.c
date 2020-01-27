@@ -1361,3 +1361,6 @@ RoleSpecString(RoleSpec *spec, bool withQuoteIdentifier)
 		}
 	}
 }
+
+
+#include "distributed/banned.h"
