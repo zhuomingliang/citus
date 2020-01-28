@@ -155,7 +155,7 @@ CitusBeginScan(CustomScanState *node, EState *estate, int eflags)
 		bool modifyQueryRequiresMasterEvaluation =
 			workerJob->requiresMasterEvaluation && jobQuery->commandType != CMD_SELECT;
 
-		if (modifyQueryRequiresMasterEvaluation)
+		if (modifyQueryRequiresMasterEvaluation || workerJob->deferredPruning)
 		{
 			CitusBeginScanWithCoordinatorProcessing(node, estate, eflags);
 		}
