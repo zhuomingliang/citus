@@ -146,10 +146,19 @@ CitusBeginScan(CustomScanState *node, EState *estate, int eflags)
 
 	DistributedPlan *distributedPlan = scanState->distributedPlan;
 	Job *workerJob = distributedPlan->workerJob;
+
 	if (workerJob &&
 		(workerJob->requiresMasterEvaluation || workerJob->deferredPruning))
 	{
-		CitusBeginScanWithCoordinatorProcessing(node, estate, eflags);
+		/* citus only evaluates functions for modification queries */
+		Query *jobQuery = workerJob->jobQuery;
+		bool modifyQueryRequiresMasterEvaluation =
+			workerJob->requiresMasterEvaluation && jobQuery->commandType != CMD_SELECT;
+
+		if (modifyQueryRequiresMasterEvaluation)
+		{
+			CitusBeginScanWithCoordinatorProcessing(node, estate, eflags);
+		}
 
 		return;
 	}
@@ -243,10 +252,6 @@ CitusBeginScanWithCoordinatorProcessing(CustomScanState *node, EState *estate, i
 
 	PlanState *planState = &(scanState->customScanState.ss.ps);
 
-	/* citus only evaluates functions for modification queries */
-	bool modifyQueryRequiresMasterEvaluation =
-		workerJob->requiresMasterEvaluation && jobQuery->commandType != CMD_SELECT;
-
 	/*
 	 * ExecuteMasterEvaluableFunctions handles both function evalation
 	 * and parameter evaluation. Pruning is most likely deferred because
@@ -254,7 +259,7 @@ CitusBeginScanWithCoordinatorProcessing(CustomScanState *node, EState *estate, i
 	 * cases.
 	 */
 	bool shoudEvaluteFunctionsOrParams =
-		modifyQueryRequiresMasterEvaluation || workerJob->deferredPruning;
+		workerJob->requiresMasterEvaluation || workerJob->deferredPruning;
 	if (shoudEvaluteFunctionsOrParams)
 	{
 		/* evaluate functions and parameters */
