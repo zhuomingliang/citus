@@ -62,21 +62,31 @@ BuildExtendedOpNodeProperties(MultiExtendedOp *extendedOpNode, bool
 		ShouldPullDistinctColumn(repartitionSubquery, groupedByDisjointPartitionColumn,
 								 hasNonPartitionColumnDistinctAgg);
 
+	PushDownBoundary pushDownBoundary = PUSH_DOWN_JOIN_TREE;
+
+	if (!pullUpIntermediateRows)
+	{
+		pushDownBoundary = PUSH_DOWN_AGGREGATION_PARTIAL;
+	}
+
+	if (groupedByDisjointPartitionColumn)
+	{
+		pushDownBoundary = PUSH_DOWN_AGGREGATION_FULL;
+	}
+
 	/*
 	 * TODO: Only window functions that can be pushed down reach here, thus,
 	 * using hasWindowFuncs is safe for now. However, this should be fixed
 	 * when we support pull-to-master window functions.
 	 */
-	bool pushDownWindowFunctions = extendedOpNode->hasWindowFuncs;
+	if (pushDownBoundary == PUSH_DOWN_AGGREGATION_FULL &&
+		extendedOpNode->hasWindowFuncs)
+	{
+		pushDownBoundary = PUSH_DOWN_WINDOW_FUNCTIONS;
+	}
 
-	extendedOpNodeProperties.groupedByDisjointPartitionColumn =
-		groupedByDisjointPartitionColumn;
-	extendedOpNodeProperties.repartitionSubquery = repartitionSubquery;
-	extendedOpNodeProperties.hasNonPartitionColumnDistinctAgg =
-		hasNonPartitionColumnDistinctAgg;
+	extendedOpNodeProperties.pushDownBoundary = pushDownBoundary;
 	extendedOpNodeProperties.pullDistinctColumns = pullDistinctColumns;
-	extendedOpNodeProperties.pushDownWindowFunctions = pushDownWindowFunctions;
-	extendedOpNodeProperties.pullUpIntermediateRows = pullUpIntermediateRows;
 
 	return extendedOpNodeProperties;
 }

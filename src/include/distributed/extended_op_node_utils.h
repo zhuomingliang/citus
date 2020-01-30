@@ -12,6 +12,27 @@
 
 #include "distributed/multi_logical_planner.h"
 
+/*
+ * PushDownLevel indicates how much of the sql pipeline is being pushed down.
+ * See https://jvns.ca/blog/2019/10/03/sql-queries-don-t-start-with-select
+ */
+typedef enum PushDownLevel
+{
+	/* push down only the FROM .. WHERE .. clauses */
+	PUSH_DOWN_JOIN_TREE,
+
+	/* partially push down GROUP BY and/or aggregates, merge on the coordinator */
+	PUSH_DOWN_AGGREGATION_PARTIAL,
+
+	/* fully push down GROUP BY */
+	PUSH_DOWN_AGGREGATION_FULL,
+
+	/* fully push down window functions */
+	PUSH_DOWN_WINDOW_FUNCTIONS,
+
+	/* fully push down ORDER BY and/or LIMIT */
+	PUSH_DOWN_ORDER_BY_LIMIT,
+} PushDownBoundary;
 
 /*
  * ExtendedOpNodeProperties is a helper structure that is used to
@@ -23,12 +44,8 @@
  */
 typedef struct ExtendedOpNodeProperties
 {
-	bool groupedByDisjointPartitionColumn;
-	bool repartitionSubquery;
-	bool hasNonPartitionColumnDistinctAgg;
+	PushDownBoundary pushDownBoundary;
 	bool pullDistinctColumns;
-	bool pushDownWindowFunctions;
-	bool pullUpIntermediateRows;
 } ExtendedOpNodeProperties;
 
 

@@ -342,8 +342,7 @@ MultiLogicalPlanOptimize(MultiTreeRoot *multiLogicalPlan)
 	ExtendedOpNodeProperties extendedOpNodeProperties = BuildExtendedOpNodeProperties(
 		extendedOpNode, requiresIntermediateRowPullUp);
 
-	if (!extendedOpNodeProperties.groupedByDisjointPartitionColumn &&
-		!extendedOpNodeProperties.pullUpIntermediateRows)
+	if (extendedOpNodeProperties.pushDownBoundary == PUSH_DOWN_AGGREGATION_PARTIAL)
 	{
 		DeferredErrorMessage *aggregatePushdownError =
 			DeferErrorIfContainsNonPushdownableAggregate(logicalPlanNode);
@@ -356,7 +355,7 @@ MultiLogicalPlanOptimize(MultiTreeRoot *multiLogicalPlan)
 			}
 			else
 			{
-				extendedOpNodeProperties.pullUpIntermediateRows = true;
+				extendedOpNodeProperties.pushDownBoundary = PUSH_DOWN_JOIN_TREE;
 			}
 		}
 	}
@@ -1442,7 +1441,7 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 		 * down to worker as it is. Master query should treat that as a Var.
 		 */
 		if (hasAggregates && !hasWindowFunction &&
-			!extendedOpNodeProperties->groupedByDisjointPartitionColumn)
+			extendedOpNodeProperties->pushDownBoundary < PUSH_DOWN_AGGREGATION_FULL)
 		{
 			Node *newNode = MasterAggregateMutator((Node *) originalExpression,
 												   &walkerContext);
@@ -1474,7 +1473,7 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 		newTargetEntryList = lappend(newTargetEntryList, newTargetEntry);
 	}
 
-	if (!extendedOpNodeProperties->groupedByDisjointPartitionColumn)
+	if (extendedOpNodeProperties->pushDownBoundary < PUSH_DOWN_AGGREGATION_FULL)
 	{
 		/*
 		 * Not pushing down GROUP BY, need to regroup on coordinator
@@ -1570,7 +1569,7 @@ MasterAggregateExpression(Aggref *originalAggregate,
 	Expr *newMasterExpression = NULL;
 	AggClauseCosts aggregateCosts;
 
-	if (walkerContext->extendedOpNodeProperties->pullUpIntermediateRows)
+	if (walkerContext->extendedOpNodeProperties->pushDownBoundary == PUSH_DOWN_JOIN_TREE)
 	{
 		Aggref *aggregate = (Aggref *) copyObject(originalAggregate);
 
@@ -2167,7 +2166,7 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 {
 	bool distinctPreventsLimitPushdown = false;
 	bool groupedByDisjointPartitionColumn =
-		extendedOpNodeProperties->groupedByDisjointPartitionColumn;
+		extendedOpNodeProperties->pushDownBoundary >= PUSH_DOWN_AGGREGATION_FULL;
 
 	QueryTargetList queryTargetList;
 	QueryGroupClause queryGroupClause;
@@ -2205,7 +2204,7 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 	/*
 	 * only push down grouping to worker query when pushing down aggregates
 	 */
-	if (extendedOpNodeProperties->pullUpIntermediateRows)
+	if (extendedOpNodeProperties->pushDownBoundary == PUSH_DOWN_JOIN_TREE)
 	{
 		queryGroupClause.groupClauseList = NIL;
 	}
@@ -2234,7 +2233,7 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 	ProcessWindowFunctionsForWorkerQuery(originalWindowClause, originalTargetEntryList,
 										 &queryWindowClause, &queryTargetList);
 
-	if (!extendedOpNodeProperties->pullUpIntermediateRows)
+	if (extendedOpNodeProperties->pushDownBoundary > PUSH_DOWN_JOIN_TREE)
 	{
 		ProcessDistinctClauseForWorkerQuery(originalDistinctClause, hasDistinctOn,
 											queryGroupClause.groupClauseList,
@@ -2347,7 +2346,7 @@ ProcessTargetListForWorkerQuery(List *targetEntryList,
 		 * In that case we rewrite the expressions using WorkerAggregateWalker.
 		 */
 		if (!hasWindowFunction && hasAggregates &&
-			!extendedOpNodeProperties->groupedByDisjointPartitionColumn)
+			extendedOpNodeProperties->pushDownBoundary < PUSH_DOWN_AGGREGATION_FULL)
 		{
 			WorkerAggregateWalker((Node *) originalExpression, &workerAggContext);
 
@@ -2392,7 +2391,7 @@ ProcessHavingClauseForWorkerQuery(Node *originalHavingQual,
 
 	*workerHavingQual = NULL;
 
-	if (!extendedOpNodeProperties->groupedByDisjointPartitionColumn)
+	if (extendedOpNodeProperties->pushDownBoundary < PUSH_DOWN_AGGREGATION_FULL)
 	{
 		/*
 		 * If the GROUP BY or PARTITION BY is not on the distribution column
@@ -2425,8 +2424,7 @@ ProcessHavingClauseForWorkerQuery(Node *originalHavingQual,
 	 * if there is a group by, it contains distribution column).
 	 *
 	 */
-	if (extendedOpNodeProperties->groupedByDisjointPartitionColumn ||
-		extendedOpNodeProperties->pushDownWindowFunctions)
+	if (extendedOpNodeProperties->pushDownBoundary >= PUSH_DOWN_WINDOW_FUNCTIONS)
 	{
 		/*
 		 * We converted the having expression to a list in subquery pushdown
@@ -2907,7 +2905,7 @@ WorkerAggregateExpressionList(Aggref *originalAggregate,
 {
 	List *workerAggregateList = NIL;
 
-	if (walkerContext->extendedOpNodeProperties->pullUpIntermediateRows)
+	if (walkerContext->extendedOpNodeProperties->pushDownBoundary == PUSH_DOWN_JOIN_TREE)
 	{
 		TargetEntry *targetEntry;
 		foreach_ptr(targetEntry, originalAggregate->args)
