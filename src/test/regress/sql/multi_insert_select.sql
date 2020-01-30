@@ -623,13 +623,11 @@ FROM
    raw_events_first INNER JOIN raw_events_second ON raw_events_first.user_id = raw_events_second.user_id
    WHERE raw_events_second.user_id IN (19, 20, 21);
 
- -- the following is a very tricky query for Citus
- -- although we do not support pushing down JOINs on non-partition
- -- columns here it is safe to push it down given that we're looking for
- -- a specific value (i.e., value_1 = 12) on the joining column.
- -- Note that the query always hits the same shard on raw_events_second
- -- and this query wouldn't have worked if we're to use different worker
- -- count or shard replication factor
+SET client_min_messages TO WARNING;
+
+ -- following query should use repartitioned joins and results should
+ -- be routed via coordinator
+ SET citus.enable_repartition_joins TO true;
  INSERT INTO agg_events
              (user_id)
  SELECT raw_events_first.user_id
@@ -810,6 +808,8 @@ FROM   (SELECT SUM(raw_events_second.value_4) AS v4,
         GROUP  BY raw_events_second.user_id) AS foo;
 
 
+SET client_min_messages TO DEBUG2;
+
 -- INSERT returns NULL partition key value via coordinator
 INSERT INTO agg_events
             (value_4_agg,
@@ -940,6 +940,8 @@ FROM   (SELECT SUM(raw_events_second.value_4) AS v4,
         GROUP  BY raw_events_second.value_1
         HAVING SUM(raw_events_second.value_4) > 10) AS foo2 ) as f2
 ON (f.id = f2.id);
+
+SET client_min_messages TO WARNING;
 
 -- cannot pushdown the query since the JOIN is not equi JOIN
 INSERT INTO agg_events
@@ -1127,6 +1129,8 @@ WHERE f.id IN (SELECT value_1
 
 -- some more semi-anti join tests
 
+SET client_min_messages TO DEBUG2;
+
 -- join in where
 INSERT INTO raw_events_second
             (user_id)
@@ -1135,6 +1139,8 @@ FROM   raw_events_first
 WHERE  user_id IN (SELECT raw_events_second.user_id
                    FROM   raw_events_second, raw_events_first
                    WHERE  raw_events_second.user_id = raw_events_first.user_id AND raw_events_first.user_id = 200);
+
+RESET client_min_messages;
 
 -- we cannot push this down since it is NOT IN
 INSERT INTO raw_events_second
@@ -1145,6 +1151,8 @@ WHERE  user_id NOT IN (SELECT raw_events_second.user_id
                    FROM   raw_events_second, raw_events_first
                    WHERE  raw_events_second.user_id = raw_events_first.user_id AND raw_events_first.user_id = 200);
 
+
+SET client_min_messages TO DEBUG2;
 
 -- safe to push down
 INSERT INTO raw_events_second
@@ -1195,6 +1203,7 @@ WHERE  NOT EXISTS (SELECT 1
  GROUP BY
    outer_most.id;
 
+RESET client_min_messages;
 
 -- cannot push down since the f.id IN is matched with value_1
 INSERT INTO raw_events_second
@@ -1225,6 +1234,8 @@ ON (f.id = f2.id)
 WHERE f.id IN (SELECT value_1
                FROM   raw_events_second));
 
+SET client_min_messages TO DEBUG2;
+
 -- same as above, but this time is it safe to push down since
 -- f.id IN is matched with user_id
 INSERT INTO raw_events_second
@@ -1254,6 +1265,8 @@ FROM   (SELECT SUM(raw_events_second.value_4) AS v4,
 ON (f.id = f2.id)
 WHERE f.id IN (SELECT user_id
                FROM   raw_events_second));
+
+RESET client_min_messages;
 
 -- cannot push down since top level user_id is matched with NOT IN
 INSERT INTO raw_events_second

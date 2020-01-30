@@ -851,13 +851,10 @@ DEBUG:  distributed statement: INSERT INTO public.agg_events_13300009 AS citus_t
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300010 AS citus_table_alias (user_id) SELECT raw_events_first.user_id FROM (public.raw_events_first_13300002 raw_events_first JOIN public.raw_events_second_13300006 raw_events_second ON ((raw_events_first.user_id OPERATOR(pg_catalog.=) raw_events_second.user_id))) WHERE ((raw_events_second.user_id OPERATOR(pg_catalog.=) ANY (ARRAY[19, 20, 21])) AND ((worker_hash(raw_events_first.user_id) OPERATOR(pg_catalog.>=) 0) AND (worker_hash(raw_events_first.user_id) OPERATOR(pg_catalog.<=) 1073741823)))
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300011 AS citus_table_alias (user_id) SELECT raw_events_first.user_id FROM (public.raw_events_first_13300003 raw_events_first JOIN (SELECT NULL::integer AS user_id, NULL::timestamp without time zone AS "time", NULL::integer AS value_1, NULL::integer AS value_2, NULL::double precision AS value_3, NULL::bigint AS value_4 WHERE false) raw_events_second(user_id, "time", value_1, value_2, value_3, value_4) ON ((raw_events_first.user_id OPERATOR(pg_catalog.=) raw_events_second.user_id))) WHERE ((raw_events_second.user_id OPERATOR(pg_catalog.=) ANY (ARRAY[19, 20, 21])) AND ((worker_hash(raw_events_first.user_id) OPERATOR(pg_catalog.>=) 1073741824) AND (worker_hash(raw_events_first.user_id) OPERATOR(pg_catalog.<=) 2147483647)))
 DEBUG:  Plan is router executable
- -- the following is a very tricky query for Citus
- -- although we do not support pushing down JOINs on non-partition
- -- columns here it is safe to push it down given that we're looking for
- -- a specific value (i.e., value_1 = 12) on the joining column.
- -- Note that the query always hits the same shard on raw_events_second
- -- and this query wouldn't have worked if we're to use different worker
- -- count or shard replication factor
+SET client_min_messages TO WARNING;
+ -- following query should use repartitioned joins and results should
+ -- be routed via coordinator
+ SET citus.enable_repartition_joins TO true;
  INSERT INTO agg_events
              (user_id)
  SELECT raw_events_first.user_id
@@ -865,8 +862,6 @@ DEBUG:  Plan is router executable
         raw_events_second
  WHERE  raw_events_second.user_id = raw_events_first.value_1
         AND raw_events_first.value_1 = 12;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
  -- some unsupported LEFT/INNER JOINs
  -- JOIN on one table with partition column other is not
  INSERT INTO agg_events (user_id)
@@ -874,16 +869,13 @@ DETAIL:  Select query cannot be pushed down to the worker.
    raw_events_first.user_id
  FROM
    raw_events_first LEFT JOIN raw_events_second ON raw_events_first.user_id = raw_events_second.value_1;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
+ERROR:  complex joins are only supported when all distributed tables are co-located and joined on their distribution columns
  -- same as the above with INNER JOIN
  INSERT INTO agg_events (user_id)
  SELECT
    raw_events_first.user_id
  FROM
    raw_events_first INNER JOIN raw_events_second ON raw_events_first.user_id = raw_events_second.value_1;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
  -- a not meaningful query
  INSERT INTO agg_events
              (user_id)
@@ -891,24 +883,21 @@ DETAIL:  Select query cannot be pushed down to the worker.
  FROM   raw_events_first,
         raw_events_second
  WHERE  raw_events_first.user_id = raw_events_first.value_1;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
+ERROR:  cannot perform distributed planning on this query
+DETAIL:  Cartesian products are currently unsupported
  -- both tables joined on non-partition columns
  INSERT INTO agg_events (user_id)
  SELECT
    raw_events_first.user_id
  FROM
    raw_events_first LEFT JOIN raw_events_second ON raw_events_first.value_1 = raw_events_second.value_1;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
+ERROR:  complex joins are only supported when all distributed tables are co-located and joined on their distribution columns
  -- same as the above with INNER JOIN
  INSERT INTO agg_events (user_id)
  SELECT
    raw_events_first.user_id
  FROM
    raw_events_first INNER JOIN raw_events_second ON raw_events_first.value_1 = raw_events_second.value_1;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
 -- even if there is a filter on the partition key, since the join is not on the partition key we reject
 -- this query
 INSERT INTO agg_events (user_id)
@@ -918,8 +907,7 @@ FROM
   raw_events_first LEFT JOIN raw_events_second ON raw_events_first.user_id = raw_events_second.value_1
 WHERE
   raw_events_first.user_id = 10;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
+ERROR:  complex joins are only supported when all distributed tables are co-located and joined on their distribution columns
  -- same as the above with INNER JOIN
  INSERT INTO agg_events (user_id)
  SELECT
@@ -927,8 +915,6 @@ DETAIL:  Select query cannot be pushed down to the worker.
  FROM
    raw_events_first INNER JOIN raw_events_second ON raw_events_first.user_id = raw_events_second.value_1
  WHERE raw_events_first.user_id = 10;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
  -- make things a bit more complicate with IN clauses
  INSERT INTO agg_events (user_id)
  SELECT
@@ -936,8 +922,6 @@ DETAIL:  Select query cannot be pushed down to the worker.
  FROM
    raw_events_first INNER JOIN raw_events_second ON raw_events_first.user_id = raw_events_second.value_1
    WHERE raw_events_first.value_1 IN (10, 11,12) OR raw_events_second.user_id IN (1,2,3,4);
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
  -- implicit join on non partition column should also not be pushed down
  INSERT INTO agg_events
              (user_id)
@@ -945,8 +929,6 @@ DETAIL:  Select query cannot be pushed down to the worker.
  FROM   raw_events_first,
         raw_events_second
  WHERE  raw_events_second.user_id = raw_events_first.value_1;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
  -- the following is again a tricky query for Citus
  -- if the given filter was on value_1 as shown in the above, Citus could
  -- push it down. But here the query is refused
@@ -957,8 +939,6 @@ DETAIL:  Select query cannot be pushed down to the worker.
         raw_events_second
  WHERE  raw_events_second.user_id = raw_events_first.value_1
         AND raw_events_first.value_2 = 12;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
  -- lets do some unsupported query tests with subqueries
  -- foo is not joined on the partition key so the query is not
  -- pushed down
@@ -990,8 +970,6 @@ DETAIL:  Select query cannot be pushed down to the worker.
  ON (f.id = f2.id)) as outer_most
  GROUP BY
    outer_most.id;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
  -- if the given filter was on value_1 as shown in the above, Citus could
  -- push it down. But here the query is refused
  INSERT INTO agg_events
@@ -1001,8 +979,6 @@ DETAIL:  Select query cannot be pushed down to the worker.
         raw_events_second
  WHERE  raw_events_second.user_id = raw_events_first.value_1
         AND raw_events_first.value_2 = 12;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
  -- lets do some unsupported query tests with subqueries
  -- foo is not joined on the partition key so the query is not
  -- pushed down
@@ -1034,8 +1010,6 @@ DETAIL:  Select query cannot be pushed down to the worker.
  ON (f.id = f2.id)) as outer_most
  GROUP BY
    outer_most.id;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
 INSERT INTO agg_events
             (value_4_agg,
              value_1_agg,
@@ -1050,8 +1024,8 @@ FROM   (SELECT SUM(raw_events_second.value_4) AS v4,
                raw_events_second
         WHERE  raw_events_first.user_id != raw_events_second.user_id
         GROUP  BY raw_events_second.user_id) AS foo;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
+ERROR:  complex joins are only supported when all distributed tables are joined on their distribution columns with equal operator
+SET client_min_messages TO DEBUG2;
 -- INSERT returns NULL partition key value via coordinator
 INSERT INTO agg_events
             (value_4_agg,
@@ -1290,6 +1264,7 @@ DEBUG:  Plan XXX query after replacing subqueries and CTEs: SELECT f.id AS user_
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  performing repartitioned INSERT ... SELECT
 DEBUG:  partitioning SELECT query by column index 0 with name 'user_id'
+SET client_min_messages TO WARNING;
 -- cannot pushdown the query since the JOIN is not equi JOIN
 INSERT INTO agg_events
             (user_id, value_4_agg)
@@ -1318,8 +1293,6 @@ outer_most.id, max(outer_most.value)
             HAVING SUM(raw_events_second.value_4) > 10) AS foo2 ) as f2
 ON (f.id != f2.id)) as outer_most
 GROUP BY outer_most.id;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
 -- cannot pushdown since foo2 is not join on partition key
 INSERT INTO agg_events
             (user_id, value_4_agg)
@@ -1349,8 +1322,6 @@ FROM
 ON (f.id = f2.id)) as outer_most
 GROUP BY
   outer_most.id;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
 -- cannot push down since foo doesn't have en equi join
 INSERT INTO agg_events
             (user_id, value_4_agg)
@@ -1380,8 +1351,6 @@ FROM
 ON (f.id = f2.id)) as outer_most
 GROUP BY
   outer_most.id;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
 -- some unsupported LATERAL JOINs
 -- join on averages is not on the partition key
 INSERT INTO agg_events (user_id, value_4_agg)
@@ -1400,8 +1369,6 @@ FROM
       raw_events_first WHERE
       value_4 = reference_ids.user_id) as averages ON true
     GROUP BY averages.user_id;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
 -- join among reference_ids and averages is not on the partition key
 INSERT INTO agg_events (user_id, value_4_agg)
 SELECT
@@ -1418,8 +1385,6 @@ FROM
     FROM
       raw_events_first) as averages ON averages.value_4 = reference_ids.user_id
     GROUP BY averages.user_id;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
 -- join among the agg_ids and averages is not on the partition key
 INSERT INTO agg_events (user_id, value_4_agg)
 SELECT
@@ -1438,8 +1403,6 @@ FROM
 JOIN LATERAL
     (SELECT user_id, value_4 FROM agg_events) as agg_ids ON (agg_ids.value_4 = averages.user_id)
     GROUP BY averages.user_id;
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
 -- not supported subqueries in WHERE clause
 -- since the selected value in the WHERE is not
 -- partition key
@@ -1449,8 +1412,6 @@ SELECT user_id
 FROM   raw_events_first
 WHERE  user_id IN (SELECT value_1
                    FROM   raw_events_second);
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
 -- same as above but slightly more complex
 -- since it also includes subquery in FROM as well
 INSERT INTO agg_events
@@ -1477,9 +1438,8 @@ FROM   (SELECT SUM(raw_events_second.value_4) AS v4,
 ON (f.id = f2.id)
 WHERE f.id IN (SELECT value_1
                FROM   raw_events_second);
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
 -- some more semi-anti join tests
+SET client_min_messages TO DEBUG2;
 -- join in where
 INSERT INTO raw_events_second
             (user_id)
@@ -1493,6 +1453,7 @@ DEBUG:  Skipping target shard interval 13300005 since SELECT query for it pruned
 DEBUG:  Skipping target shard interval 13300006 since SELECT query for it pruned away
 DEBUG:  Skipping target shard interval 13300007 since SELECT query for it pruned away
 DEBUG:  Plan is router executable
+RESET client_min_messages;
 -- we cannot push this down since it is NOT IN
 INSERT INTO raw_events_second
             (user_id)
@@ -1501,8 +1462,7 @@ FROM   raw_events_first
 WHERE  user_id NOT IN (SELECT raw_events_second.user_id
                    FROM   raw_events_second, raw_events_first
                    WHERE  raw_events_second.user_id = raw_events_first.user_id AND raw_events_first.user_id = 200);
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
+SET client_min_messages TO DEBUG2;
 -- safe to push down
 INSERT INTO raw_events_second
             (user_id)
@@ -1563,6 +1523,7 @@ DEBUG:  distributed statement: INSERT INTO public.agg_events_13300009 AS citus_t
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300010 AS citus_table_alias (user_id, value_4_agg) SELECT id, max(value) AS max FROM (SELECT f2.id, f2.v4 AS value FROM ((SELECT foo.id FROM (SELECT raw_events_first.user_id AS id FROM (public.raw_events_first_13300002 raw_events_first LEFT JOIN public.reference_table_13300012 reference_table ON ((raw_events_first.user_id OPERATOR(pg_catalog.=) reference_table.user_id)))) foo) f LEFT JOIN (SELECT foo2.v4, foo2.v1, foo2.id FROM (SELECT sum(raw_events_second.value_4) AS v4, sum(raw_events_first.value_1) AS v1, raw_events_second.user_id AS id FROM public.raw_events_first_13300002 raw_events_first, public.raw_events_second_13300006 raw_events_second WHERE (raw_events_first.user_id OPERATOR(pg_catalog.=) raw_events_second.user_id) GROUP BY raw_events_second.user_id HAVING (sum(raw_events_second.value_4) OPERATOR(pg_catalog.>) (10)::numeric)) foo2) f2 ON ((f.id OPERATOR(pg_catalog.=) f2.id)))) outer_most WHERE ((worker_hash(id) OPERATOR(pg_catalog.>=) 0) AND (worker_hash(id) OPERATOR(pg_catalog.<=) 1073741823)) GROUP BY id
 DEBUG:  distributed statement: INSERT INTO public.agg_events_13300011 AS citus_table_alias (user_id, value_4_agg) SELECT id, max(value) AS max FROM (SELECT f2.id, f2.v4 AS value FROM ((SELECT foo.id FROM (SELECT raw_events_first.user_id AS id FROM (public.raw_events_first_13300003 raw_events_first LEFT JOIN public.reference_table_13300012 reference_table ON ((raw_events_first.user_id OPERATOR(pg_catalog.=) reference_table.user_id)))) foo) f LEFT JOIN (SELECT foo2.v4, foo2.v1, foo2.id FROM (SELECT sum(raw_events_second.value_4) AS v4, sum(raw_events_first.value_1) AS v1, raw_events_second.user_id AS id FROM public.raw_events_first_13300003 raw_events_first, public.raw_events_second_13300007 raw_events_second WHERE (raw_events_first.user_id OPERATOR(pg_catalog.=) raw_events_second.user_id) GROUP BY raw_events_second.user_id HAVING (sum(raw_events_second.value_4) OPERATOR(pg_catalog.>) (10)::numeric)) foo2) f2 ON ((f.id OPERATOR(pg_catalog.=) f2.id)))) outer_most WHERE ((worker_hash(id) OPERATOR(pg_catalog.>=) 1073741824) AND (worker_hash(id) OPERATOR(pg_catalog.<=) 2147483647)) GROUP BY id
 DEBUG:  Plan is router executable
+RESET client_min_messages;
 -- cannot push down since the f.id IN is matched with value_1
 INSERT INTO raw_events_second
             (user_id)
@@ -1591,8 +1552,7 @@ FROM   (SELECT SUM(raw_events_second.value_4) AS v4,
 ON (f.id = f2.id)
 WHERE f.id IN (SELECT value_1
                FROM   raw_events_second));
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
+SET client_min_messages TO DEBUG2;
 -- same as above, but this time is it safe to push down since
 -- f.id IN is matched with user_id
 INSERT INTO raw_events_second
@@ -1627,6 +1587,7 @@ DEBUG:  distributed statement: INSERT INTO public.raw_events_second_13300005 AS 
 DEBUG:  distributed statement: INSERT INTO public.raw_events_second_13300006 AS citus_table_alias (user_id) SELECT user_id FROM public.raw_events_first_13300002 raw_events_first WHERE ((user_id OPERATOR(pg_catalog.=) ANY (SELECT f2.id FROM ((SELECT foo.id FROM (SELECT reference_table.user_id AS id FROM public.raw_events_first_13300002 raw_events_first_1, public.reference_table_13300012 reference_table WHERE (raw_events_first_1.user_id OPERATOR(pg_catalog.=) reference_table.user_id)) foo) f JOIN (SELECT foo2.v4, foo2.v1, foo2.id FROM (SELECT sum(raw_events_second.value_4) AS v4, sum(raw_events_first_1.value_1) AS v1, raw_events_second.user_id AS id FROM public.raw_events_first_13300002 raw_events_first_1, public.raw_events_second_13300006 raw_events_second WHERE (raw_events_first_1.user_id OPERATOR(pg_catalog.=) raw_events_second.user_id) GROUP BY raw_events_second.user_id HAVING (sum(raw_events_second.value_4) OPERATOR(pg_catalog.>) (10)::numeric)) foo2) f2 ON ((f.id OPERATOR(pg_catalog.=) f2.id))) WHERE (f.id OPERATOR(pg_catalog.=) ANY (SELECT raw_events_second.user_id FROM public.raw_events_second_13300006 raw_events_second)))) AND ((worker_hash(user_id) OPERATOR(pg_catalog.>=) 0) AND (worker_hash(user_id) OPERATOR(pg_catalog.<=) 1073741823)))
 DEBUG:  distributed statement: INSERT INTO public.raw_events_second_13300007 AS citus_table_alias (user_id) SELECT user_id FROM public.raw_events_first_13300003 raw_events_first WHERE ((user_id OPERATOR(pg_catalog.=) ANY (SELECT f2.id FROM ((SELECT foo.id FROM (SELECT reference_table.user_id AS id FROM public.raw_events_first_13300003 raw_events_first_1, public.reference_table_13300012 reference_table WHERE (raw_events_first_1.user_id OPERATOR(pg_catalog.=) reference_table.user_id)) foo) f JOIN (SELECT foo2.v4, foo2.v1, foo2.id FROM (SELECT sum(raw_events_second.value_4) AS v4, sum(raw_events_first_1.value_1) AS v1, raw_events_second.user_id AS id FROM public.raw_events_first_13300003 raw_events_first_1, public.raw_events_second_13300007 raw_events_second WHERE (raw_events_first_1.user_id OPERATOR(pg_catalog.=) raw_events_second.user_id) GROUP BY raw_events_second.user_id HAVING (sum(raw_events_second.value_4) OPERATOR(pg_catalog.>) (10)::numeric)) foo2) f2 ON ((f.id OPERATOR(pg_catalog.=) f2.id))) WHERE (f.id OPERATOR(pg_catalog.=) ANY (SELECT raw_events_second.user_id FROM public.raw_events_second_13300007 raw_events_second)))) AND ((worker_hash(user_id) OPERATOR(pg_catalog.>=) 1073741824) AND (worker_hash(user_id) OPERATOR(pg_catalog.<=) 2147483647)))
 DEBUG:  Plan is router executable
+RESET client_min_messages;
 -- cannot push down since top level user_id is matched with NOT IN
 INSERT INTO raw_events_second
             (user_id)
@@ -1655,8 +1616,8 @@ FROM   (SELECT SUM(raw_events_second.value_4) AS v4,
 ON (f.id = f2.id)
 WHERE f.id IN (SELECT user_id
                FROM   raw_events_second));
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
+ERROR:  cannot pushdown the subquery
+DETAIL:  There exist a reference table in the outer part of the outer join
 -- cannot push down since join is not equi join (f.id > f2.id)
 INSERT INTO raw_events_second
             (user_id)
@@ -1685,8 +1646,8 @@ FROM   (SELECT SUM(raw_events_second.value_4) AS v4,
 ON (f.id > f2.id)
 WHERE f.id IN (SELECT user_id
                FROM   raw_events_second));
-ERROR:  cannot perform distributed planning for the given modification
-DETAIL:  Select query cannot be pushed down to the worker.
+ERROR:  cannot pushdown the subquery
+DETAIL:  There exist a reference table in the outer part of the outer join
 -- we currently not support grouping sets
 INSERT INTO agg_events
             (user_id,
@@ -1697,8 +1658,6 @@ SELECT user_id,
        Sum(value_2) AS sum_val2
 FROM   raw_events_second
 GROUP  BY grouping sets ( ( user_id ), ( value_1 ), ( user_id, value_1 ), ( ) );
-DEBUG:  grouping sets are not allowed in distributed INSERT ... SELECT queries
-DEBUG:  Router planner cannot handle multi-shard select queries
 ERROR:  could not run distributed query with GROUPING SETS, CUBE, or ROLLUP
 HINT:  Consider using an equality filter on the distributed table's partition column.
 -- set back to INFO
@@ -1796,7 +1755,7 @@ INSERT INTO raw_events_first (user_id, time, value_1, value_2, value_3, value_4)
 SELECT count(*) FROM raw_events_second;
  count
 ---------------------------------------------------------------------
-    36
+    45
 (1 row)
 
 INSERT INTO raw_events_second SELECT * FROM test_view;
@@ -1806,7 +1765,7 @@ INSERT INTO raw_events_second SELECT * FROM test_view WHERE user_id = 17 GROUP B
 SELECT count(*) FROM raw_events_second;
  count
 ---------------------------------------------------------------------
-    38
+    47
 (1 row)
 
 -- intermediate results (CTEs) should be allowed when doing INSERT...SELECT within a CTE
