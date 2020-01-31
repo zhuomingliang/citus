@@ -28,6 +28,7 @@
 
 /* private function declarations */
 static bool IsVarNode(Node *node);
+static bool IsParam(Node *node);
 static Expr * citus_evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 								  Oid result_collation,
 								  MasterEvaluationContext *masterEvaluationContext);
@@ -184,6 +185,12 @@ IsVarNode(Node *node)
 	return IsA(node, Var);
 }
 
+static bool
+IsParam(Node *node)
+{
+	return IsA(node, Param);
+}
+
 
 /*
  * a copy of pg's evaluate_expr, pre-evaluate a constant expression
@@ -211,7 +218,7 @@ citus_evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 	{
 		planState = masterEvaluationContext->planState;
 
-		if (IsA(expr, Param))
+		if (FindNodeCheck(expr, IsParam))
 		{
 			if (!masterEvaluationContext->evaluateParams)
 			{
