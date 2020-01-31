@@ -875,8 +875,8 @@ TryCreateDistributedPlannedStmt(PlannedStmt *localPlan,
  * 3. Logical planner
  */
 static DistributedPlan *
-CreateDistributedPlan(uint64 planId, Query *originalQuery, Query *query, ParamListInfo
-					  boundParams, bool hasUnresolvedParams,
+CreateDistributedPlan(uint64 planId, Query *originalQuery, Query *query,
+					  ParamListInfo boundParams, bool hasUnresolvedParams,
 					  PlannerRestrictionContext *plannerRestrictionContext)
 {
 	DistributedPlan *distributedPlan = NULL;
@@ -902,7 +902,8 @@ CreateDistributedPlan(uint64 planId, Query *originalQuery, Query *query, ParamLi
 			}
 
 			distributedPlan =
-				CreateInsertSelectPlan(planId, originalQuery, plannerRestrictionContext);
+				CreateInsertSelectPlan(planId, originalQuery,
+									   plannerRestrictionContext, boundParams);
 		}
 		else
 		{

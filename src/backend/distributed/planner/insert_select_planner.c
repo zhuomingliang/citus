@@ -17,6 +17,7 @@
 #include "distributed/errormessage.h"
 #include "distributed/log_utils.h"
 #include "distributed/insert_select_planner.h"
+#include "distributed/insert_select_executor.h"
 #include "distributed/metadata_cache.h"
 #include "distributed/multi_executor.h"
 #include "distributed/multi_logical_planner.h"
@@ -43,13 +44,15 @@
 #include "parser/parsetree.h"
 #include "parser/parse_coerce.h"
 #include "parser/parse_relation.h"
+#include "tcop/tcopprot.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 
 
 static DistributedPlan * CreateDistributedInsertSelectPlan(Query *originalQuery,
 														   PlannerRestrictionContext *
-														   plannerRestrictionContext);
+														   plannerRestrictionContext,
+														   ParamListInfo boundParams);
 static Task * RouterModifyTaskForShardInterval(Query *originalQuery,
 											   ShardInterval *shardInterval,
 											   PlannerRestrictionContext *
@@ -60,9 +63,8 @@ static Task * RouterModifyTaskForShardInterval(Query *originalQuery,
 static DeferredErrorMessage * DistributedInsertSelectSupported(Query *queryTree,
 															   RangeTblEntry *insertRte,
 															   RangeTblEntry *subqueryRte,
-															   bool allReferenceTables);
-static DeferredErrorMessage * MultiTaskRouterSelectQuerySupported(Query *query);
-static bool HasUnsupportedDistinctOn(Query *query);
+															   bool allReferenceTables,
+															   ParamListInfo boundParams);
 static DeferredErrorMessage * InsertPartitionColumnMatchesSelect(Query *query,
 																 RangeTblEntry *insertRte,
 																 RangeTblEntry *
@@ -177,7 +179,8 @@ CheckInsertSelectQuery(Query *query)
  */
 DistributedPlan *
 CreateInsertSelectPlan(uint64 planId, Query *originalQuery,
-					   PlannerRestrictionContext *plannerRestrictionContext)
+					   PlannerRestrictionContext *plannerRestrictionContext,
+					   ParamListInfo boundParams)
 {
 	DeferredErrorMessage *deferredError = ErrorIfOnConflictNotSupported(originalQuery);
 	if (deferredError != NULL)
@@ -187,7 +190,8 @@ CreateInsertSelectPlan(uint64 planId, Query *originalQuery,
 	}
 
 	DistributedPlan *distributedPlan = CreateDistributedInsertSelectPlan(originalQuery,
-																		 plannerRestrictionContext);
+																		 plannerRestrictionContext,
+																		 boundParams);
 
 	if (distributedPlan->planningError != NULL)
 	{
@@ -209,7 +213,8 @@ CreateInsertSelectPlan(uint64 planId, Query *originalQuery,
  */
 static DistributedPlan *
 CreateDistributedInsertSelectPlan(Query *originalQuery,
-								  PlannerRestrictionContext *plannerRestrictionContext)
+								  PlannerRestrictionContext *plannerRestrictionContext,
+								  ParamListInfo boundParams)
 {
 	List *sqlTaskList = NIL;
 	uint32 taskIdIndex = 1;     /* 0 is reserved for invalid taskId */
@@ -233,7 +238,8 @@ CreateDistributedInsertSelectPlan(Query *originalQuery,
 	distributedPlan->planningError = DistributedInsertSelectSupported(originalQuery,
 																	  insertRte,
 																	  subqueryRte,
-																	  allReferenceTables);
+																	  allReferenceTables,
+																	  boundParams);
 	if (distributedPlan->planningError)
 	{
 		return distributedPlan;
@@ -311,7 +317,8 @@ CreateDistributedInsertSelectPlan(Query *originalQuery,
  */
 static DeferredErrorMessage *
 DistributedInsertSelectSupported(Query *queryTree, RangeTblEntry *insertRte,
-								 RangeTblEntry *subqueryRte, bool allReferenceTables)
+								 RangeTblEntry *subqueryRte, bool allReferenceTables,
+								 ParamListInfo boundParams)
 {
 	Oid selectPartitionColumnTableId = InvalidOid;
 	Oid targetRelationId = insertRte->relid;
@@ -321,13 +328,40 @@ DistributedInsertSelectSupported(Query *queryTree, RangeTblEntry *insertRte,
 	/* we only do this check for INSERT ... SELECT queries */
 	AssertArg(InsertSelectIntoDistributedTable(queryTree));
 
-	Query *subquery = subqueryRte->subquery;
+	Query *selectQuery = BuildSelectForInsertSelect(queryTree);
 
-	if (!NeedsDistributedPlanning(subquery))
+	/*
+	 * Make a copy of the query, since pg_plan_query may scribble on it and we
+	 * want it to be replanned every time if it is stored in a prepared
+	 * statement.
+	 */
+	Query *selectQueryCopy = copyObject(selectQuery);
+	int cursorOptions = CURSOR_OPT_PARALLEL_OK;
+	PlannedStmt *selectPlan = pg_plan_query(selectQueryCopy, cursorOptions,
+											boundParams);
+
+	/*
+	 * Don't use distributed insert ... SELECT if query is not distributed or
+	 * requires merge on coordinator.
+	 */
+	if (!IsCitusCustomScan(selectPlan->planTree))
 	{
 		return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
-							 "distributed INSERT ... SELECT can only select from "
-							 "distributed tables",
+							 "distributed INSERT ... SELECT can only be used for "
+							 "distributed select queries which doesn't require "
+							 "merge on the coordinator",
+							 NULL, NULL);
+	}
+
+	DistributedPlan *distSelectPlan =
+		GetDistributedPlan((CustomScan *) selectPlan->planTree);
+	Job *distSelectJob = distSelectPlan->workerJob;
+
+	if (distSelectJob->dependentJobList != NIL)
+	{
+		return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
+							 "distributed INSERT ... SELECT cannot be used "
+							 "for repartition joins",
 							 NULL, NULL);
 	}
 
@@ -352,13 +386,6 @@ DistributedInsertSelectSupported(Query *queryTree, RangeTblEntry *insertRte,
 							 NULL, NULL);
 	}
 
-	/* we don't support LIMIT, OFFSET and WINDOW functions */
-	DeferredErrorMessage *error = MultiTaskRouterSelectQuerySupported(subquery);
-	if (error)
-	{
-		return error;
-	}
-
 	/*
 	 * If we're inserting into a reference table, all participating tables
 	 * should be reference tables as well.
@@ -376,8 +403,9 @@ DistributedInsertSelectSupported(Query *queryTree, RangeTblEntry *insertRte,
 	else
 	{
 		/* ensure that INSERT's partition column comes from SELECT's partition column */
-		error = InsertPartitionColumnMatchesSelect(queryTree, insertRte, subqueryRte,
-												   &selectPartitionColumnTableId);
+		DeferredErrorMessage *error =
+			InsertPartitionColumnMatchesSelect(queryTree, insertRte, subqueryRte,
+											   &selectPartitionColumnTableId);
 		if (error)
 		{
 			return error;
@@ -732,151 +760,6 @@ ReorderInsertSelectTargetLists(Query *originalQuery, RangeTblEntry *insertRte,
 	subquery->targetList = newSubqueryTargetlist;
 
 	return NULL;
-}
-
-
-/*
- * MultiTaskRouterSelectQuerySupported returns NULL if the query may be used
- * as the source for an INSERT ... SELECT or returns a description why not.
- */
-static DeferredErrorMessage *
-MultiTaskRouterSelectQuerySupported(Query *query)
-{
-	List *queryList = NIL;
-	ListCell *queryCell = NULL;
-	StringInfo errorDetail = NULL;
-	bool hasUnsupportedDistinctOn = false;
-
-	ExtractQueryWalker((Node *) query, &queryList);
-	foreach(queryCell, queryList)
-	{
-		Query *subquery = (Query *) lfirst(queryCell);
-
-		Assert(subquery->commandType == CMD_SELECT);
-
-		/* pushing down rtes without relations yields (shardCount * expectedRows) */
-		if (HasEmptyJoinTree(subquery))
-		{
-			return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
-								 "Subqueries without relations are not allowed in "
-								 "distributed INSERT ... SELECT queries",
-								 NULL, NULL);
-		}
-
-		/* pushing down limit per shard would yield wrong results */
-		if (subquery->limitCount != NULL)
-		{
-			return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
-								 "LIMIT clauses are not allowed in distributed INSERT "
-								 "... SELECT queries",
-								 NULL, NULL);
-		}
-
-		/* pushing down limit offest per shard would yield wrong results */
-		if (subquery->limitOffset != NULL)
-		{
-			return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
-								 "OFFSET clauses are not allowed in distributed "
-								 "INSERT ... SELECT queries",
-								 NULL, NULL);
-		}
-
-		/* group clause list must include partition column */
-		if (subquery->groupClause)
-		{
-			List *groupClauseList = subquery->groupClause;
-			List *targetEntryList = subquery->targetList;
-			List *groupTargetEntryList = GroupTargetEntryList(groupClauseList,
-															  targetEntryList);
-			bool groupOnPartitionColumn = TargetListOnPartitionColumn(subquery,
-																	  groupTargetEntryList);
-			if (!groupOnPartitionColumn)
-			{
-				return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
-									 "Group by list without distribution column is "
-									 "not allowed  in distributed INSERT ... "
-									 "SELECT queries",
-									 NULL, NULL);
-			}
-		}
-
-		/*
-		 * We support window functions when the window function
-		 * is partitioned on distribution column.
-		 */
-		if (subquery->windowClause && !SafeToPushdownWindowFunction(subquery,
-																	&errorDetail))
-		{
-			return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED, errorDetail->data, NULL,
-								 NULL);
-		}
-
-		if (subquery->setOperations != NULL)
-		{
-			return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
-								 "Set operations are not allowed in distributed "
-								 "INSERT ... SELECT queries",
-								 NULL, NULL);
-		}
-
-		/*
-		 * We currently do not support grouping sets since it could generate NULL
-		 * results even after the restrictions are applied to the query. A solution
-		 * would be to add the whole query into a subquery and add the restrictions
-		 * on that subquery.
-		 */
-		if (subquery->groupingSets != NULL)
-		{
-			return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
-								 "grouping sets are not allowed in distributed "
-								 "INSERT ... SELECT queries",
-								 NULL, NULL);
-		}
-
-		/*
-		 * We don't support DISTINCT ON clauses on non-partition columns.
-		 */
-		hasUnsupportedDistinctOn = HasUnsupportedDistinctOn(subquery);
-		if (hasUnsupportedDistinctOn)
-		{
-			return DeferredError(ERRCODE_FEATURE_NOT_SUPPORTED,
-								 "DISTINCT ON (non-partition column) clauses are not "
-								 "allowed in distributed INSERT ... SELECT queries",
-								 NULL, NULL);
-		}
-	}
-
-	return NULL;
-}
-
-
-/*
- * HasUnsupportedDistinctOn returns true if the query has distinct on and
- * distinct targets do not contain partition column.
- */
-static bool
-HasUnsupportedDistinctOn(Query *query)
-{
-	ListCell *distinctCell = NULL;
-
-	if (!query->hasDistinctOn)
-	{
-		return false;
-	}
-
-	foreach(distinctCell, query->distinctClause)
-	{
-		SortGroupClause *distinctClause = lfirst(distinctCell);
-		TargetEntry *distinctEntry = get_sortgroupclause_tle(distinctClause,
-															 query->targetList);
-
-		if (IsPartitionColumn(distinctEntry->expr, query))
-		{
-			return false;
-		}
-	}
-
-	return true;
 }
 
 
