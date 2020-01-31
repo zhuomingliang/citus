@@ -29,11 +29,10 @@
 /* private function declarations */
 static bool IsVarNode(Node *node);
 static Expr * citus_evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
-								  Oid result_collation,
-								  MasterEvaluationContext *masterEvaluationContext);
+								  Oid result_collation, PlanState *planState);
 static bool CitusIsVolatileFunctionIdChecker(Oid func_id, void *context);
 static bool CitusIsMutableFunctionIdChecker(Oid func_id, void *context);
-static bool ShouldEvaluateExpressionType(NodeTag nodeTag);
+
 
 /*
  * RequiresMastereEvaluation returns the executor needs to reparse and
@@ -48,36 +47,13 @@ RequiresMasterEvaluation(Query *query)
 
 
 /*
- * ExecuteMasterEvaluableFunctions evaluates expressions and external parameters
- * that can be resolved to a constant.
+ * ExecuteMasterEvaluableFunctions evaluates expressions that can be resolved
+ * to a constant.
  */
 void
-ExecuteMasterEvaluableFunctionsAndParameters(Query *query, PlanState *planState)
+ExecuteMasterEvaluableFunctions(Query *query, PlanState *planState)
 {
-	MasterEvaluationContext masterEvaluationContext;
-
-	masterEvaluationContext.planState = planState;
-	masterEvaluationContext.evaluateParams = true;
-	masterEvaluationContext.evaluateFunctions = true;
-
-	PartiallyEvaluateExpression((Node *) query, &masterEvaluationContext);
-}
-
-
-/*
- * ExecuteMasterEvaluableParameters evaluates external paramaters that can be
- * resolved to a constant.
- */
-void
-ExecuteMasterEvaluableParameters(Query *query, PlanState *planState)
-{
-	MasterEvaluationContext masterEvaluationContext;
-
-	masterEvaluationContext.planState = planState;
-	masterEvaluationContext.evaluateParams = true;
-	masterEvaluationContext.evaluateFunctions = false;
-
-	PartiallyEvaluateExpression((Node *) query, &masterEvaluationContext);
+	PartiallyEvaluateExpression((Node *) query, planState);
 }
 
 
@@ -88,72 +64,27 @@ ExecuteMasterEvaluableParameters(Query *query, PlanState *planState)
  * on the master.
  */
 Node *
-PartiallyEvaluateExpression(Node *expression,
-							MasterEvaluationContext *masterEvaluationContext)
+PartiallyEvaluateExpression(Node *expression, PlanState *planState)
 {
 	if (expression == NULL || IsA(expression, Const))
 	{
 		return expression;
 	}
 
-	NodeTag nodeTag = nodeTag(expression);
-	if (nodeTag == T_Param)
+	switch (nodeTag(expression))
 	{
-		Param *param = (Param *) expression;
-		if (param->paramkind == PARAM_SUBLINK)
+		case T_Param:
 		{
-			/* ExecInitExpr cannot handle PARAM_SUBLINK */
-			return expression;
+			Param *param = (Param *) expression;
+			if (param->paramkind == PARAM_SUBLINK)
+			{
+				/* ExecInitExpr cannot handle PARAM_SUBLINK */
+				return expression;
+			}
 		}
 
-		return (Node *) citus_evaluate_expr((Expr *) expression,
-											exprType(expression),
-											exprTypmod(expression),
-											exprCollation(expression),
-											masterEvaluationContext);
-	}
-	else if (ShouldEvaluateExpressionType(nodeTag))
-	{
-		if (FindNodeCheck(expression, IsVarNode))
-		{
-			return (Node *) expression_tree_mutator(expression,
-													PartiallyEvaluateExpression,
-													masterEvaluationContext);
-		}
+		/* fallthrough */
 
-		return (Node *) citus_evaluate_expr((Expr *) expression,
-											exprType(expression),
-											exprTypmod(expression),
-											exprCollation(expression),
-											masterEvaluationContext);
-	}
-	else if (nodeTag == T_Query)
-	{
-		return (Node *) query_tree_mutator((Query *) expression,
-										   PartiallyEvaluateExpression,
-										   masterEvaluationContext,
-										   QTW_DONT_COPY_QUERY);
-	}
-	else
-	{
-		return (Node *) expression_tree_mutator(expression,
-												PartiallyEvaluateExpression,
-												masterEvaluationContext);
-	}
-
-	return expression;
-}
-
-
-/*
- * ShouldEvaluateExpressionType returns true if Citus should evaluate the
- * input node on the coordinator.
- */
-static bool
-ShouldEvaluateExpressionType(NodeTag nodeTag)
-{
-	switch (nodeTag)
-	{
 		case T_FuncExpr:
 		case T_OpExpr:
 		case T_DistinctExpr:
@@ -166,12 +97,36 @@ ShouldEvaluateExpressionType(NodeTag nodeTag)
 		case T_RelabelType:
 		case T_CoerceToDomain:
 		{
-			return true;
+			if (FindNodeCheck(expression, IsVarNode))
+			{
+				return (Node *) expression_tree_mutator(expression,
+														PartiallyEvaluateExpression,
+														planState);
+			}
+
+			return (Node *) citus_evaluate_expr((Expr *) expression,
+												exprType(expression),
+												exprTypmod(expression),
+												exprCollation(expression),
+												planState);
+		}
+
+		case T_Query:
+		{
+			return (Node *) query_tree_mutator((Query *) expression,
+											   PartiallyEvaluateExpression,
+											   planState, QTW_DONT_COPY_QUERY);
 		}
 
 		default:
-			return false;
+		{
+			return (Node *) expression_tree_mutator(expression,
+													PartiallyEvaluateExpression,
+													planState);
+		}
 	}
+
+	return expression;
 }
 
 
@@ -195,10 +150,8 @@ IsVarNode(Node *node)
  */
 static Expr *
 citus_evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
-					Oid result_collation,
-					MasterEvaluationContext *masterEvaluationContext)
+					Oid result_collation, PlanState *planState)
 {
-	PlanState *planState = NULL;
 	EState     *estate;
 	ExprState  *exprstate;
 	ExprContext *econtext;
@@ -206,28 +159,6 @@ citus_evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 	bool		const_is_null;
 	int16		resultTypLen;
 	bool		resultTypByVal;
-
-	if (masterEvaluationContext)
-	{
-		planState = masterEvaluationContext->planState;
-
-		if (IsA(expr, Param))
-		{
-			if (!masterEvaluationContext->evaluateParams)
-			{
-				/* bail out, the caller doesn't want params to be evaluated  */
-				return expr;
-			}
-		}
-		else if (!masterEvaluationContext->evaluateFunctions)
-		{
-			/* should only get here for node types we should evaluate */
-			Assert(ShouldEvaluateExpressionType(nodeTag(expr)));
-
-			/* bail out, the caller doesn't want functions/expressions to be evaluated */
-			return expr;
-		}
-	}
 
 	/*
 	 * To use the executor, we need an EState.

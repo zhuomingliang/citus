@@ -245,8 +245,7 @@ CitusBeginScanWithCoordinatorProcessing(CustomScanState *node, EState *estate, i
 
 	/* citus only evaluates functions for modification queries */
 	bool modifyQueryRequiresMasterEvaluation =
-		jobQuery->commandType != CMD_SELECT &&
-		(workerJob->requiresMasterEvaluation || workerJob->deferredPruning);
+		workerJob->requiresMasterEvaluation && jobQuery->commandType != CMD_SELECT;
 
 	/*
 	 * ExecuteMasterEvaluableFunctions handles both function evalation
@@ -254,36 +253,12 @@ CitusBeginScanWithCoordinatorProcessing(CustomScanState *node, EState *estate, i
 	 * there is a parameter on the distribution key. So, evaluate in both
 	 * cases.
 	 */
-	if (modifyQueryRequiresMasterEvaluation)
+	bool shoudEvaluteFunctionsOrParams =
+		modifyQueryRequiresMasterEvaluation || workerJob->deferredPruning;
+	if (shoudEvaluteFunctionsOrParams)
 	{
-		/* evaluate functions and parameters for modification queries */
-		ExecuteMasterEvaluableFunctionsAndParameters(jobQuery, planState);
-	}
-	else if (jobQuery->commandType == CMD_SELECT && !workerJob->deferredPruning)
-	{
-		/* we'll use generated strings, no need to have the parameters anymore */
-		EState *executorState = planState->state;
-		ResetExecutionParameters(executorState);
-
-		/* we're done,  we don't want to evaluate functions for SELECT queries */
-		return;
-	}
-	else if (jobQuery->commandType == CMD_SELECT && workerJob->deferredPruning)
-	{
-		/*
-		 * Evaluate parameters, because the parameters are only avaliable on the
-		 * coordinator and are required for pruning.
-		 *
-		 * But, we don't  want to evaluate functions for read-only queries on the
-		 * coordinator as the volatile functions could yield different
-		 * results per shard (also per row) and could have side-effects.
-		 *
-		 * Note that Citus already errors out for modification queries during
-		 * planning when the query involve any volatile function that might
-		 * diverge the shards as such functions are expected to yield different
-		 * results per shard (also per row).
-		 */
-		ExecuteMasterEvaluableParameters(jobQuery, planState);
+		/* evaluate functions and parameters */
+		ExecuteMasterEvaluableFunctions(jobQuery, planState);
 	}
 
 	/*
