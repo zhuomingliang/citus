@@ -543,14 +543,15 @@ typedef struct TaskPlacementExecution
 
 /* local functions */
 static DistributedExecution * CreateDistributedExecution(RowModifyLevel modLevel,
-														 List *taskList, bool
-														 hasReturning,
+														 List *taskList,
+														 bool hasReturning,
 														 ParamListInfo paramListInfo,
 														 TupleDesc tupleDescriptor,
 														 Tuplestorestate *tupleStore,
 														 int targetPoolSize,
 														 TransactionProperties *
-														 xactProperties);
+														 xactProperties,
+														 List *jobIdList);
 static TransactionProperties DecideTransactionPropertiesForTaskList(RowModifyLevel
 																	modLevel,
 																	List *taskList,
@@ -680,7 +681,8 @@ AdaptiveExecutor(CitusScanState *scanState)
 		tupleDescriptor,
 		scanState->tuplestorestate,
 		targetPoolSize,
-		&xactProperties);
+		&xactProperties,
+		jobIdList);
 
 	/*
 	 * Make sure that we acquire the appropriate locks even if the local tasks
@@ -803,8 +805,8 @@ ExecuteUtilityTaskListWithoutResults(List *taskList)
 
 
 /*
- * ExecuteTaskListRepartiton is a proxy to ExecuteTaskListExtended() with defaults
- * for some of the arguments for a repartition query.
+ * ExecuteTaskListOutsideTransaction is a proxy to ExecuteTaskListExtended
+ * with defaults for some of the arguments.
  */
 uint64
 ExecuteTaskListOutsideTransaction(RowModifyLevel modLevel, List *taskList, int
@@ -814,8 +816,8 @@ ExecuteTaskListOutsideTransaction(RowModifyLevel modLevel, List *taskList, int
 	Tuplestorestate *tupleStore = NULL;
 	bool hasReturning = false;
 
-	TransactionProperties xactProperties = DecideTransactionPropertiesForTaskList(
-		modLevel, taskList, true);
+	TransactionProperties xactProperties =
+		DecideTransactionPropertiesForTaskList(modLevel, taskList, true);
 
 
 	return ExecuteTaskListExtended(modLevel, taskList, tupleDescriptor,
@@ -890,7 +892,7 @@ ExecuteTaskListExtended(RowModifyLevel modLevel, List *taskList,
 	DistributedExecution *execution =
 		CreateDistributedExecution(modLevel, taskList, hasReturning, paramListInfo,
 								   tupleDescriptor, tupleStore, targetPoolSize,
-								   xactProperties);
+								   xactProperties, NULL);
 
 	StartDistributedExecution(execution);
 	RunDistributedExecution(execution);
@@ -909,7 +911,7 @@ CreateDistributedExecution(RowModifyLevel modLevel, List *taskList,
 						   bool hasReturning,
 						   ParamListInfo paramListInfo, TupleDesc tupleDescriptor,
 						   Tuplestorestate *tupleStore, int targetPoolSize,
-						   TransactionProperties *xactProperties)
+						   TransactionProperties *xactProperties, List *jobIdList)
 {
 	DistributedExecution *execution =
 		(DistributedExecution *) palloc0(sizeof(DistributedExecution));
@@ -940,6 +942,8 @@ CreateDistributedExecution(RowModifyLevel modLevel, List *taskList,
 
 	execution->connectionSetChanged = false;
 	execution->waitFlagsChanged = false;
+
+	execution->jobIdList = jobIdList;
 
 	/* allocate execution specific data once, on the ExecutorState memory context */
 	if (tupleDescriptor != NULL)
