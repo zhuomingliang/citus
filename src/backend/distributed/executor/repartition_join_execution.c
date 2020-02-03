@@ -16,8 +16,8 @@
  *
  *
  * Repartition queries do not begin a transaction even if we are in
- * a transaction block. As we dont begin a transaction, they wont see the
- * DDLs that happened earlier in the transaction because we dont have that
+ * a transaction block. As we don't begin a transaction, they wont see the
+ * DDLs that happened earlier in the transaction because we don't have that
  * transaction id with repartition queries. Therefore we error in this case.
  *
  * Copyright (c) Citus Data, Inc.
