@@ -781,7 +781,7 @@ TrackerHashEnter(HTAB *taskTrackerHash, char *nodeName, uint32 nodePort)
 	}
 
 	/* init task tracker object with zeroed out task tracker key */
-	memcpy(taskTracker, &taskTrackerKey, sizeof(TaskTracker));
+	*taskTracker = taskTrackerKey;
 	taskTracker->trackerStatus = TRACKER_CONNECT_START;
 	taskTracker->connectionId = INVALID_CONNECTION_ID;
 	taskTracker->currentTaskIndex = -1;

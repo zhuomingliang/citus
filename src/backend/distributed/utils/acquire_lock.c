@@ -34,6 +34,7 @@
 #include "utils/snapmgr.h"
 
 #include "distributed/citus_acquire_lock.h"
+#include "distributed/citus_safe_lib.h"
 #include "distributed/connection_management.h"
 #include "distributed/version_compat.h"
 
@@ -89,13 +90,7 @@ StartLockAcquireHelperBackgroundWorker(int backendToHelp, int32 lock_cooldown)
 	worker.bgw_main_arg = Int32GetDatum(backendToHelp);
 	worker.bgw_notify_pid = 0;
 
-	/*
-	 * we check if args fits in bgw_extra to make sure it is safe to copy the data. Once
-	 * we exceed the size of data to copy this way we need to look into a different way of
-	 * passing the arguments to the worker.
-	 */
-	Assert(sizeof(worker.bgw_extra) >= sizeof(args));
-	memcpy(worker.bgw_extra, &args, sizeof(args));
+	SafeMemcpy(worker.bgw_extra, sizeof(worker.bgw_extra), &args, sizeof(args));
 
 	if (!RegisterDynamicBackgroundWorker(&worker, &handle))
 	{

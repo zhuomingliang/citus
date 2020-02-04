@@ -608,7 +608,7 @@ void
 CopyShardPlacement(ShardPlacement *srcPlacement, ShardPlacement *destPlacement)
 {
 	/* first copy all by-value fields */
-	memcpy(destPlacement, srcPlacement, sizeof(ShardPlacement));
+	*destPlacement = *srcPlacement;
 
 	/* and then the fields pointing to external values */
 	if (srcPlacement->nodeName)

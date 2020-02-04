@@ -13,6 +13,7 @@
 #include "access/htup_details.h"
 #include "access/xact.h"
 #include "catalog/pg_collation.h"
+#include "distributed/citus_safe_lib.h"
 #include "distributed/commands/utility_hook.h"
 #include "distributed/commands.h"
 #include "distributed/deparser.h"
@@ -537,8 +538,9 @@ GenerateBackupNameForCollationCollision(const ObjectAddress *address)
 
 		/* clear newName before copying the potentially trimmed baseName and suffix */
 		memset(newName, 0, NAMEDATALEN);
-		strncpy(newName, baseName, baseLength);
-		strncpy(newName + baseLength, suffix, suffixLength);
+		SafeStrncpy(newName, NAMEDATALEN, baseName, baseLength);
+		SafeStrncpy(newName + baseLength, NAMEDATALEN - baseLength, suffix,
+					suffixLength);
 
 		List *newCollationName = list_make2(namespace, makeString(newName));
 

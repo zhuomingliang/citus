@@ -30,6 +30,7 @@
 #include "catalog/pg_type.h"
 #include "commands/extension.h"
 #include "distributed/citus_ruleutils.h"
+#include "distributed/citus_safe_lib.h"
 #include "distributed/colocation_utils.h"
 #include "distributed/commands.h"
 #include "distributed/commands/utility_hook.h"
@@ -1723,8 +1724,9 @@ GenerateBackupNameForProcCollision(const ObjectAddress *address)
 
 		/* clear newName before copying the potentially trimmed baseName and suffix */
 		memset(newName, 0, NAMEDATALEN);
-		strncpy(newName, baseName, baseLength);
-		strncpy(newName + baseLength, suffix, suffixLength);
+		SafeStrncpy(newName, NAMEDATALEN, baseName, baseLength);
+		SafeStrncpy(newName + baseLength, NAMEDATALEN - baseLength, suffix,
+					suffixLength);
 
 		List *newProcName = list_make2(namespace, makeString(newName));
 

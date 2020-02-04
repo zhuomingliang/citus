@@ -432,9 +432,8 @@ CopyToExistingShards(CopyStmt *copyStatement, char *completionTag)
 	 * There is no need to deep copy everything. We will just deep copy of the fields
 	 * we will change.
 	 */
-	memcpy(copiedDistributedRelation, distributedRelation, sizeof(RelationData));
-	memcpy(copiedDistributedRelationTuple, distributedRelation->rd_rel,
-		   CLASS_TUPLE_SIZE);
+	*copiedDistributedRelation = *distributedRelation;
+	*copiedDistributedRelationTuple = *distributedRelation->rd_rel;
 
 	copiedDistributedRelation->rd_rel = copiedDistributedRelationTuple;
 	copiedDistributedRelation->rd_att = CreateTupleDescCopyConstr(tupleDescriptor);

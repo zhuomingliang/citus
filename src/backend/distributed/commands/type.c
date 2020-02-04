@@ -50,6 +50,7 @@
 #include "catalog/pg_enum.h"
 #include "catalog/pg_type.h"
 #include "commands/extension.h"
+#include "distributed/citus_safe_lib.h"
 #include "distributed/commands.h"
 #include "distributed/commands/utility_hook.h"
 #include "distributed/deparser.h"
@@ -1083,8 +1084,9 @@ GenerateBackupNameForTypeCollision(const ObjectAddress *address)
 
 		/* clear newName before copying the potentially trimmed baseName and suffix */
 		memset(newName, 0, NAMEDATALEN);
-		strncpy(newName, baseName, baseLength);
-		strncpy(newName + baseLength, suffix, suffixLength);
+		SafeStrncpy(newName, NAMEDATALEN, baseName, baseLength);
+		SafeStrncpy(newName + baseLength, NAMEDATALEN - baseLength, suffix,
+					suffixLength);
 
 		rel->relname = newName;
 		TypeName *newTypeName = makeTypeNameFromNameList(MakeNameListFromRangeVar(rel));

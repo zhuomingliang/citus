@@ -30,6 +30,7 @@
 #include "commands/extension.h"
 #include "libpq/pqsignal.h"
 #include "catalog/namespace.h"
+#include "distributed/citus_safe_lib.h"
 #include "distributed/distributed_deadlock_detection.h"
 #include "distributed/maintenanced.h"
 #include "distributed/master_protocol.h"
@@ -186,10 +187,14 @@ InitializeMaintenanceDaemonBackend(void)
 
 		/* Restart after a bit after errors, but don't bog the system. */
 		worker.bgw_restart_time = 5;
-		sprintf(worker.bgw_library_name, "citus");
-		sprintf(worker.bgw_function_name, "CitusMaintenanceDaemonMain");
+		SafeStrcpy(worker.bgw_library_name,
+				   sizeof(worker.bgw_library_name), "citus");
+		SafeStrcpy(worker.bgw_function_name, sizeof(worker.bgw_library_name),
+				   "CitusMaintenanceDaemonMain");
+
 		worker.bgw_main_arg = ObjectIdGetDatum(MyDatabaseId);
-		memcpy(worker.bgw_extra, &extensionOwner, sizeof(Oid));
+		SafeMemcpy(worker.bgw_extra, sizeof(worker.bgw_extra), &extensionOwner,
+				   sizeof(Oid));
 		worker.bgw_notify_pid = MyProcPid;
 
 		if (!RegisterDynamicBackgroundWorker(&worker, &handle))
