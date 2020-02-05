@@ -241,13 +241,17 @@ JoinOnColumns(Var *currentColumn, Var *candidateColumn, List *joinClauseList)
 		 * current and candidate column's can't be NULL we know they wont match if either
 		 * of the columns resolved to NULL above.
 		 */
+#include "parser/parse_coerce.h"
+
 		if (equal(leftColumn, currentColumn) &&
-			equal(rightColumn, candidateColumn))
+			select_common_type(NULL, list_make2(rightColumn, candidateColumn), "citus",
+							   NULL) != InvalidOid)
 		{
 			return true;
 		}
 		if (equal(leftColumn, candidateColumn) &&
-			equal(rightColumn, currentColumn))
+			select_common_type(NULL, list_make2(rightColumn, currentColumn), "citus",
+							   NULL) != InvalidOid)
 		{
 			return true;
 		}
