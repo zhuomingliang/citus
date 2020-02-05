@@ -45,6 +45,7 @@ static WorkerNode * FindRandomNodeFromList(List *candidateWorkerNodeList);
 static bool OddNumber(uint32 number);
 static bool ListMember(List *currentList, WorkerNode *workerNode);
 static bool NodeIsPrimaryWorker(WorkerNode *node);
+static bool CanHaveReferenceTableReplicas(void);
 static bool NodeIsReadableWorker(WorkerNode *node);
 
 
@@ -397,6 +398,28 @@ static bool
 NodeIsPrimaryWorker(WorkerNode *node)
 {
 	return !NodeIsCoordinator(node) && NodeIsPrimary(node);
+}
+
+
+
+/*
+ * CanHaveReferenceTableReplicas returns true if current node can have
+ * reference table replicas. This is only possible if we called below
+ * command formerly
+ * "SELECT master_add_node(coordinator_hostname, coordinator_port, groupId => 0)"
+ */
+static bool
+CanHaveReferenceTableReplicas()
+{
+	bool hasReferenceTableReplica = false;
+
+	/*
+	 * All groups that have pg_dist_node entries, also have reference
+	 * table replicas.
+	 */
+	PrimaryNodeForGroup(GetLocalGroupId(), &hasReferenceTableReplica);
+
+	return hasReferenceTableReplica;
 }
 
 
