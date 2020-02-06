@@ -708,6 +708,13 @@ AddressProjectSpecialConditions(MultiProject *projectNode)
 	else if (childNodeTag == T_MultiJoin)
 	{
 		MultiJoin *joinNode = (MultiJoin *) childNode;
+
+		if (joinNode->joinRuleType == SINGLE_HASH_PARTITION_JOIN &&
+			projectNode->columnList != NULL)
+		{
+			return;
+		}
+
 		Node *joinClauseList = (Node *) joinNode->joinClauseList;
 		List *joinList = pull_var_clause_default(joinClauseList);
 
