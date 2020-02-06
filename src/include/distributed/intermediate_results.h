@@ -48,6 +48,24 @@ typedef struct DistributedResultFragment
 } DistributedResultFragment;
 
 
+/* constants for intermediate result encoding formats */
+typedef enum IntermediateResultFormat
+{
+	TEXT_COPY_FORMAT,
+	BINARY_COPY_FORMAT
+} IntermediateResultFormat;
+
+
+/*
+ * IntermediateResultEncoder represents encoder state for intermediate result
+ * files. This structure is created by IntermediateResultEncoderCreate(), and
+ * then user should use IntermediateResultEncoderReceive() for encoding each
+ * row. Finally, users should call IntermediateResultEncoderDone() to finish
+ * the encoding.
+ */
+typedef struct IntermediateResultEncoder IntermediateResultEncoder;
+
+
 /* intermediate_results.c */
 extern DestReceiver * CreateRemoteFileDestReceiver(char *resultId, EState *executorState,
 												   List *initialNodeList, bool
@@ -58,6 +76,19 @@ extern void RemoveIntermediateResultsDirectory(void);
 extern int64 IntermediateResultSize(char *resultId);
 extern char * QueryResultFileName(const char *resultId);
 extern char * CreateIntermediateResultsDirectory(void);
+
+/* encoding intermediate result files */
+extern IntermediateResultEncoder * IntermediateResultEncoderCreate(TupleDesc tupleDesc,
+																   IntermediateResultFormat
+																   format, MemoryContext
+																   tupleContext);
+extern StringInfo IntermediateResultEncoderReceive(IntermediateResultEncoder *encoder,
+												   Datum *values, bool *nulls);
+extern StringInfo IntermediateResultEncoderDone(IntermediateResultEncoder *encoder);
+extern void IntermediateResultEncoderDestroy(IntermediateResultEncoder *encoder);
+extern void ReadFileIntoTupleStore(char *fileName, IntermediateResultFormat format,
+								   TupleDesc tupleDescriptor, Tuplestorestate *tupstore);
+extern IntermediateResultFormat ResultFileFormatForTupleDesc(TupleDesc tupleDesc);
 
 /* distributed_intermediate_results.c */
 extern List ** RedistributeTaskListResults(char *resultIdPrefix,

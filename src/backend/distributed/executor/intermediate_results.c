@@ -53,9 +53,6 @@ typedef struct RemoteFileDestReceiver
 
 	char *resultId;
 
-	/* descriptor of the tuples that are sent to the worker */
-	TupleDesc tupleDescriptor;
-
 	/* EState for per-tuple memory allocation */
 	EState *executorState;
 
@@ -71,8 +68,7 @@ typedef struct RemoteFileDestReceiver
 	FileCompat fileCompat;
 
 	/* state on how to copy out data types */
-	CopyOutState copyOutState;
-	FmgrInfo *columnOutputFunctions;
+	IntermediateResultEncoder *encoder;
 
 	/* number of tuples sent */
 	uint64 tuplesSent;
@@ -92,13 +88,15 @@ static void RemoteFileDestReceiverDestroy(DestReceiver *destReceiver);
 
 static char * IntermediateResultsDirectory(void);
 static void ReadIntermediateResultsIntoFuncOutput(FunctionCallInfo fcinfo,
-												  char *copyFormat,
+												  IntermediateResultFormat format,
 												  Datum *resultIdArray,
 												  int resultCount);
 static uint64 FetchRemoteIntermediateResult(MultiConnection *connection, char *resultId);
 static CopyStatus CopyDataFromConnection(MultiConnection *connection,
 										 FileCompat *fileCompat,
 										 uint64 *bytesReceived);
+static IntermediateResultFormat ParseIntermediateResultFormatLabel(char *formatString);
+
 
 /* exports for SQL callable functions */
 PG_FUNCTION_INFO_V1(read_intermediate_result);
@@ -234,28 +232,15 @@ RemoteFileDestReceiverStartup(DestReceiver *dest, int operation,
 
 	const char *resultId = resultDest->resultId;
 
-	const char *delimiterCharacter = "\t";
-	const char *nullPrintCharacter = "\\N";
-
 	List *initialNodeList = resultDest->initialNodeList;
 	ListCell *initialNodeCell = NULL;
 	List *connectionList = NIL;
 	ListCell *connectionCell = NULL;
+	MemoryContext tupleContext = GetPerTupleMemoryContext(resultDest->executorState);
+	IntermediateResultFormat format = ResultFileFormatForTupleDesc(inputTupleDescriptor);
 
-	resultDest->tupleDescriptor = inputTupleDescriptor;
-
-	/* define how tuples will be serialised */
-	CopyOutState copyOutState = (CopyOutState) palloc0(sizeof(CopyOutStateData));
-	copyOutState->delim = (char *) delimiterCharacter;
-	copyOutState->null_print = (char *) nullPrintCharacter;
-	copyOutState->null_print_client = (char *) nullPrintCharacter;
-	copyOutState->binary = CanUseBinaryCopyFormat(inputTupleDescriptor);
-	copyOutState->fe_msgbuf = makeStringInfo();
-	copyOutState->rowcontext = GetPerTupleMemoryContext(resultDest->executorState);
-	resultDest->copyOutState = copyOutState;
-
-	resultDest->columnOutputFunctions = ColumnOutputFunctions(inputTupleDescriptor,
-															  copyOutState->binary);
+	resultDest->encoder = IntermediateResultEncoderCreate(inputTupleDescriptor,
+														  format, tupleContext);
 
 	if (resultDest->writeLocalFile)
 	{
@@ -325,19 +310,6 @@ RemoteFileDestReceiverStartup(DestReceiver *dest, int operation,
 		PQclear(result);
 	}
 
-	if (copyOutState->binary)
-	{
-		/* send headers when using binary encoding */
-		resetStringInfo(copyOutState->fe_msgbuf);
-		AppendCopyBinaryHeaders(copyOutState);
-		BroadcastCopyData(copyOutState->fe_msgbuf, connectionList);
-
-		if (resultDest->writeLocalFile)
-		{
-			WriteToLocalFile(copyOutState->fe_msgbuf, &resultDest->fileCompat);
-		}
-	}
-
 	resultDest->connectionList = connectionList;
 }
 
@@ -368,13 +340,7 @@ RemoteFileDestReceiverReceive(TupleTableSlot *slot, DestReceiver *dest)
 {
 	RemoteFileDestReceiver *resultDest = (RemoteFileDestReceiver *) dest;
 
-	TupleDesc tupleDescriptor = resultDest->tupleDescriptor;
-
 	List *connectionList = resultDest->connectionList;
-	CopyOutState copyOutState = resultDest->copyOutState;
-	FmgrInfo *columnOutputFunctions = resultDest->columnOutputFunctions;
-
-	StringInfo copyData = copyOutState->fe_msgbuf;
 
 	EState *executorState = resultDest->executorState;
 	MemoryContext executorTupleContext = GetPerTupleMemoryContext(executorState);
@@ -385,19 +351,18 @@ RemoteFileDestReceiverReceive(TupleTableSlot *slot, DestReceiver *dest)
 	Datum *columnValues = slot->tts_values;
 	bool *columnNulls = slot->tts_isnull;
 
-	resetStringInfo(copyData);
-
-	/* construct row in COPY format */
-	AppendCopyRowData(columnValues, columnNulls, tupleDescriptor,
-					  copyOutState, columnOutputFunctions, NULL);
-
-	/* send row to nodes */
-	BroadcastCopyData(copyData, connectionList);
-
-	/* write to local file (if applicable) */
-	if (resultDest->writeLocalFile)
+	StringInfo bufferToFlush =
+		IntermediateResultEncoderReceive(resultDest->encoder, columnValues, columnNulls);
+	if (bufferToFlush != NULL)
 	{
-		WriteToLocalFile(copyOutState->fe_msgbuf, &resultDest->fileCompat);
+		/* send row to nodes */
+		BroadcastCopyData(bufferToFlush, connectionList);
+
+		/* write to local file (if applicable) */
+		if (resultDest->writeLocalFile)
+		{
+			WriteToLocalFile(bufferToFlush, &resultDest->fileCompat);
+		}
 	}
 
 	MemoryContextSwitchTo(oldContext);
@@ -436,20 +401,18 @@ static void
 RemoteFileDestReceiverShutdown(DestReceiver *destReceiver)
 {
 	RemoteFileDestReceiver *resultDest = (RemoteFileDestReceiver *) destReceiver;
-
 	List *connectionList = resultDest->connectionList;
-	CopyOutState copyOutState = resultDest->copyOutState;
 
-	if (copyOutState->binary)
+	StringInfo bufferToFlush = IntermediateResultEncoderDone(resultDest->encoder);
+	if (bufferToFlush != NULL)
 	{
-		/* send footers when using binary encoding */
-		resetStringInfo(copyOutState->fe_msgbuf);
-		AppendCopyBinaryFooters(copyOutState);
-		BroadcastCopyData(copyOutState->fe_msgbuf, connectionList);
+		/* send row to nodes */
+		BroadcastCopyData(bufferToFlush, connectionList);
 
+		/* write to local file (if applicable) */
 		if (resultDest->writeLocalFile)
 		{
-			WriteToLocalFile(copyOutState->fe_msgbuf, &resultDest->fileCompat);
+			WriteToLocalFile(bufferToFlush, &resultDest->fileCompat);
 		}
 	}
 
@@ -501,15 +464,7 @@ RemoteFileDestReceiverDestroy(DestReceiver *destReceiver)
 {
 	RemoteFileDestReceiver *resultDest = (RemoteFileDestReceiver *) destReceiver;
 
-	if (resultDest->copyOutState)
-	{
-		pfree(resultDest->copyOutState);
-	}
-
-	if (resultDest->columnOutputFunctions)
-	{
-		pfree(resultDest->columnOutputFunctions);
-	}
+	IntermediateResultEncoderDestroy(resultDest->encoder);
 
 	pfree(resultDest);
 }
@@ -713,13 +668,14 @@ Datum
 read_intermediate_result(PG_FUNCTION_ARGS)
 {
 	Datum resultId = PG_GETARG_DATUM(0);
-	Datum copyFormatOidDatum = PG_GETARG_DATUM(1);
-	Datum copyFormatLabelDatum = DirectFunctionCall1(enum_out, copyFormatOidDatum);
-	char *copyFormatLabel = DatumGetCString(copyFormatLabelDatum);
+	Datum formatOidDatum = PG_GETARG_DATUM(1);
+	Datum formatLabelDatum = DirectFunctionCall1(enum_out, formatOidDatum);
+	char *formatLabel = DatumGetCString(formatLabelDatum);
+	IntermediateResultFormat format = ParseIntermediateResultFormatLabel(formatLabel);
 
 	CheckCitusVersion(ERROR);
 
-	ReadIntermediateResultsIntoFuncOutput(fcinfo, copyFormatLabel, &resultId, 1);
+	ReadIntermediateResultsIntoFuncOutput(fcinfo, format, &resultId, 1);
 
 	PG_RETURN_DATUM(0);
 }
@@ -738,8 +694,9 @@ read_intermediate_result_array(PG_FUNCTION_ARGS)
 	ArrayType *resultIdObject = PG_GETARG_ARRAYTYPE_P(0);
 	Datum copyFormatOidDatum = PG_GETARG_DATUM(1);
 
-	Datum copyFormatLabelDatum = DirectFunctionCall1(enum_out, copyFormatOidDatum);
-	char *copyFormatLabel = DatumGetCString(copyFormatLabelDatum);
+	Datum formatLabelDatum = DirectFunctionCall1(enum_out, copyFormatOidDatum);
+	char *formatLabel = DatumGetCString(formatLabelDatum);
+	IntermediateResultFormat format = ParseIntermediateResultFormatLabel(formatLabel);
 
 	CheckCitusVersion(ERROR);
 
@@ -747,7 +704,7 @@ read_intermediate_result_array(PG_FUNCTION_ARGS)
 										   resultIdObject));
 	Datum *resultIdArray = DeconstructArrayObject(resultIdObject);
 
-	ReadIntermediateResultsIntoFuncOutput(fcinfo, copyFormatLabel,
+	ReadIntermediateResultsIntoFuncOutput(fcinfo, format,
 										  resultIdArray, resultCount);
 
 	PG_RETURN_DATUM(0);
@@ -760,7 +717,8 @@ read_intermediate_result_array(PG_FUNCTION_ARGS)
  * don't exist.
  */
 static void
-ReadIntermediateResultsIntoFuncOutput(FunctionCallInfo fcinfo, char *copyFormat,
+ReadIntermediateResultsIntoFuncOutput(FunctionCallInfo fcinfo,
+									  IntermediateResultFormat format,
 									  Datum *resultIdArray, int resultCount)
 {
 	TupleDesc tupleDescriptor = NULL;
@@ -779,7 +737,7 @@ ReadIntermediateResultsIntoFuncOutput(FunctionCallInfo fcinfo, char *copyFormat,
 							errmsg("result \"%s\" does not exist", resultId)));
 		}
 
-		ReadFileIntoTupleStore(resultFileName, copyFormat, tupleDescriptor, tupleStore);
+		ReadFileIntoTupleStore(resultFileName, format, tupleDescriptor, tupleStore);
 	}
 
 	tuplestore_donestoring(tupleStore);
@@ -1007,4 +965,22 @@ CopyDataFromConnection(MultiConnection *connection, FileCompat *fileCompat,
 
 		return CLIENT_COPY_FAILED;
 	}
+}
+
+
+static IntermediateResultFormat
+ParseIntermediateResultFormatLabel(char *formatString)
+{
+	if (strncmp(formatString, "text", NAMEDATALEN) == 0 ||
+		strncmp(formatString, "csv", NAMEDATALEN) == 0)
+	{
+		return TEXT_COPY_FORMAT;
+	}
+	else if (strncmp(formatString, "binary", NAMEDATALEN) == 0)
+	{
+		return BINARY_COPY_FORMAT;
+	}
+
+	ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					errmsg("Invalid intermediate result format: %s", formatString)));
 }
