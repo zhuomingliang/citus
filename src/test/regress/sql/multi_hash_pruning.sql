@@ -120,6 +120,7 @@ SELECT count(*) FROM lineitem_range
 	WHERE l_orderkey = ANY(NULL) OR TRUE;
 
 SET client_min_messages TO DEBUG2;
+SET citus.log_shard_pruning TO ON;
 
 -- Check that we don't show the message if the operator is not
 -- equality operator
@@ -150,3 +151,67 @@ SELECT count(*)
 	WHERE orders1.o_orderkey = orders2.o_orderkey
 	AND orders1.o_orderkey = 1
 	AND orders2.o_orderkey is NULL;
+
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned;
+
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1;
+
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey = 1 OR o_orderkey = 2);
+
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey = 1 OR o_orderkey = 2) AND (o_custkey = 3 OR o_custkey = 4);
+	
+	
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey = 1 AND o_custkey = 3) OR (o_orderkey = 1 AND o_custkey = 4) OR (o_orderkey = 2 AND o_custkey = 3) OR (o_orderkey = 2 AND o_custkey = 4);
+	
+	
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 3 OR o_custkey = 4);
+
+	
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey IN (1,2) AND o_custkey = 3) OR (o_orderkey IN (1,2) AND o_custkey = 4);
+	
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey IN (1,2) OR o_custkey = 3;
+	
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 OR ((o_orderkey = 2 AND o_custkey = 1) OR (o_orderkey = 3 AND o_custkey = 2));
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 OR (o_orderkey = 2 AND (o_custkey = 1 OR (o_orderkey = 3 AND o_custkey = 2)));
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey IN (1,2) AND o_custkey = 3) OR (o_orderkey = 3 AND o_custkey = 4);
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 1 OR o_custkey = 2) AND o_custkey = 3;
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE ((o_orderkey IN (1,2)) AND (o_custkey = 1 OR o_custkey = 2)) OR o_custkey = 3;
+	
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE ((o_orderkey IN (1,2)) AND (o_custkey = 1 OR o_custkey = 2)) OR (o_orderkey = 3 AND o_custkey = 3);
+	
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey = 1) AND (o_orderkey = 2 OR (o_orderkey = 3 AND o_custkey = 3));
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey = 1) OR (o_orderkey = 2 AND (o_orderkey = 3 OR (o_orderkey = 1 AND o_custkey = 3)));
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_custkey = 1 OR (o_orderkey = 2 AND o_custkey = 3);
+
+EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 AND ((o_orderkey = 2 OR o_orderkey = 3) AND (o_custkey = 3 OR o_custkey = 4));
+
+SET client_min_messages TO DEFAULT;
+SET citus.log_shard_pruning TO OFF;

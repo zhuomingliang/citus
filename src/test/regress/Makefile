@@ -207,6 +207,14 @@ check-citus-upgrade-mixed-local:
 		--citus-old-version=$(citus-old-version) \
 		--mixed
 
+check-multi2: all tempinstall-main
+	$(pg_regress_multi_check) --load-extension=citus \
+	-- $(MULTI_REGRESS_OPTS) --schedule=$(citus_abs_srcdir)/multi_schedule2 $(EXTRA_TESTS)
+
+check-test: all tempinstall-main
+	$(pg_regress_multi_check) --load-extension=citus \
+	-- $(MULTI_REGRESS_OPTS) --schedule=$(citus_abs_srcdir)/test $(EXTRA_TESTS)
+
 clean distclean maintainer-clean:
 	rm -f $(output_files) $(input_files)
 	rm -rf tmp_check/
