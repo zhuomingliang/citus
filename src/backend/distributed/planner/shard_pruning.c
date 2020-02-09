@@ -577,7 +577,7 @@ PrintPruningTree(PruningTreeNode *node, int depth, Oid relationId)
 		appendStringInfo(str, "%s,", deparse_expression(expr, ctx, false, false));
 	}
 
-	DebugLog(errmsg(str->data));
+	DebugLog(errmsg("%s", str->data));
 
 	foreach(cell, node->childBooleanNodes)
 	{
@@ -586,6 +586,15 @@ PrintPruningTree(PruningTreeNode *node, int depth, Oid relationId)
 	}
 }
 
+static char*
+DeparseNode(Node *node, List **deparseContext, Oid relationId)
+{
+	if (*deparseContext == NULL)
+	{
+		*deparseContext = deparse_context_for("unknown", relationId);
+	}
+	return deparse_expression(node, *deparseContext, false, false);
+}
 
 /*
  * PruneShards returns all shards from a distributed table that cannot be
@@ -683,6 +692,7 @@ PruneShards(Oid relationId, Index rangeTableId, List *whereClauseList,
 	PrunableExpressions(tree, &context);
 
 	List *deparseCtx = NULL;
+	List *debugLogNodes = NULL;
 
 	/*
 	 * Prune using each of the PrunableInstances we found, and OR results
@@ -761,15 +771,7 @@ PruneShards(Oid relationId, Index rangeTableId, List *whereClauseList,
 
 		if (IsDebugLogging() && prune->equalConsts)
 		{
-			if (!deparseCtx)
-			{
-				deparseCtx = deparse_context_for("unknown", relationId);
-			}
-
-			StringInfo str = makeStringInfo();
-			char *deparsed = deparse_expression((Node *)prune->equalConsts, deparseCtx, false, false);
-			appendStringInfo(str, "FOUND EQUAL CONST=%s, ", deparsed);
-			DebugLog(errmsg(str->data));
+			debugLogNodes = lappend(debugLogNodes, (Node *)prune->equalConsts);
 		}
 	}
 
@@ -778,6 +780,14 @@ PruneShards(Oid relationId, Index rangeTableId, List *whereClauseList,
 	{
 		prunedList = ShardArrayToList(cacheEntry->sortedShardIntervalArray,
 									  cacheEntry->shardIntervalArrayLength);
+	}
+	else if (IsDebugLogging())
+	{
+		foreach(pruneCell, debugLogNodes)
+		{
+			char *deparsed = DeparseNode((Node *)lfirst(pruneCell), &deparseCtx, relationId);
+			DebugLog(errmsg("FOUND EQUAL CONST=%s, ", deparsed));
+		}
 	}
 
 	/* if requested, copy the partition value constant */
