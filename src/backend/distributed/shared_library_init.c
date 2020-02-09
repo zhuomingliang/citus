@@ -53,7 +53,6 @@
 #include "distributed/run_from_same_connection.h"
 #include "distributed/query_pushdown_planning.h"
 #include "distributed/time_constants.h"
-#include "distributed/shard_pruning.h"
 #include "distributed/query_stats.h"
 #include "distributed/remote_commands.h"
 #include "distributed/shared_library_init.h"

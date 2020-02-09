@@ -12,6 +12,8 @@
 #include "utils/guc.h"
 #include "distributed/log_utils.h"
 
+/* print shard pruning information as a debugging aid */
+bool LogShardPruning = false;
 
 /*
  * IsLoggableLevel returns true if either of client or server log guc is configured to

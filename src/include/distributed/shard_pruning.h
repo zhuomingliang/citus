@@ -14,9 +14,6 @@
 #include "distributed/metadata_cache.h"
 #include "nodes/primnodes.h"
 
-/* Config variables managed via guc.c */
-extern bool LogShardPruning;
-
 #define INVALID_SHARD_INDEX -1
 
 /* Function declarations for shard pruning */

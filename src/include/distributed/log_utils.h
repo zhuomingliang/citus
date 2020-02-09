@@ -16,6 +16,9 @@
 extern bool IsLoggableLevel(int logLevel);
 extern char * HashLogMessage(const char *text);
 
+/* print shard pruning information as a debugging aid */
+extern bool LogShardPruning;
+
 #define ApplyLogRedaction(text) \
 	(log_min_messages <= ereport_loglevel ? HashLogMessage(text) : text)
 
