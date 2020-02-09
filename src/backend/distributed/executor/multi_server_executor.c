@@ -56,11 +56,11 @@ JobExecutorType(DistributedPlan *distributedPlan)
 	{
 		if (job)
 		{
-			ereport(DEBUG2, (errmsg("NUM WORKER JOBS=%d", list_length(job->taskList))));
+			ereport(DEBUG1, (errmsg("NUM WORKER JOBS=%d", list_length(job->taskList))));
 		}
 		else if (routerExecutablePlan)
 		{
-			ereport(DEBUG2, (errmsg("NUM WORKER JOBS=1")));
+			ereport(DEBUG1, (errmsg("NUM WORKER JOBS=1")));
 		}
 	}
 

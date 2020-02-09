@@ -79,15 +79,9 @@ typedef struct PruningTreeNode
 	bool isAnd;
 	bool hasInvalidConstraints;
 
-	List *children;
+	List *childBooleanNodes;
 	List *validConstraints;
 } PruningTreeNode;
-
-typedef struct ResolvedConstraints
-{
-	List *constraints;
-	bool hasInvalidConstaints;
-} ResolvedConstraints;
 
 typedef struct PruningTreeBuildContext
 {
@@ -248,7 +242,7 @@ CreatePruningNode(bool isAnd)
 {
 	PruningTreeNode *node = palloc0(sizeof(PruningTreeNode));
 	node->isAnd = isAnd;
-	node->children = NULL;
+	node->childBooleanNodes = NULL;
 	node->validConstraints = NULL;
 	node->hasInvalidConstraints = false;
 	return node;
@@ -258,6 +252,11 @@ CreatePruningNode(bool isAnd)
 #define CreateOrOp() (CreatePruningNode(false))
 #define IsAndOp(node) ((node)->isAnd)
 #define IsOrOp(node) (!(node)->isAnd)
+#define ConstraintCount(node) \
+	(list_length((node)->childBooleanNodes) + \
+	 list_length((node)->validConstraints) + \
+	 ((node)->hasInvalidConstraints ? 1 : 0))
+
 #define IsDebugLogging() (LogShardPruning)
 #define DebugLog(errmsg) if (IsDebugLogging()) { ereport(DEBUG2, (errmsg)); }
 
@@ -504,7 +503,7 @@ BuildPruningTree(Node *node, PruningTreeBuildContext *context)
 		{
 			PruningTreeNode *child = CreatePruningNode(isAnded);
 
-			context->current->children = lappend(context->current->children, child);
+			context->current->childBooleanNodes = lappend(context->current->childBooleanNodes, child);
 
 			PruningTreeBuildContext newContext = { 0 };
 			newContext.partitionColumn = context->partitionColumn;
@@ -536,7 +535,7 @@ static void
 SimplifyPruningTree(PruningTreeNode *node, PruningTreeNode *parent)
 {
 	ListCell *cell;
-	foreach(cell, node->children)
+	foreach(cell, node->childBooleanNodes)
 	{
 		PruningTreeNode *child = (PruningTreeNode *) lfirst(cell);
 		SimplifyPruningTree(child, node);
@@ -548,25 +547,20 @@ SimplifyPruningTree(PruningTreeNode *node, PruningTreeNode *parent)
 		return;
 	}
 
-	if (IsAndOp(node) && node->hasInvalidConstraints)
-	{
-		node->hasInvalidConstraints = false;
-	}
-
-	int count = list_length(node->children) + list_length(node->validConstraints) + (node->hasInvalidConstraints ? 1 : 0);
-	if (count <= 1)
+	if (ConstraintCount(node) <= 1)
 	{
 		parent->validConstraints = list_concat(parent->validConstraints, node->validConstraints);
 		parent->hasInvalidConstraints = parent->hasInvalidConstraints || node->hasInvalidConstraints;
-		parent->children = list_delete_ptr(parent->children, node);
+		parent->childBooleanNodes = list_delete_ptr(parent->childBooleanNodes, node);
 	}
 }
 
-static StringInfo PrintPruningTree(PruningTreeNode *node, int depth, Oid relationId)
+static void
+PrintPruningTree(PruningTreeNode *node, int depth, Oid relationId)
 {
-	if (!node)
+	if (!IsDebugLogging() || !node)
 	{
-		return makeStringInfo();
+		return;
 	}
 
 	StringInfo str = makeStringInfo();
@@ -585,13 +579,11 @@ static StringInfo PrintPruningTree(PruningTreeNode *node, int depth, Oid relatio
 
 	DebugLog(errmsg(str->data));
 
-	foreach(cell, node->children)
+	foreach(cell, node->childBooleanNodes)
 	{
 		PruningTreeNode *child = (PruningTreeNode *) lfirst(cell);
 		PrintPruningTree(child, depth + 1, relationId);
 	}
-
-	return str;
 }
 
 
@@ -931,7 +923,7 @@ PrunableExpressionsWalker(PruningTreeNode *node, ClauseWalkerContext *context)
 			AddNewConjuction(context, child);
 		}
 
-		foreach(cell, node->children)
+		foreach(cell, node->childBooleanNodes)
 		{
 			PruningTreeNode *child = (PruningTreeNode *)lfirst(cell);
 			Assert(IsAndOp(child));
@@ -1011,7 +1003,7 @@ PrunableExpressionsWalker(PruningTreeNode *node, ClauseWalkerContext *context)
 		}
 	}
 
-	foreach(cell, node->children)
+	foreach(cell, node->childBooleanNodes)
 	{
 		PruningTreeNode *child = (PruningTreeNode *) lfirst(cell);
 		Assert(IsOrOp(child));

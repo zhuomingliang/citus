@@ -74,7 +74,8 @@ SELECT count(*) FROM orders_hash_partitioned
 SELECT count(*) FROM
        (SELECT o_orderkey FROM orders_hash_partitioned WHERE o_orderkey = 1) AS orderkeys;
 
-SET client_min_messages TO DEFAULT;
+SET client_min_messages TO DEBUG2;
+SET citus.log_shard_pruning TO ON;
 
 -- Check that we support runing for ANY/IN with literal.
 SELECT count(*) FROM lineitem_hash_part
@@ -100,6 +101,13 @@ SELECT count(*) FROM lineitem_hash_part
 SELECT count(*) FROM lineitem_hash_part WHERE l_orderkey IN (SELECT l_orderkey FROM lineitem_hash_part);
 SELECT count(*) FROM lineitem_hash_part WHERE l_orderkey = ANY (SELECT l_orderkey FROM lineitem_hash_part);
 
+-- Check whether we support range queries with append distributed table
+SELECT count(*) FROM lineitem
+	WHERE l_orderkey >= 1 AND l_orderkey <= 3;
+
+SELECT count(*) FROM lineitem
+	WHERE (l_orderkey >= 1 AND l_orderkey <= 3) AND (l_quantity > 11 AND l_quantity < 22);
+
 -- Check whether we support IN/ANY in subquery with append and range distributed table
 SELECT count(*) FROM lineitem
 	WHERE l_orderkey = ANY ('{1,2,3}');
@@ -118,9 +126,6 @@ SELECT count(*) FROM lineitem_range
 
 SELECT count(*) FROM lineitem_range
 	WHERE l_orderkey = ANY(NULL) OR TRUE;
-
-SET client_min_messages TO DEBUG2;
-SET citus.log_shard_pruning TO ON;
 
 -- Check that we don't show the message if the operator is not
 -- equality operator
@@ -153,65 +158,92 @@ SELECT count(*)
 	AND orders2.o_orderkey is NULL;
 
 
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned;
+-- All shards used without constraints
+SELECT count(*) FROM orders_hash_partitioned;
 
-
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+-- Shards restricted correctly with prunable constraint
+SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1;
 
-
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+-- Shards restricted correctly with prunable constraints ORed
+SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey = 1 OR o_orderkey = 2);
 
+-- Shards restricted correctly with prunable constraints ANDed with unprunable expression
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey = 1 OR o_orderkey = 2) AND (o_custkey = 11 OR o_custkey = 22);	
 
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey = 1 OR o_orderkey = 2) AND (o_custkey = 3 OR o_custkey = 4);
-	
-	
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey = 1 AND o_custkey = 3) OR (o_orderkey = 1 AND o_custkey = 4) OR (o_orderkey = 2 AND o_custkey = 3) OR (o_orderkey = 2 AND o_custkey = 4);
-	
-	
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
+-- Shards restricted correctly with many different prunable constraints ORed
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey = 1 AND o_custkey = 11) OR (o_orderkey = 1 AND o_custkey = 22) OR (o_orderkey = 2 AND o_custkey = 33) OR (o_orderkey = 2 AND o_custkey = 44);
+
+-- Shards restricted correctly with prunable SAO constraint ANDed with unprunable expression
+SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 3 OR o_custkey = 4);
 
-	
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2) AND o_custkey = 3) OR (o_orderkey IN (1,2) AND o_custkey = 4);
-	
+-- Shards restricted correctly with prunable SAO constraints ORed
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey IN (1,2) AND o_custkey = 11) OR (o_orderkey IN (1,2) AND o_custkey = 22);	
 
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey IN (1,2) OR o_custkey = 3;
-	
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR ((o_orderkey = 2 AND o_custkey = 1) OR (o_orderkey = 3 AND o_custkey = 2));
+-- All shards used with prunable expression ORed with unprunable expression
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey IN (1,2) OR o_custkey = 11;
 
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR (o_orderkey = 2 AND (o_custkey = 1 OR (o_orderkey = 3 AND o_custkey = 2)));
+-- Shards restricted correctly with prunable constraint ORed
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 OR ((o_orderkey = 2 AND o_custkey = 11) OR (o_orderkey = 3 AND o_custkey = 22));
 
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2) AND o_custkey = 3) OR (o_orderkey = 3 AND o_custkey = 4);
+-- Shards restricted correctly with prunable constraint ORed with falsy expression
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 OR (o_orderkey = 2 AND (o_custkey = 11 OR (o_orderkey = 3 AND o_custkey = 22)));
 
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 1 OR o_custkey = 2) AND o_custkey = 3;
+-- Shards restricted correctly with prunable SAO constraint ORed with prunable nested EQ constraint
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey IN (1,2) AND o_custkey = 11) OR (o_orderkey = 3 AND o_custkey = 22);
 
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE ((o_orderkey IN (1,2)) AND (o_custkey = 1 OR o_custkey = 2)) OR o_custkey = 3;
-	
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE ((o_orderkey IN (1,2)) AND (o_custkey = 1 OR o_custkey = 2)) OR (o_orderkey = 3 AND o_custkey = 3);
-	
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey = 1) AND (o_orderkey = 2 OR (o_orderkey = 3 AND o_custkey = 3));
+-- Shards restricted correctly with prunable SAO constraint ANDed with unprunable expressions
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22) AND o_custkey = 3;
 
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey = 1) OR (o_orderkey = 2 AND (o_orderkey = 3 OR (o_orderkey = 1 AND o_custkey = 3)));
+-- All shards used with prunable SAO constraint ORed with unprunable nested expression
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE ((o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22)) OR o_custkey = 33;
 
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_custkey = 1 OR (o_orderkey = 2 AND o_custkey = 3);
+-- Shards restricted correctly with prunable SAO constraint ORed with prunable nested EQ constraint
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE ((o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22)) OR (o_orderkey = 3 AND o_custkey = 33);
 
-EXPLAIN SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 AND ((o_orderkey = 2 OR o_orderkey = 3) AND (o_custkey = 3 OR o_custkey = 4));
+-- All shards used with ORed top level unprunable expression
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_custkey = 11 OR (o_orderkey = 1 AND o_custkey = 22);
+
+-- Single shard used when deeply nested prunable expression is restrictive with nested ANDs
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 OR (o_orderkey = 2 AND (o_orderkey = 3 OR (o_orderkey = 1 AND o_custkey = 11)));
+
+-- Single shard used when top prunable expression is restrictive with nested ANDs
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 AND ((o_orderkey = 2 OR o_orderkey = 3) AND (o_custkey = 11 OR o_custkey = 22));
+
+-- Deeply nested prunable expression affects used shards
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 OR ((o_orderkey = 2 OR o_orderkey = 3) AND (o_custkey = 11 OR o_custkey = 22));
+
+-- Deeply nested non prunable expression uses all shards
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 OR ((o_orderkey = 2 OR o_custkey = 11) AND (o_custkey = 22 OR o_custkey = 33));
+
+-- a OR partkey != x Uses all shards
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 OR o_orderkey != 2;
+
+-- a OR partkey IS NULL Uses all shards
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 OR o_orderkey IS NULL;
+
+-- a OR partkey IS NOT NULL Uses all shards
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 OR o_orderkey IS NOT NULL;
 
 SET client_min_messages TO DEFAULT;
 SET citus.log_shard_pruning TO OFF;
