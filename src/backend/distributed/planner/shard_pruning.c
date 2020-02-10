@@ -216,7 +216,8 @@ typedef struct ClauseWalkerContext
 static bool BuildPruningTree(Node *node, PruningTreeBuildContext *context);
 static void SimplifyPruningTree(PruningTreeNode *node, PruningTreeNode *parent);
 static void PrunableExpressions(PruningTreeNode *node, ClauseWalkerContext *context);
-static void PrunableExpressionsWalker(PruningTreeNode *node, ClauseWalkerContext *context);
+static void PrunableExpressionsWalker(PruningTreeNode *node,
+									  ClauseWalkerContext *context);
 static bool IsValidPartitionKeyRestriction(OpExpr *opClause);
 static void AddPartitionKeyRestrictionToInstance(ClauseWalkerContext *context,
 												 OpExpr *opClause, Var *varClause,
@@ -228,7 +229,8 @@ static Const * TransformPartitionRestrictionValue(Var *partitionColumn,
 static void AddSAOPartitionKeyRestrictionToInstance(ClauseWalkerContext *context,
 													ScalarArrayOpExpr *
 													arrayOperatorExpression);
-static bool SAORestrictions(ScalarArrayOpExpr *arrayOperatorExpression, Var *partitionColumn,
+static bool SAORestrictions(ScalarArrayOpExpr *arrayOperatorExpression,
+							Var *partitionColumn,
 							List **requestedRestrictions);
 static bool IsValidHashRestriction(OpExpr *opClause);
 static void AddHashRestrictionToInstance(ClauseWalkerContext *context, OpExpr *opClause,
@@ -260,10 +262,11 @@ static int LowerShardBoundary(Datum partitionColumnValue,
 							  ShardInterval **shardIntervalCache,
 							  int shardCount, FunctionCallInfo compareFunction,
 							  bool includeMax);
-static inline PruningTreeNode* CreatePruningNode(bool isAnd);
-static inline OpExpr* SAORestrictionArrayEqualityOp(ScalarArrayOpExpr *arrayOperatorExpression,
-												    Var *partitionColumn);
-static inline void DebugLogNode(char* fmt, Node *node, List *deparseCtx);
+static inline PruningTreeNode * CreatePruningNode(bool isAnd);
+static inline OpExpr * SAORestrictionArrayEqualityOp(
+	ScalarArrayOpExpr *arrayOperatorExpression,
+	Var *partitionColumn);
+static inline void DebugLogNode(char *fmt, Node *node, List *deparseCtx);
 
 #define CreateAndOp() (CreatePruningNode(true))
 #define CreateOrOp() (CreatePruningNode(false))
@@ -276,15 +279,15 @@ static inline void DebugLogNode(char* fmt, Node *node, List *deparseCtx);
 
 #define DebugLogPruningInstance(prune, deparseCtx) \
 	DebugLogNode("constraint value: %s, ", \
-				 (Node *)(prune)->equalConsts, (deparseCtx)); \
+				 (Node *) (prune)->equalConsts, (deparseCtx)); \
 	DebugLogNode("constraint (lt) value: %s, ", \
-				 (Node *)(prune)->lessConsts, (deparseCtx)); \
+				 (Node *) (prune)->lessConsts, (deparseCtx)); \
 	DebugLogNode("constraint (lteq) value: %s, ", \
-				 (Node *)(prune)->lessEqualConsts, (deparseCtx)); \
+				 (Node *) (prune)->lessEqualConsts, (deparseCtx)); \
 	DebugLogNode("constraint (gt) value: %s, ", \
-				 (Node *)(prune)->greaterConsts, (deparseCtx)); \
+				 (Node *) (prune)->greaterConsts, (deparseCtx)); \
 	DebugLogNode("constraint (gteq) value: %s, ", \
-				 (Node *)(prune)->greaterEqualConsts, (deparseCtx));
+				 (Node *) (prune)->greaterEqualConsts, (deparseCtx));
 
 /*
  * PruneShards returns all shards from a distributed table that cannot be
@@ -538,6 +541,7 @@ IsValidConditionNode(Node *node, Var *partitionColumn)
 	}
 }
 
+
 /*
  * Build a logical tree of valid constraints and invalid constaints for pruning.
  */
@@ -566,14 +570,15 @@ BuildPruningTree(Node *node, PruningTreeBuildContext *context)
 		{
 			PruningTreeNode *child = CreatePruningNode(isAnded);
 
-			context->current->childBooleanNodes = lappend(context->current->childBooleanNodes, child);
+			context->current->childBooleanNodes = lappend(
+				context->current->childBooleanNodes, child);
 
 			PruningTreeBuildContext newContext = { 0 };
 			newContext.partitionColumn = context->partitionColumn;
 			newContext.current = child;
 
 			return expression_tree_walker((Node *) boolExpr->args,
-					BuildPruningTree, &newContext);
+										  BuildPruningTree, &newContext);
 		}
 		else
 		{
@@ -582,7 +587,8 @@ BuildPruningTree(Node *node, PruningTreeBuildContext *context)
 	}
 	else if (IsValidConditionNode(node, context->partitionColumn))
 	{
-		context->current->validConstraints = lappend(context->current->validConstraints, node);
+		context->current->validConstraints = lappend(context->current->validConstraints,
+													 node);
 
 		return false;
 	}
@@ -593,6 +599,7 @@ BuildPruningTree(Node *node, PruningTreeBuildContext *context)
 		return false;
 	}
 }
+
 
 /*
  * Simplifies the logical tree of valid and invalid constraints for pruning.
@@ -626,8 +633,10 @@ SimplifyPruningTree(PruningTreeNode *node, PruningTreeNode *parent)
 
 	if (ConstraintCount(node) <= 1)
 	{
-		parent->validConstraints = list_concat(parent->validConstraints, node->validConstraints);
-		parent->hasInvalidConstraints = parent->hasInvalidConstraints || node->hasInvalidConstraints;
+		parent->validConstraints = list_concat(parent->validConstraints,
+											   node->validConstraints);
+		parent->hasInvalidConstraints = parent->hasInvalidConstraints ||
+										node->hasInvalidConstraints;
 
 		/* Remove current node from parent. Its constraint was assigned to the parent above */
 		parent->childBooleanNodes = list_delete_ptr(parent->childBooleanNodes, node);
@@ -749,7 +758,7 @@ PrunableExpressionsWalker(PruningTreeNode *node, ClauseWalkerContext *context)
 
 		foreach(cell, node->validConstraints)
 		{
-			Node *constraint = (Node *)lfirst(cell);
+			Node *constraint = (Node *) lfirst(cell);
 
 			PruningTreeNode *child = CreateAndOp();
 			child->validConstraints = list_make1(constraint);
@@ -759,7 +768,7 @@ PrunableExpressionsWalker(PruningTreeNode *node, ClauseWalkerContext *context)
 
 		foreach(cell, node->childBooleanNodes)
 		{
-			PruningTreeNode *child = (PruningTreeNode *)lfirst(cell);
+			PruningTreeNode *child = (PruningTreeNode *) lfirst(cell);
 			Assert(IsAndOp(child));
 			AddNewConjuction(context, child);
 		}
@@ -771,7 +780,7 @@ PrunableExpressionsWalker(PruningTreeNode *node, ClauseWalkerContext *context)
 
 	foreach(cell, node->validConstraints)
 	{
-		Node *constraint = (Node *)lfirst(cell);
+		Node *constraint = (Node *) lfirst(cell);
 
 		if (IsA(constraint, OpExpr))
 		{
@@ -786,7 +795,8 @@ PrunableExpressionsWalker(PruningTreeNode *node, ClauseWalkerContext *context)
 				prune->addedToPruningInstances = true;
 			}
 
-			if (VarConstOpExprClause(opClause, context->partitionColumn, &varClause, &constantClause))
+			if (VarConstOpExprClause(opClause, context->partitionColumn, &varClause,
+									 &constantClause))
 			{
 				if (equal(varClause, context->partitionColumn))
 				{
@@ -803,7 +813,8 @@ PrunableExpressionsWalker(PruningTreeNode *node, ClauseWalkerContext *context)
 					 * Found restriction that directly specifies the boundaries of a
 					 * hashed column.
 					 */
-					AddHashRestrictionToInstance(context, opClause, varClause, constantClause);
+					AddHashRestrictionToInstance(context, opClause, varClause,
+												 constantClause);
 				}
 				else
 				{
@@ -851,7 +862,8 @@ PrunableExpressionsWalker(PruningTreeNode *node, ClauseWalkerContext *context)
  * Also obtaining the var with constant when valid.
  */
 static bool
-VarConstOpExprClause(OpExpr *opClause, Var *partitionColumn, Var **varClause, Const **constantClause)
+VarConstOpExprClause(OpExpr *opClause, Var *partitionColumn, Var **varClause,
+					 Const **constantClause)
 {
 	Var *foundVarClause = NULL;
 	Const *foundConstantClause = NULL;
@@ -976,13 +988,16 @@ SAORestrictions(ScalarArrayOpExpr *arrayOperatorExpression, Var *partitionColumn
 			if (requestedRestrictions)
 			{
 				Const *constElement = makeConst(elementType, -1,
-												DEFAULT_COLLATION_OID, typlen, arrayElement,
+												DEFAULT_COLLATION_OID, typlen,
+												arrayElement,
 												isNull, typbyval);
 
 				/* build partcol = arrayelem operator */
-				OpExpr *arrayEqualityOp = SAORestrictionArrayEqualityOp(arrayOperatorExpression,
-																		partitionColumn);
-				arrayEqualityOp->args = list_make2(strippedLeftOpExpression, constElement);
+				OpExpr *arrayEqualityOp = SAORestrictionArrayEqualityOp(
+					arrayOperatorExpression,
+					partitionColumn);
+				arrayEqualityOp->args = list_make2(strippedLeftOpExpression,
+												   constElement);
 
 				*requestedRestrictions = lappend(*requestedRestrictions, arrayEqualityOp);
 			}
@@ -1019,6 +1034,7 @@ AddNewConjuction(ClauseWalkerContext *context, PruningTreeNode *node)
 	instance->instance->isPartial = true;
 	context->pendingInstances = lappend(context->pendingInstances, instance);
 }
+
 
 /*
  * Check whether operator clause is valid restriction for partition column.
@@ -1858,10 +1874,11 @@ ExhaustivePruneOne(ShardInterval *curInterval,
 	return false;
 }
 
+
 /*
  * Helper for creating a node for pruning tree
  */
-static inline PruningTreeNode*
+static inline PruningTreeNode *
 CreatePruningNode(bool isAnd)
 {
 	PruningTreeNode *node = palloc0(sizeof(PruningTreeNode));
@@ -1872,11 +1889,13 @@ CreatePruningNode(bool isAnd)
 	return node;
 }
 
+
 /*
  * Create equality operator for a single element of scalar array constraint.
  */
-static inline OpExpr*
-SAORestrictionArrayEqualityOp(ScalarArrayOpExpr *arrayOperatorExpression, Var *partitionColumn)
+static inline OpExpr *
+SAORestrictionArrayEqualityOp(ScalarArrayOpExpr *arrayOperatorExpression,
+							  Var *partitionColumn)
 {
 	OpExpr *arrayEqualityOp = makeNode(OpExpr);
 	arrayEqualityOp->opno = arrayOperatorExpression->opno;
@@ -1889,11 +1908,12 @@ SAORestrictionArrayEqualityOp(ScalarArrayOpExpr *arrayOperatorExpression, Var *p
 	return arrayEqualityOp;
 }
 
+
 /*
  * Debug helper for logging expression nodes
  */
 static inline void
-DebugLogNode(char* fmt, Node *node, List *deparseCtx)
+DebugLogNode(char *fmt, Node *node, List *deparseCtx)
 {
 	if (!node)
 	{
