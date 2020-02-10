@@ -12,6 +12,7 @@
 #include "utils/guc.h"
 #include "distributed/log_utils.h"
 
+
 /*
  * IsLoggableLevel returns true if either of client or server log guc is configured to
  * log the given log level.
