@@ -79,14 +79,15 @@ StartLockAcquireHelperBackgroundWorker(int backendToHelp, int32 lock_cooldown)
 	snprintf(worker.bgw_name, BGW_MAXLEN,
 			 "Citus Lock Acquire Helper: %d/%u",
 			 backendToHelp, MyDatabaseId);
-	snprintf(worker.bgw_type, BGW_MAXLEN, "citus_lock_aqcuire");
+	SafeStrcpy(worker.bgw_type, sizeof(worker.bgw_type), "citus_lock_aqcuire");
 
 	worker.bgw_flags = BGWORKER_SHMEM_ACCESS | BGWORKER_BACKEND_DATABASE_CONNECTION;
 	worker.bgw_start_time = BgWorkerStart_RecoveryFinished;
 	worker.bgw_restart_time = BGW_NEVER_RESTART;
 
-	snprintf(worker.bgw_library_name, BGW_MAXLEN, "citus");
-	snprintf(worker.bgw_function_name, BGW_MAXLEN, "LockAcquireHelperMain");
+	SafeStrcpy(worker.bgw_library_name, sizeof(worker.bgw_library_name), "citus");
+	SafeStrcpy(worker.bgw_function_name, sizeof(worker.bgw_function_name),
+			   "LockAcquireHelperMain");
 	worker.bgw_main_arg = Int32GetDatum(backendToHelp);
 	worker.bgw_notify_pid = 0;
 

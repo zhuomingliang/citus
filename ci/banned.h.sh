@@ -14,6 +14,11 @@ set +e
 grep -E '\b(strcpy|strcpyA|strcpyW|wcscpy|_tcscpy|_mbscpy|StrCpy|StrCpyA|StrCpyW|lstrcpy|lstrcpyA|lstrcpyW|_tccpy|_mbccpy|_ftcscpy|strcat|strcatA|strcatW|wcscat|_tcscat|_mbscat|StrCat|StrCatA|StrCatW|lstrcat|lstrcatA|lstrcatW|StrCatBuff|StrCatBuffA|StrCatBuffW|StrCatChainW|_tccat|_mbccat|_ftcscat|sprintfW|sprintfA|wsprintf|wsprintfW|wsprintfA|sprintf|swprintf|_stprintf|wvsprintf|wvsprintfA|wvsprintfW|vsprintf|_vstprintf|vswprintf|strncpy|wcsncpy|_tcsncpy|_mbsncpy|_mbsnbcpy|StrCpyN|StrCpyNA|StrCpyNW|StrNCpy|strcpynA|StrNCpyA|StrNCpyW|lstrcpyn|lstrcpynA|lstrcpynW|strncat|wcsncat|_tcsncat|_mbsncat|_mbsnbcat|StrCatN|StrCatNA|StrCatNW|StrNCat|StrNCatA|StrNCatW|lstrncat|lstrcatnA|lstrcatnW|lstrcatn|gets|_getts|_gettws|IsBadWritePtr|IsBadHugeWritePtr|IsBadReadPtr|IsBadHugeReadPtr|IsBadCodePtr|IsBadStringPtr|memcpy|RtlCopyMemory|CopyMemory|wmemcpy|lstrlen)\(' $files \
     && echo "ERROR: Required banned API usage detected" && exit 1
 
+# Required banned. These functions are not allowed to be used at all.
+# shellcheck disable=SC2086
+grep -E  '\b(strcat|strcpy|strerror|strncat|strncpy|strtok|wcscat|wcscpy|wcsncat|wcsncpy|wcstok|fprintf|fwprintf|printf|snprintf|sprintf|swprintf|vfprintf|vprintf|vsnprintf|vsprintf|vswprintf|vwprintf|wprintf|fscanf|fwscanf|gets|scanf|sscanf|swscanf|vfscanf|vfwscanf|vscanf|vsscanf|vswscanf|vwscanf|wscanf|asctime|atof|atoi|atol|atoll|bsearch|ctime|fopen|freopen|getenv|gmtime|localtime|mbsrtowcs|mbstowcs|memcpy|memmove|qsort|rewind|setbuf|wmemcpy|wmemmove)\(' $files \
+    && echo "ERROR: Required banned API usage from table detected" && exit 1
+
 # Recommended banned. If you can change the code not to use these that would be
 # great. If you REALLY need to use it you can remove from this regex and add it
 # to the list below, so it stops complaining.

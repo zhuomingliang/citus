@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include "commands/dbcommands.h"
+#include "distributed/citus_safe_lib.h"
 #include "distributed/multi_client_executor.h"
 #include "distributed/multi_server_executor.h"
 #include "distributed/task_tracker.h"
@@ -117,10 +118,11 @@ TaskTrackerRegister(void)
 	worker.bgw_flags = BGWORKER_SHMEM_ACCESS;
 	worker.bgw_start_time = BgWorkerStart_ConsistentState;
 	worker.bgw_restart_time = 1;
-	snprintf(worker.bgw_library_name, BGW_MAXLEN, "citus");
-	snprintf(worker.bgw_function_name, BGW_MAXLEN, "TaskTrackerMain");
+	SafeStrcpy(worker.bgw_library_name, sizeof(worker.bgw_library_name), "citus");
+	SafeStrcpy(worker.bgw_function_name, sizeof(worker.bgw_function_name),
+			   "TaskTrackerMain");
 	worker.bgw_notify_pid = 0;
-	snprintf(worker.bgw_name, BGW_MAXLEN, "task tracker");
+	SafeStrcpy(worker.bgw_name, sizeof(worker.bgw_name), "task tracker");
 
 	RegisterBackgroundWorker(&worker);
 }

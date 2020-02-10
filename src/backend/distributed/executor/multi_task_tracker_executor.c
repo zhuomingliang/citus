@@ -692,16 +692,17 @@ TrackerHash(const char *taskTrackerHashName, List *workerNodeList, char *userNam
 		char *nodeName = workerNode->workerName;
 		uint32 nodePort = workerNode->workerPort;
 
-		char taskStateHashName[MAXPGPATH];
 		uint32 taskStateCount = 32;
 		HASHCTL info;
 
 		/* insert task tracker into the tracker hash */
 		TaskTracker *taskTracker = TrackerHashEnter(taskTrackerHash, nodeName, nodePort);
 
+
 		/* for each task tracker, create hash to track its assigned tasks */
-		snprintf(taskStateHashName, MAXPGPATH,
-				 "Task Tracker \"%s:%u\" Task State Hash", nodeName, nodePort);
+		StringInfo taskStateHashName = makeStringInfo();
+		appendStringInfo(taskStateHashName, "Task Tracker \"%s:%u\" Task State Hash",
+						 nodeName, nodePort);
 
 		memset(&info, 0, sizeof(info));
 		info.keysize = sizeof(uint64) + sizeof(uint32);
@@ -710,7 +711,7 @@ TrackerHash(const char *taskTrackerHashName, List *workerNodeList, char *userNam
 		info.hcxt = CurrentMemoryContext;
 		int hashFlags = (HASH_ELEM | HASH_FUNCTION | HASH_CONTEXT);
 
-		HTAB *taskStateHash = hash_create(taskStateHashName, taskStateCount, &info,
+		HTAB *taskStateHash = hash_create(taskStateHashName->data, taskStateCount, &info,
 										  hashFlags);
 		if (taskStateHash == NULL)
 		{
