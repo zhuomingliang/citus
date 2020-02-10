@@ -32,6 +32,12 @@ CREATE TABLE orders_hash_partitioned (
 	o_comment varchar(79) );
 SELECT create_distributed_table('orders_hash_partitioned', 'o_orderkey');
 
+INSERT INTO orders_hash_partitioned (o_orderkey, o_custkey, o_totalprice, o_shippriority, o_clerk) VALUES
+	(1, 11, 10, 111, 'aaa'),
+	(2, 22, 20, 222, 'bbb'),
+	(3, 33, 30, 333, 'ccc'),
+	(4, 44, 40, 444, 'ddd');
+
 SET client_min_messages TO DEBUG2;
 
 -- Check that we can prune shards for simple cases, boolean expressions and
@@ -68,7 +74,7 @@ SELECT count(*) FROM orders_hash_partitioned
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 OR o_clerk = 'aaa';
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR (o_orderkey = 3 AND o_clerk = 'aaa');
+	WHERE o_orderkey = 1 OR (o_orderkey = 3 AND o_clerk = 'ccc');
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 OR o_orderkey is NULL;
 SELECT count(*) FROM
@@ -134,7 +140,7 @@ SELECT count(*) FROM orders_hash_partitioned
 -- Check that we don't give a spurious hint message when non-partition
 -- columns are used with ANY/IN/ALL
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR o_totalprice IN (2, 5);
+	WHERE o_orderkey = 1 OR o_totalprice IN (20, 30);
 
 -- Check that we cannot prune for mutable functions.
 
@@ -178,15 +184,15 @@ SELECT count(*) FROM orders_hash_partitioned
 
 -- Shards restricted correctly with many different prunable constraints ORed
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey = 1 AND o_custkey = 11) OR (o_orderkey = 1 AND o_custkey = 22) OR (o_orderkey = 2 AND o_custkey = 33) OR (o_orderkey = 2 AND o_custkey = 44);
+	WHERE (o_orderkey = 1 AND o_custkey = 11) OR (o_orderkey = 1 AND o_custkey = 33) OR (o_orderkey = 2 AND o_custkey = 22) OR (o_orderkey = 2 AND o_custkey = 44);
 
 -- Shards restricted correctly with prunable SAO constraint ANDed with unprunable expression using OR
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 33 OR o_custkey = 44);
+	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22 OR o_custkey = 33);
 	
 -- Shards restricted correctly with prunable SAO constraint ANDed with multiple unprunable expressions
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2)) AND (o_totalprice < 11 OR o_totalprice > 22) AND o_shippriority = 11 AND (o_custkey = 33 OR o_custkey = 44);
+	WHERE (o_orderkey IN (1,2)) AND (o_totalprice < 11 OR o_totalprice > 19) AND o_shippriority > 100 AND (o_custkey = 11 OR o_custkey = 22);
 
 -- Shards restricted correctly with prunable SAO constraints ORed
 SELECT count(*) FROM orders_hash_partitioned
@@ -194,23 +200,23 @@ SELECT count(*) FROM orders_hash_partitioned
 
 -- All shards used with prunable expression ORed with unprunable expression
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey IN (1,2) OR o_custkey = 11;
+	WHERE o_orderkey IN (1,2) OR o_custkey = 33;
 
 -- Shards restricted correctly with prunable constraint ORed
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR ((o_orderkey = 2 AND o_custkey = 11) OR (o_orderkey = 3 AND o_custkey = 22));
+	WHERE o_orderkey = 1 OR ((o_orderkey = 2 AND o_custkey = 22) OR (o_orderkey = 3 AND o_custkey = 33));
 
 -- Shards restricted correctly with prunable constraint ORed with falsy expression
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR (o_orderkey = 2 AND (o_custkey = 11 OR (o_orderkey = 3 AND o_custkey = 22)));
+	WHERE o_orderkey = 1 OR (o_orderkey = 2 AND (o_custkey = 11 OR (o_orderkey = 3 AND o_custkey = 44)));
 
 -- Shards restricted correctly with prunable SAO constraint ORed with prunable nested EQ constraint
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2) AND o_custkey = 11) OR (o_orderkey = 3 AND o_custkey = 22);
+	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22 OR o_custkey = 33) AND o_totalprice <= 20;
 
 -- Shards restricted correctly with prunable SAO constraint ANDed with unprunable expressions
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22) AND o_custkey = 33;
+	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 33) AND o_custkey = 22;
 
 -- All shards used with prunable SAO constraint ORed with unprunable nested expression
 SELECT count(*) FROM orders_hash_partitioned
@@ -222,7 +228,7 @@ SELECT count(*) FROM orders_hash_partitioned
 
 -- All shards used with ORed top level unprunable expression
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_custkey = 11 OR (o_orderkey = 1 AND o_custkey = 22);
+	WHERE o_custkey = 11 OR (o_orderkey = 2 AND o_custkey = 22);
 
 -- Single shard used when deeply nested prunable expression is restrictive with nested ANDs
 SELECT count(*) FROM orders_hash_partitioned
@@ -234,7 +240,7 @@ SELECT count(*) FROM orders_hash_partitioned
 
 -- Deeply nested prunable expression affects used shards
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR ((o_orderkey = 2 OR o_orderkey = 3) AND (o_custkey = 11 OR o_custkey = 22));
+	WHERE o_orderkey = 1 OR ((o_orderkey = 2 OR o_orderkey = 3) AND (o_custkey = 22 OR o_custkey = 33));
 
 -- Deeply nested non prunable expression uses all shards
 SELECT count(*) FROM orders_hash_partitioned

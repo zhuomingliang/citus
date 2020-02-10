@@ -29,6 +29,11 @@ SELECT create_distributed_table('orders_hash_partitioned', 'o_orderkey');
 
 (1 row)
 
+INSERT INTO orders_hash_partitioned (o_orderkey, o_custkey, o_totalprice, o_shippriority, o_clerk) VALUES
+	(1, 11, 10, 111, 'aaa'),
+	(2, 22, 20, 222, 'bbb'),
+	(3, 33, 30, 333, 'ccc'),
+	(4, 44, 40, 444, 'ddd');
 SET client_min_messages TO DEBUG2;
 -- Check that we can prune shards for simple cases, boolean expressions and
 -- immutable functions.
@@ -36,7 +41,7 @@ SELECT count(*) FROM orders_hash_partitioned;
 DEBUG:  Router planner cannot handle multi-shard select queries
  count
 ---------------------------------------------------------------------
-     0
+     4
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = 1;
@@ -45,7 +50,7 @@ DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = 2;
@@ -54,7 +59,7 @@ DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 2
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = 3;
@@ -63,7 +68,7 @@ DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 3
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = 4;
@@ -72,7 +77,7 @@ DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 4
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned
@@ -82,7 +87,7 @@ DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = abs(-1);
@@ -91,7 +96,7 @@ DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 -- disable router planning
@@ -100,35 +105,35 @@ SELECT count(*) FROM orders_hash_partitioned;
 DEBUG:  Router planner not enabled.
  count
 ---------------------------------------------------------------------
-     0
+     4
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = 1;
 DEBUG:  Router planner not enabled.
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = 2;
 DEBUG:  Router planner not enabled.
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = 3;
 DEBUG:  Router planner not enabled.
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = 4;
 DEBUG:  Router planner not enabled.
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned
@@ -136,14 +141,14 @@ SELECT count(*) FROM orders_hash_partitioned
 DEBUG:  Router planner not enabled.
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = abs(-1);
 DEBUG:  Router planner not enabled.
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SET citus.enable_router_execution TO DEFAULT;
@@ -158,14 +163,14 @@ SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey is not NULL;
 DEBUG:  Router planner cannot handle multi-shard select queries
  count
 ---------------------------------------------------------------------
-     0
+     4
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey > 2;
 DEBUG:  Router planner cannot handle multi-shard select queries
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned
@@ -173,7 +178,7 @@ SELECT count(*) FROM orders_hash_partitioned
 DEBUG:  Router planner cannot handle multi-shard select queries
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned
@@ -181,15 +186,15 @@ SELECT count(*) FROM orders_hash_partitioned
 DEBUG:  Router planner cannot handle multi-shard select queries
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR (o_orderkey = 3 AND o_clerk = 'aaa');
+	WHERE o_orderkey = 1 OR (o_orderkey = 3 AND o_clerk = 'ccc');
 DEBUG:  Router planner cannot handle multi-shard select queries
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned
@@ -197,7 +202,7 @@ SELECT count(*) FROM orders_hash_partitioned
 DEBUG:  Router planner cannot handle multi-shard select queries
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM
@@ -207,7 +212,7 @@ DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SET client_min_messages TO DEBUG3;
@@ -402,7 +407,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 -- Check that we don't give a spurious hint message when non-partition
 -- columns are used with ANY/IN/ALL
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR o_totalprice IN (2, 5);
+	WHERE o_orderkey = 1 OR o_totalprice IN (20, 30);
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -410,7 +415,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     3
 (1 row)
 
 -- Check that we cannot prune for mutable functions.
@@ -434,7 +439,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned
@@ -471,7 +476,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     4
 (1 row)
 
 SELECT count(*)
@@ -498,7 +503,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     4
 (1 row)
 
 -- Shards restricted correctly with prunable constraint
@@ -510,7 +515,7 @@ DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 -- Shards restricted correctly with prunable constraint ANDed with unprunable expression using OR
@@ -522,7 +527,7 @@ DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 -- Shards restricted correctly with prunable constraints ORed
@@ -537,7 +542,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 -- Shards restricted correctly with prunable constraints ANDed with unprunable expression using OR
@@ -552,12 +557,12 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 -- Shards restricted correctly with many different prunable constraints ORed
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey = 1 AND o_custkey = 11) OR (o_orderkey = 1 AND o_custkey = 22) OR (o_orderkey = 2 AND o_custkey = 33) OR (o_orderkey = 2 AND o_custkey = 44);
+	WHERE (o_orderkey = 1 AND o_custkey = 11) OR (o_orderkey = 1 AND o_custkey = 33) OR (o_orderkey = 2 AND o_custkey = 22) OR (o_orderkey = 2 AND o_custkey = 44);
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
@@ -571,12 +576,12 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 -- Shards restricted correctly with prunable SAO constraint ANDed with unprunable expression using OR
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 33 OR o_custkey = 44);
+	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22 OR o_custkey = 33);
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
 DEBUG:  Router planner cannot handle multi-shard select queries
@@ -586,13 +591,13 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 	
 -- Shards restricted correctly with prunable SAO constraint ANDed with multiple unprunable expressions
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2)) AND (o_totalprice < 11 OR o_totalprice > 22) AND o_shippriority = 11 AND (o_custkey = 33 OR o_custkey = 44);
+	WHERE (o_orderkey IN (1,2)) AND (o_totalprice < 11 OR o_totalprice > 19) AND o_shippriority > 100 AND (o_custkey = 11 OR o_custkey = 22);
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
 DEBUG:  Router planner cannot handle multi-shard select queries
@@ -602,7 +607,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 -- Shards restricted correctly with prunable SAO constraints ORed
@@ -622,12 +627,12 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 -- All shards used with prunable expression ORed with unprunable expression
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey IN (1,2) OR o_custkey = 11;
+	WHERE o_orderkey IN (1,2) OR o_custkey = 33;
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -635,12 +640,12 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     3
 (1 row)
 
 -- Shards restricted correctly with prunable constraint ORed
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR ((o_orderkey = 2 AND o_custkey = 11) OR (o_orderkey = 3 AND o_custkey = 22));
+	WHERE o_orderkey = 1 OR ((o_orderkey = 2 AND o_custkey = 22) OR (o_orderkey = 3 AND o_custkey = 33));
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
 DEBUG:  constraint value: 3,
@@ -653,12 +658,12 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     3
 (1 row)
 
 -- Shards restricted correctly with prunable constraint ORed with falsy expression
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR (o_orderkey = 2 AND (o_custkey = 11 OR (o_orderkey = 3 AND o_custkey = 22)));
+	WHERE o_orderkey = 1 OR (o_orderkey = 2 AND (o_custkey = 11 OR (o_orderkey = 3 AND o_custkey = 44)));
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
 DEBUG:  constraint value: 2,
@@ -670,30 +675,27 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 -- Shards restricted correctly with prunable SAO constraint ORed with prunable nested EQ constraint
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2) AND o_custkey = 11) OR (o_orderkey = 3 AND o_custkey = 22);
-DEBUG:  constraint value: 3,
+	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22 OR o_custkey = 33) AND o_totalprice <= 20;
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
 DEBUG:  Router planner cannot handle multi-shard select queries
-DEBUG:  constraint value: 3,
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
-DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 -- Shards restricted correctly with prunable SAO constraint ANDed with unprunable expressions
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22) AND o_custkey = 33;
+	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 33) AND o_custkey = 22;
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
 DEBUG:  Router planner cannot handle multi-shard select queries
@@ -716,7 +718,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     3
 (1 row)
 
 -- Shards restricted correctly with prunable SAO constraint ORed with prunable nested EQ constraint
@@ -734,12 +736,12 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     3
 (1 row)
 
 -- All shards used with ORed top level unprunable expression
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_custkey = 11 OR (o_orderkey = 1 AND o_custkey = 22);
+	WHERE o_custkey = 11 OR (o_orderkey = 2 AND o_custkey = 22);
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -747,7 +749,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 -- Single shard used when deeply nested prunable expression is restrictive with nested ANDs
@@ -760,7 +762,7 @@ DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 -- Single shard used when top prunable expression is restrictive with nested ANDs
@@ -778,7 +780,7 @@ DETAIL:  distribution column value: 1
 
 -- Deeply nested prunable expression affects used shards
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = 1 OR ((o_orderkey = 2 OR o_orderkey = 3) AND (o_custkey = 11 OR o_custkey = 22));
+	WHERE o_orderkey = 1 OR ((o_orderkey = 2 OR o_orderkey = 3) AND (o_custkey = 22 OR o_custkey = 33));
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
 DEBUG:  constraint value: 3,
@@ -791,7 +793,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     3
 (1 row)
 
 -- Deeply nested non prunable expression uses all shards
@@ -804,7 +806,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     2
 (1 row)
 
 -- a OR partkey != x Uses all shards
@@ -817,7 +819,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     3
 (1 row)
 
 -- a OR partkey IS NULL Uses all shards
@@ -830,7 +832,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     1
 (1 row)
 
 -- a OR partkey IS NOT NULL Uses all shards
@@ -843,7 +845,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
-     0
+     4
 (1 row)
 
 SET client_min_messages TO DEFAULT;

@@ -79,8 +79,10 @@
  * Represent a single boolean operator node and its associated constraints.
  *
  * For example query: WHERE hash_col = 1 AND (other_col = 1 OR other_col = 2)
- * Gets transformed into: AND(hash_col = 1, OR(X, X))
- * And further simplified into: AND(hash_col = 1, X)
+ * Gets transformed:
+ * 1. AND(hash_col = 1, OR(X, X))
+ * 2. AND(hash_col = 1, OR(X))
+ * 3. AND(hash_col = 1, X)
  * Where X represents any unrecognized unprunable constraint.
  *
  * This allows pruning machinery to understand that
@@ -631,6 +633,7 @@ SimplifyPruningTree(PruningTreeNode *node, PruningTreeNode *parent)
 		return;
 	}
 
+	/* Boolean operator with just a single (regocnized/unknown) constraints gets simplified */
 	if (ConstraintCount(node) <= 1)
 	{
 		parent->validConstraints = list_concat(parent->validConstraints,
