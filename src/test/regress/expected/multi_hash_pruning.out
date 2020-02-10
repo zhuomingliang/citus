@@ -380,16 +380,38 @@ DEBUG:  assigned task to node localhost:xxxxx
 
 SELECT count(*) FROM lineitem_range
 	WHERE l_orderkey = ANY ('{1,2,3}');
-DEBUG:  relation "lineitem_range" does not exist
-ERROR:  relation "lineitem_range" does not exist
+DEBUG:  constraint value: '1'::bigint COLLATE "default",
+DEBUG:  constraint value: '2'::bigint COLLATE "default",
+DEBUG:  constraint value: '3'::bigint COLLATE "default",
+DEBUG:  Creating router plan
+DEBUG:  Plan is router executable
+ count
+---------------------------------------------------------------------
+    13
+(1 row)
+
 SELECT count(*) FROM lineitem_range
 	WHERE l_orderkey IN (1,2,3);
-DEBUG:  relation "lineitem_range" does not exist
-ERROR:  relation "lineitem_range" does not exist
+DEBUG:  constraint value: '1'::bigint COLLATE "default",
+DEBUG:  constraint value: '2'::bigint COLLATE "default",
+DEBUG:  constraint value: '3'::bigint COLLATE "default",
+DEBUG:  Creating router plan
+DEBUG:  Plan is router executable
+ count
+---------------------------------------------------------------------
+    13
+(1 row)
+
 SELECT count(*) FROM lineitem_range
 	WHERE l_orderkey = ANY(NULL) OR TRUE;
-DEBUG:  relation "lineitem_range" does not exist
-ERROR:  relation "lineitem_range" does not exist
+DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  assigned task to node localhost:xxxxx
+DEBUG:  assigned task to node localhost:xxxxx
+ count
+---------------------------------------------------------------------
+ 12000
+(1 row)
+
 -- Check that we don't show the message if the operator is not
 -- equality operator
 SELECT count(*) FROM orders_hash_partitioned
