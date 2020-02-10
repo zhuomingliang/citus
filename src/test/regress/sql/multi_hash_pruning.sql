@@ -74,8 +74,7 @@ SELECT count(*) FROM orders_hash_partitioned
 SELECT count(*) FROM
        (SELECT o_orderkey FROM orders_hash_partitioned WHERE o_orderkey = 1) AS orderkeys;
 
-SET client_min_messages TO DEBUG2;
-SET citus.log_shard_pruning TO ON;
+SET client_min_messages TO DEBUG3;
 
 -- Check that we support runing for ANY/IN with literal.
 SELECT count(*) FROM lineitem_hash_part
@@ -165,11 +164,15 @@ SELECT count(*) FROM orders_hash_partitioned;
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1;
 
+-- Shards restricted correctly with prunable constraint ANDed with unprunable expression using OR
+SELECT count(*) FROM orders_hash_partitioned
+	WHERE o_orderkey = 1 AND (o_custkey = 11 OR o_custkey = 22);
+
 -- Shards restricted correctly with prunable constraints ORed
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey = 1 OR o_orderkey = 2);
 
--- Shards restricted correctly with prunable constraints ANDed with unprunable expression
+-- Shards restricted correctly with prunable constraints ANDed with unprunable expression using OR
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey = 1 OR o_orderkey = 2) AND (o_custkey = 11 OR o_custkey = 22);	
 
@@ -246,4 +249,3 @@ SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 OR o_orderkey IS NOT NULL;
 
 SET client_min_messages TO DEFAULT;
-SET citus.log_shard_pruning TO OFF;

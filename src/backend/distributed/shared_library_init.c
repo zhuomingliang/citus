@@ -469,17 +469,6 @@ RegisterCitusConfigVariables(void)
 		NULL, NULL, NULL);
 
 	DefineCustomBoolVariable(
-		"citus.log_shard_pruning",
-		gettext_noop("Logs the query shard pruning to the server log."),
-		gettext_noop("We use this private configuration entry as a debugging aid. "
-					 "If enabled, we print information about shard pruning."),
-		&LogShardPruning,
-		false,
-		PGC_USERSET,
-		GUC_NO_SHOW_ALL,
-		NULL, NULL, NULL);
-
-	DefineCustomBoolVariable(
 		"citus.enable_fast_path_router_planner",
 		gettext_noop("Enables fast path router planner"),
 		NULL,

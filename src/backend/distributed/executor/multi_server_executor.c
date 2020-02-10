@@ -52,18 +52,6 @@ JobExecutorType(DistributedPlan *distributedPlan)
 	MultiExecutorType executorType = TaskExecutorType;
 	bool routerExecutablePlan = distributedPlan->routerExecutable;
 
-	if (LogShardPruning)
-	{
-		if (job)
-		{
-			ereport(DEBUG1, (errmsg("NUM WORKER JOBS=%d", list_length(job->taskList))));
-		}
-		else if (routerExecutablePlan)
-		{
-			ereport(DEBUG1, (errmsg("NUM WORKER JOBS=1")));
-		}
-	}
-
 	/* debug distribution column value */
 	if (routerExecutablePlan)
 	{
