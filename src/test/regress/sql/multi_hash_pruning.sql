@@ -180,7 +180,7 @@ SELECT count(*) FROM orders_hash_partitioned
 
 -- Shards restricted correctly with prunable constraints ANDed with unprunable expression using OR
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey = 1 OR o_orderkey = 2) AND (o_custkey = 11 OR o_custkey = 22);	
+	WHERE (o_orderkey = 1 OR o_orderkey = 2) AND (o_custkey = 11 OR o_custkey = 22);
 
 -- Shards restricted correctly with many different prunable constraints ORed
 SELECT count(*) FROM orders_hash_partitioned
@@ -189,14 +189,14 @@ SELECT count(*) FROM orders_hash_partitioned
 -- Shards restricted correctly with prunable SAO constraint ANDed with unprunable expression using OR
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22 OR o_custkey = 33);
-	
+
 -- Shards restricted correctly with prunable SAO constraint ANDed with multiple unprunable expressions
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey IN (1,2)) AND (o_totalprice < 11 OR o_totalprice > 19) AND o_shippriority > 100 AND (o_custkey = 11 OR o_custkey = 22);
 
 -- Shards restricted correctly with prunable SAO constraints ORed
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE (o_orderkey IN (1,2) AND o_custkey = 11) OR (o_orderkey IN (2,3) AND o_custkey = 22);	
+	WHERE (o_orderkey IN (1,2) AND o_custkey = 11) OR (o_orderkey IN (2,3) AND o_custkey = 22);
 
 -- All shards used with prunable expression ORed with unprunable expression
 SELECT count(*) FROM orders_hash_partitioned

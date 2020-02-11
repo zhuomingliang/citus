@@ -1072,11 +1072,10 @@ AddNewConjuction(ClauseWalkerContext *context, PruningTreeNode *node)
 static bool
 IsValidPartitionKeyRestriction(OpExpr *opClause)
 {
-	List *btreeInterpretationList = NULL;
 	ListCell *btreeInterpretationCell = NULL;
 	bool matchedOp = false;
 
-	btreeInterpretationList =
+	List *btreeInterpretationList =
 		get_op_btree_interpretation(opClause->opno);
 	foreach(btreeInterpretationCell, btreeInterpretationList)
 	{
@@ -1255,10 +1254,9 @@ TransformPartitionRestrictionValue(Var *partitionColumn, Const *restrictionValue
 static bool
 IsValidHashRestriction(OpExpr *opClause)
 {
-	List *btreeInterpretationList = NULL;
 	ListCell *btreeInterpretationCell = NULL;
 
-	btreeInterpretationList =
+	List *btreeInterpretationList =
 		get_op_btree_interpretation(opClause->opno);
 	foreach(btreeInterpretationCell, btreeInterpretationList)
 	{
