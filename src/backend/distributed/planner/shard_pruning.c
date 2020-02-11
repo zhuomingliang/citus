@@ -12,15 +12,15 @@
  * operator has associated unknown constraints. This allows essentially
  * unknown constraints to be replaced by a simple placeholder flag.
  *
- * For example query: WHERE hash_col=1 AND (other_col=1 OR other_col=2)
+ * For example query: WHERE (hash_col IN (1,2)) AND (other_col=1 OR other_col=2)
  * Gets transformed by steps:
- * 1. AND(hash_col=1, OR(X, X))
- * 2. AND(hash_col=1, OR(X))
- * 3. AND(hash_col=1, X)
+ * 1. AND(hash_col IN (1,2), OR(X, X))
+ * 2. AND(hash_col IN (1,2), OR(X))
+ * 3. AND(hash_col IN (1,2), X)
  * Where X represents any (set of) unrecognized unprunable constraint(s).
  *
  * Above allows the following pruning machinery to understand that
- * the target shard is determined solely by constraint: hash_col=1.
+ * the target shard is determined solely by constraint: hash_col IN (1,2).
  * Here it does not matter what X is as its ANDed by a valid constraint.
  * Pruning machinery will fail, returning all shards, if it encounters
  * eg. OR(hash_col=1, X) as this condition does not limit the target shards.
