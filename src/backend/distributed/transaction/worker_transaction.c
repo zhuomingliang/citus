@@ -45,6 +45,8 @@ static void SendCommandToWorkersParamsInternal(TargetWorkerSet targetWorkerSet,
 static void ErrorIfAnyMetadataNodeOutOfSync(List *metadataNodeList);
 static void SendCommandListToAllWorkersInternal(List *commandList, bool failOnError,
 												char *superuser);
+static void SendCommandToWorkersInParallelInternal(TargetWorkerSet targetWorkerSet, const
+									   char *command, const char *user, bool errorOnFailure);												
 
 /*
  * SendCommandToWorker sends a command to a particular worker as part of the
@@ -328,6 +330,18 @@ SendCommandToMetadataWorkersParams(const char *command,
 }
 
 
+
+/*
+ * SendCommandToWorkersInParallel sends the given command to workers in parallel.
+ */
+void
+SendCommandToWorkersInParallel(TargetWorkerSet targetWorkerSet, const
+									   char *command,
+									   const char *user)
+{
+	SendCommandToWorkersInParallelInternal(targetWorkerSet, command, user, true);
+}
+
 /*
  * SendCommandToWorkersOptionalInParallel sends the given command to workers in parallel.
  * It does error if there is a problem while sending the query, but it doesn't error
@@ -337,6 +351,12 @@ void
 SendCommandToWorkersOptionalInParallel(TargetWorkerSet targetWorkerSet, const
 									   char *command,
 									   const char *user)
+{
+	SendCommandToWorkersInParallelInternal(targetWorkerSet, command, user, false);
+}
+
+static void SendCommandToWorkersInParallelInternal(TargetWorkerSet targetWorkerSet, const
+									   char *command, const char *user, bool errorOnFailure) 
 {
 	List *connectionList = NIL;
 	ListCell *connectionCell = NULL;
@@ -381,6 +401,10 @@ SendCommandToWorkersOptionalInParallel(TargetWorkerSet targetWorkerSet, const
 		MultiConnection *connection = (MultiConnection *) lfirst(connectionCell);
 
 		PGresult *result = GetRemoteCommandResult(connection, true);
+		if (errorOnFailure && !IsResponseOK(result))
+		{
+			ReportResultError(connection, result, ERROR);
+		}
 		PQclear(result);
 		CloseConnection(connection);
 	}
