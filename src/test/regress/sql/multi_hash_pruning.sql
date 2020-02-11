@@ -144,11 +144,11 @@ SELECT count(*) FROM orders_hash_partitioned
 
 -- Check that we cannot prune for mutable functions.
 
-SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = random();
+SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = (random() + 100);
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = random() OR o_orderkey = 1;
+	WHERE o_orderkey = (random() + 100) OR o_orderkey = 1;
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = random() AND o_orderkey = 1;
+	WHERE o_orderkey = (random() + 100) AND o_orderkey = 1;
 
 -- Check that we can do join pruning.
 

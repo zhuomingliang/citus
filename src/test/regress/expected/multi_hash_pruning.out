@@ -493,7 +493,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 (1 row)
 
 -- Check that we cannot prune for mutable functions.
-SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = random();
+SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = (random() + 100);
 DEBUG:  no valid constraints found
 DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
@@ -509,7 +509,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = random() OR o_orderkey = 1;
+	WHERE o_orderkey = (random() + 100) OR o_orderkey = 1;
 DEBUG:  no valid constraints found
 DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
@@ -525,7 +525,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 (1 row)
 
 SELECT count(*) FROM orders_hash_partitioned
-	WHERE o_orderkey = random() AND o_orderkey = 1;
+	WHERE o_orderkey = (random() + 100) AND o_orderkey = 1;
 DEBUG:  constraint value: 1,
 DEBUG:  shard count: 1
 DEBUG:  Creating router plan
