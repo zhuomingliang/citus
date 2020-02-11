@@ -632,10 +632,15 @@ JOIN cte_1 ON a = max::text
 GROUP BY a HAVING a = (SELECT a)
 ORDER BY 1;
 
--- https://github.com/citusdata/citus/issues/3432
+-- Test https://github.com/citusdata/citus/issues/3432
 SELECT t1.event_type FROM events_table t1
 GROUP BY t1.event_type HAVING t1.event_type > avg((SELECT t2.value_2 FROM users_table t2 ORDER BY 1 DESC LIMIT 1))
 ORDER BY 1;
+
+-- Test https://github.com/citusdata/citus/issues/3433
+SELECT a, count(*) FROM subquery_pruning_varchar_test_table
+GROUP BY a HAVING sum(b) >= (SELECT sum(b) FROM subquery_pruning_varchar_test_table GROUP BY a ORDER BY 1 LIMIT 1)
+ORDER BY 1, 2;
 
 -- Simple join subquery pushdown
 SELECT
