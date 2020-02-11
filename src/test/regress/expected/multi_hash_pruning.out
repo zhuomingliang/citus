@@ -222,10 +222,12 @@ SELECT count(*) FROM lineitem_hash_part
 DEBUG:  constraint value: '1'::bigint COLLATE "default",
 DEBUG:  constraint value: '2'::bigint COLLATE "default",
 DEBUG:  constraint value: '3'::bigint COLLATE "default",
+DEBUG:  shard count: 3
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: '1'::bigint COLLATE "default",
 DEBUG:  constraint value: '2'::bigint COLLATE "default",
 DEBUG:  constraint value: '3'::bigint COLLATE "default",
+DEBUG:  shard count: 3
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -239,10 +241,12 @@ SELECT count(*) FROM lineitem_hash_part
 DEBUG:  constraint value: '1'::bigint COLLATE "default",
 DEBUG:  constraint value: '2'::bigint COLLATE "default",
 DEBUG:  constraint value: '3'::bigint COLLATE "default",
+DEBUG:  shard count: 3
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: '1'::bigint COLLATE "default",
 DEBUG:  constraint value: '2'::bigint COLLATE "default",
 DEBUG:  constraint value: '3'::bigint COLLATE "default",
+DEBUG:  shard count: 3
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -263,7 +267,11 @@ DEBUG:  Plan is router executable
 
 SELECT count(*) FROM lineitem_hash_part
 	WHERE l_orderkey = ANY (NULL);
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -275,7 +283,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 
 SELECT count(*) FROM lineitem_hash_part
 	WHERE l_orderkey IN (NULL) OR TRUE;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -287,7 +299,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 
 SELECT count(*) FROM lineitem_hash_part
 	WHERE l_orderkey = ANY (NULL) OR TRUE;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -299,7 +315,15 @@ DEBUG:  assigned task to node localhost:xxxxx
 
 -- Check whether we support IN/ANY in subquery
 SELECT count(*) FROM lineitem_hash_part WHERE l_orderkey IN (SELECT l_orderkey FROM lineitem_hash_part);
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -310,7 +334,15 @@ DEBUG:  assigned task to node localhost:xxxxx
 (1 row)
 
 SELECT count(*) FROM lineitem_hash_part WHERE l_orderkey = ANY (SELECT l_orderkey FROM lineitem_hash_part);
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -326,6 +358,7 @@ SELECT count(*) FROM lineitem
 DEBUG:  Router planner does not support append-partitioned tables.
 DEBUG:  constraint (lteq) value: '3'::bigint,
 DEBUG:  constraint (gteq) value: '1'::bigint,
+DEBUG:  shard count: 1
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
@@ -337,6 +370,7 @@ SELECT count(*) FROM lineitem
 DEBUG:  Router planner does not support append-partitioned tables.
 DEBUG:  constraint (lteq) value: '3'::bigint,
 DEBUG:  constraint (gteq) value: '1'::bigint,
+DEBUG:  shard count: 1
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
@@ -350,6 +384,7 @@ DEBUG:  Router planner does not support append-partitioned tables.
 DEBUG:  constraint value: '1'::bigint COLLATE "default",
 DEBUG:  constraint value: '2'::bigint COLLATE "default",
 DEBUG:  constraint value: '3'::bigint COLLATE "default",
+DEBUG:  shard count: 1
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
@@ -362,6 +397,7 @@ DEBUG:  Router planner does not support append-partitioned tables.
 DEBUG:  constraint value: '1'::bigint COLLATE "default",
 DEBUG:  constraint value: '2'::bigint COLLATE "default",
 DEBUG:  constraint value: '3'::bigint COLLATE "default",
+DEBUG:  shard count: 1
 DEBUG:  assigned task to node localhost:xxxxx
  count
 ---------------------------------------------------------------------
@@ -371,6 +407,8 @@ DEBUG:  assigned task to node localhost:xxxxx
 SELECT count(*) FROM lineitem
 	WHERE l_orderkey = ANY(NULL) OR TRUE;
 DEBUG:  Router planner does not support append-partitioned tables.
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 2
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
@@ -383,6 +421,7 @@ SELECT count(*) FROM lineitem_range
 DEBUG:  constraint value: '1'::bigint COLLATE "default",
 DEBUG:  constraint value: '2'::bigint COLLATE "default",
 DEBUG:  constraint value: '3'::bigint COLLATE "default",
+DEBUG:  shard count: 1
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  count
@@ -395,6 +434,7 @@ SELECT count(*) FROM lineitem_range
 DEBUG:  constraint value: '1'::bigint COLLATE "default",
 DEBUG:  constraint value: '2'::bigint COLLATE "default",
 DEBUG:  constraint value: '3'::bigint COLLATE "default",
+DEBUG:  shard count: 1
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  count
@@ -404,7 +444,11 @@ DEBUG:  Plan is router executable
 
 SELECT count(*) FROM lineitem_range
 	WHERE l_orderkey = ANY(NULL) OR TRUE;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 2
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 2
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
@@ -416,7 +460,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 -- equality operator
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey < ALL ('{1,2,3}');
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -430,7 +478,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 -- columns are used with ANY/IN/ALL
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 OR o_totalprice IN (20, 30);
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -442,7 +494,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 
 -- Check that we cannot prune for mutable functions.
 SELECT count(*) FROM orders_hash_partitioned WHERE o_orderkey = random();
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -454,7 +510,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = random() OR o_orderkey = 1;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -467,6 +527,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = random() AND o_orderkey = 1;
 DEBUG:  constraint value: 1,
+DEBUG:  shard count: 1
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
@@ -479,7 +540,15 @@ DETAIL:  distribution column value: 1
 SELECT count(*)
 	FROM orders_hash_partitioned orders1, orders_hash_partitioned orders2
 	WHERE orders1.o_orderkey = orders2.o_orderkey;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  join prunable for intervals [-2147483648,-1073741825] and [-1073741824,-1]
 DEBUG:  join prunable for intervals [-2147483648,-1073741825] and [0,1073741823]
 DEBUG:  join prunable for intervals [-2147483648,-1073741825] and [1073741824,2147483647]
@@ -507,7 +576,9 @@ SELECT count(*)
 	AND orders1.o_orderkey = 1
 	AND orders2.o_orderkey is NULL;
 DEBUG:  constraint value: 1,
+DEBUG:  shard count: 1
 DEBUG:  constraint value: 1,
+DEBUG:  shard count: 1
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
@@ -518,7 +589,11 @@ DETAIL:  distribution column value: 1
 
 -- All shards used without constraints
 SELECT count(*) FROM orders_hash_partitioned;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -532,6 +607,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1;
 DEBUG:  constraint value: 1,
+DEBUG:  shard count: 1
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
@@ -544,6 +620,7 @@ DETAIL:  distribution column value: 1
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 AND (o_custkey = 11 OR o_custkey = 22);
 DEBUG:  constraint value: 1,
+DEBUG:  shard count: 1
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
@@ -557,9 +634,11 @@ SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey = 1 OR o_orderkey = 2);
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
+DEBUG:  shard count: 2
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
+DEBUG:  shard count: 2
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
@@ -572,9 +651,11 @@ SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey = 1 OR o_orderkey = 2) AND (o_custkey = 11 OR o_custkey = 22);	
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
+DEBUG:  shard count: 2
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
+DEBUG:  shard count: 2
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
@@ -589,11 +670,13 @@ DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
 DEBUG:  constraint value: 2,
+DEBUG:  shard count: 2
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
 DEBUG:  constraint value: 2,
+DEBUG:  shard count: 2
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
@@ -606,9 +689,11 @@ SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22 OR o_custkey = 33);
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
+DEBUG:  shard count: 2
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
+DEBUG:  shard count: 2
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
@@ -622,9 +707,11 @@ SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey IN (1,2)) AND (o_totalprice < 11 OR o_totalprice > 19) AND o_shippriority > 100 AND (o_custkey = 11 OR o_custkey = 22);
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
+DEBUG:  shard count: 2
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
+DEBUG:  shard count: 2
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
@@ -639,11 +726,13 @@ DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
 DEBUG:  constraint value: 3 COLLATE "default",
+DEBUG:  shard count: 3
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
 DEBUG:  constraint value: 3 COLLATE "default",
+DEBUG:  shard count: 3
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -655,7 +744,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 -- All shards used with prunable expression ORed with unprunable expression
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey IN (1,2) OR o_custkey = 33;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -671,10 +764,12 @@ SELECT count(*) FROM orders_hash_partitioned
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
 DEBUG:  constraint value: 3,
+DEBUG:  shard count: 3
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
 DEBUG:  constraint value: 3,
+DEBUG:  shard count: 3
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -688,11 +783,11 @@ SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 OR (o_orderkey = 2 AND (o_custkey = 11 OR (o_orderkey = 3 AND o_custkey = 44)));
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
-DEBUG:  constraint value: 2,
+DEBUG:  shard count: 2
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
-DEBUG:  constraint value: 2,
+DEBUG:  shard count: 2
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
@@ -705,9 +800,11 @@ SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22 OR o_custkey = 33) AND o_totalprice <= 20;
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
+DEBUG:  shard count: 2
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
+DEBUG:  shard count: 2
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
@@ -720,9 +817,11 @@ SELECT count(*) FROM orders_hash_partitioned
 	WHERE (o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 33) AND o_custkey = 22;
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
+DEBUG:  shard count: 2
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
+DEBUG:  shard count: 2
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
  count
@@ -733,7 +832,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 -- All shards used with prunable SAO constraint ORed with unprunable nested expression
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE ((o_orderkey IN (1,2)) AND (o_custkey = 11 OR o_custkey = 22)) OR o_custkey = 33;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -749,10 +852,12 @@ SELECT count(*) FROM orders_hash_partitioned
 DEBUG:  constraint value: 3,
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
+DEBUG:  shard count: 3
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 3,
 DEBUG:  constraint value: 1 COLLATE "default",
 DEBUG:  constraint value: 2 COLLATE "default",
+DEBUG:  shard count: 3
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -764,7 +869,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 -- All shards used with ORed top level unprunable expression
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_custkey = 11 OR (o_orderkey = 2 AND o_custkey = 22);
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -778,8 +887,7 @@ DEBUG:  assigned task to node localhost:xxxxx
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 OR (o_orderkey = 2 AND (o_orderkey = 3 OR (o_orderkey = 1 AND o_custkey = 11)));
 DEBUG:  constraint value: 1,
-DEBUG:  constraint value: 2,
-DEBUG:  constraint value: 2,
+DEBUG:  shard count: 1
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
  count
@@ -790,8 +898,8 @@ DEBUG:  Plan is router executable
 -- Single shard used when top prunable expression is restrictive with nested ANDs
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 AND ((o_orderkey = 2 OR o_orderkey = 3) AND (o_custkey = 11 OR o_custkey = 22));
-DEBUG:  constraint value: 1,
-DEBUG:  constraint value: 1,
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 0
 DEBUG:  Creating router plan
 DEBUG:  Plan is router executable
 DETAIL:  distribution column value: 1
@@ -806,10 +914,12 @@ SELECT count(*) FROM orders_hash_partitioned
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
 DEBUG:  constraint value: 3,
+DEBUG:  shard count: 3
 DEBUG:  Router planner cannot handle multi-shard select queries
 DEBUG:  constraint value: 1,
 DEBUG:  constraint value: 2,
 DEBUG:  constraint value: 3,
+DEBUG:  shard count: 3
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -821,7 +931,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 -- Deeply nested non prunable expression uses all shards
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 OR ((o_orderkey = 2 OR o_custkey = 11) AND (o_custkey = 22 OR o_custkey = 33));
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -834,7 +948,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 -- a OR partkey != x Uses all shards
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 OR o_orderkey != 2;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -847,7 +965,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 -- a OR partkey IS NULL Uses all shards
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 OR o_orderkey IS NULL;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
@@ -860,7 +982,11 @@ DEBUG:  assigned task to node localhost:xxxxx
 -- a OR partkey IS NOT NULL Uses all shards
 SELECT count(*) FROM orders_hash_partitioned
 	WHERE o_orderkey = 1 OR o_orderkey IS NOT NULL;
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  Router planner cannot handle multi-shard select queries
+DEBUG:  no valid constraints found
+DEBUG:  shard count: 4
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
 DEBUG:  assigned task to node localhost:xxxxx
