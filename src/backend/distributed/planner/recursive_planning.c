@@ -314,6 +314,11 @@ RecursivelyPlanSubqueriesAndCTEs(Query *query, RecursivePlanningContext *context
 		RecursivelyPlanAllSubqueries((Node *) query->jointree->quals, context);
 	}
 
+	if (query->havingQual != NULL)
+	{
+		RecursivelyPlanAllSubqueries((Node *) query->havingQual, context);
+	}
+
 	/*
 	 * If the query doesn't have distribution key equality,
 	 * recursively plan some of its subqueries.
