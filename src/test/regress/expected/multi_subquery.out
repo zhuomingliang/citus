@@ -952,14 +952,10 @@ SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value)
                      ->  Seq Scan on keyval1_xxxxxxx keyval1
 (15 rows)
 
-SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyvalref GROUP BY key);
- count
----------------------------------------------------------------------
-(0 rows)
-
+-- For some reason 'ORDER BY 1 DESC LIMIT 1' triggers recursive planning
 EXPLAIN (COSTS OFF)
-SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyval2 GROUP BY key);
-                                 QUERY PLAN
+SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyvalref GROUP BY key ORDER BY 1 DESC LIMIT 1);
+                                       QUERY PLAN
 ---------------------------------------------------------------------
  HashAggregate
    Group Key: worker_column_2
@@ -969,13 +965,16 @@ SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value)
    ->  Custom Scan (Citus Adaptive)
          ->  Distributed Subplan XXX_1
                ->  Custom Scan (Citus Adaptive)
-                     Task Count: 4
-                     Tasks Shown: One of 4
+                     Task Count: 1
+                     Tasks Shown: All
                      ->  Task
                            Node: host=localhost port=xxxxx dbname=regression
-                           ->  HashAggregate
-                                 Group Key: key
-                                 ->  Seq Scan on keyval2_xxxxxxx keyval2
+                           ->  Limit
+                                 ->  Sort
+                                       Sort Key: (sum(value)) DESC
+                                       ->  HashAggregate
+                                             Group Key: key
+                                             ->  Seq Scan on keyvalref_xxxxxxx keyvalref
          Task Count: 4
          Tasks Shown: One of 4
          ->  Task
@@ -983,12 +982,65 @@ SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value)
                ->  HashAggregate
                      Group Key: keyval1.key
                      ->  Seq Scan on keyval1_xxxxxxx keyval1
-(22 rows)
+(25 rows)
 
-SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyval2 GROUP BY key);
- count
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyval2 GROUP BY key ORDER BY 1 DESC LIMIT 1);
+                                           QUERY PLAN
 ---------------------------------------------------------------------
-(0 rows)
+ HashAggregate
+   Group Key: worker_column_2
+   Filter: ((pg_catalog.sum(worker_column_3))::bigint > $0)
+   InitPlan 1 (returns $0)
+     ->  Function Scan on read_intermediate_result intermediate_result
+   ->  Custom Scan (Citus Adaptive)
+         ->  Distributed Subplan XXX_1
+               ->  Limit
+                     ->  Sort
+                           Sort Key: remote_scan.sum DESC
+                           ->  Custom Scan (Citus Adaptive)
+                                 Task Count: 4
+                                 Tasks Shown: One of 4
+                                 ->  Task
+                                       Node: host=localhost port=xxxxx dbname=regression
+                                       ->  Limit
+                                             ->  Sort
+                                                   Sort Key: (sum(value)) DESC
+                                                   ->  HashAggregate
+                                                         Group Key: key
+                                                         ->  Seq Scan on keyval2_xxxxxxx keyval2
+         Task Count: 4
+         Tasks Shown: One of 4
+         ->  Task
+               Node: host=localhost port=xxxxx dbname=regression
+               ->  HashAggregate
+                     Group Key: keyval1.key
+                     ->  Seq Scan on keyval1_xxxxxxx keyval1
+(28 rows)
+
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM keyval1 k1 WHERE k1.key = 2 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyval2 k2 WHERE k2.key = 2 GROUP BY key ORDER BY 1 DESC LIMIT 1);
+                             QUERY PLAN
+---------------------------------------------------------------------
+ Custom Scan (Citus Adaptive)
+   Task Count: 1
+   Tasks Shown: All
+   ->  Task
+         Node: host=localhost port=xxxxx dbname=regression
+         ->  GroupAggregate
+               Group Key: k1.key
+               Filter: (sum(k1.value) > $0)
+               InitPlan 1 (returns $0)
+                 ->  Limit
+                       ->  Sort
+                             Sort Key: (sum(k2.value)) DESC
+                             ->  GroupAggregate
+                                   Group Key: k2.key
+                                   ->  Seq Scan on keyval2_xxxxxxx k2
+                                         Filter: (key = 2)
+               ->  Seq Scan on keyval1_xxxxxxx k1
+                     Filter: (key = 2)
+(18 rows)
 
 -- Simple join subquery pushdown
 SELECT
