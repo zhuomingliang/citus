@@ -910,17 +910,85 @@ ORDER BY 1;
 (1 row)
 
 -- Test https://github.com/citusdata/citus/issues/3433
-SELECT a, count(*) FROM subquery_pruning_varchar_test_table
-GROUP BY a HAVING sum(b) >= (SELECT sum(b) FROM subquery_pruning_varchar_test_table GROUP BY a ORDER BY 1 LIMIT 1)
-ORDER BY 1, 2;
- a | count
+CREATE TABLE keyval1 (key int, value int);
+SELECT create_distributed_table('keyval1', 'key');
+ create_distributed_table
 ---------------------------------------------------------------------
- 1 |     1
- 2 |     1
- 3 |     2
- 4 |     1
- 5 |     1
-(5 rows)
+
+(1 row)
+
+CREATE TABLE keyval2 (key int, value int);
+SELECT create_distributed_table('keyval2', 'key');
+ create_distributed_table
+---------------------------------------------------------------------
+
+(1 row)
+
+CREATE TABLE keyvalref (key int, value int);
+SELECT create_reference_table('keyvalref');
+ create_reference_table
+---------------------------------------------------------------------
+
+(1 row)
+
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyvalref GROUP BY key);
+                           QUERY PLAN
+---------------------------------------------------------------------
+ HashAggregate
+   Group Key: worker_column_2
+   Filter: ((pg_catalog.sum(worker_column_3))::bigint > $0)
+   InitPlan 1 (returns $0)
+     ->  HashAggregate
+           Group Key: keyvalref.key
+           ->  Seq Scan on keyvalref
+   ->  Custom Scan (Citus Adaptive)
+         Task Count: 4
+         Tasks Shown: One of 4
+         ->  Task
+               Node: host=localhost port=xxxxx dbname=regression
+               ->  HashAggregate
+                     Group Key: keyval1.key
+                     ->  Seq Scan on keyval1_xxxxxxx keyval1
+(15 rows)
+
+SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyvalref GROUP BY key);
+ count
+---------------------------------------------------------------------
+(0 rows)
+
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyval2 GROUP BY key);
+                                 QUERY PLAN
+---------------------------------------------------------------------
+ HashAggregate
+   Group Key: worker_column_2
+   Filter: ((pg_catalog.sum(worker_column_3))::bigint > $0)
+   InitPlan 1 (returns $0)
+     ->  Function Scan on read_intermediate_result intermediate_result
+   ->  Custom Scan (Citus Adaptive)
+         ->  Distributed Subplan XXX_1
+               ->  Custom Scan (Citus Adaptive)
+                     Task Count: 4
+                     Tasks Shown: One of 4
+                     ->  Task
+                           Node: host=localhost port=xxxxx dbname=regression
+                           ->  HashAggregate
+                                 Group Key: key
+                                 ->  Seq Scan on keyval2_xxxxxxx keyval2
+         Task Count: 4
+         Tasks Shown: One of 4
+         ->  Task
+               Node: host=localhost port=xxxxx dbname=regression
+               ->  HashAggregate
+                     Group Key: keyval1.key
+                     ->  Seq Scan on keyval1_xxxxxxx keyval1
+(22 rows)
+
+SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyval2 GROUP BY key);
+ count
+---------------------------------------------------------------------
+(0 rows)
 
 -- Simple join subquery pushdown
 SELECT
@@ -1160,7 +1228,7 @@ LIMIT
 -- also set the min messages to WARNING to skip
 -- CASCADE NOTICE messagez
 SET client_min_messages TO WARNING;
-DROP TABLE users, events, subquery_pruning_varchar_test_table;
+DROP TABLE users, events, subquery_pruning_varchar_test_table, keyval1, keyval2, keyvalref;
 DROP TYPE user_composite_type CASCADE;
 SET client_min_messages TO DEFAULT;
 SET citus.subquery_pushdown to OFF;

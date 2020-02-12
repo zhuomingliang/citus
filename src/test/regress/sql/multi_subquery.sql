@@ -638,9 +638,22 @@ GROUP BY t1.event_type HAVING t1.event_type > avg((SELECT t2.value_2 FROM users_
 ORDER BY 1;
 
 -- Test https://github.com/citusdata/citus/issues/3433
-SELECT a, count(*) FROM subquery_pruning_varchar_test_table
-GROUP BY a HAVING sum(b) >= (SELECT sum(b) FROM subquery_pruning_varchar_test_table GROUP BY a ORDER BY 1 LIMIT 1)
-ORDER BY 1, 2;
+CREATE TABLE keyval1 (key int, value int);
+SELECT create_distributed_table('keyval1', 'key');
+
+CREATE TABLE keyval2 (key int, value int);
+SELECT create_distributed_table('keyval2', 'key');
+
+CREATE TABLE keyvalref (key int, value int);
+SELECT create_reference_table('keyvalref');
+
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyvalref GROUP BY key);
+SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyvalref GROUP BY key);
+
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyval2 GROUP BY key);
+SELECT count(*) FROM keyval1 GROUP BY key HAVING sum(value) > (SELECT sum(value) FROM keyval2 GROUP BY key);
 
 -- Simple join subquery pushdown
 SELECT
@@ -861,7 +874,7 @@ LIMIT
 -- also set the min messages to WARNING to skip
 -- CASCADE NOTICE messagez
 SET client_min_messages TO WARNING;
-DROP TABLE users, events, subquery_pruning_varchar_test_table;
+DROP TABLE users, events, subquery_pruning_varchar_test_table, keyval1, keyval2, keyvalref;
 
 DROP TYPE user_composite_type CASCADE;
 
