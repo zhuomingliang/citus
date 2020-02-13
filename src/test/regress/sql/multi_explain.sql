@@ -113,6 +113,12 @@ EXPLAIN (COSTS FALSE, ANALYZE TRUE, TIMING FALSE, SUMMARY FALSE)
 	WHERE l_orderkey = 1 AND l_partkey = 0;
 ROLLBACk;
 
+-- Test https://github.com/citusdata/citus/issues/2347
+CREATE TABLE countries (id serial, name varchar(250), CONSTRAINT countries_pkey PRIMARY KEY (id));
+select create_reference_table('countries');
+INSERT INTO countries (name) VALUES ('France');
+EXPLAIN (COSTS FALSE, ANALYZE TRUE, TIMING FALSE, SUMMARY FALSE) INSERT INTO countries (name) VALUES ('Germany');
+
 -- Test delete
 EXPLAIN (COSTS FALSE)
 	DELETE FROM lineitem
