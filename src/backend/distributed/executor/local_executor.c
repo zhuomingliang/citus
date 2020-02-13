@@ -631,6 +631,27 @@ ShouldExecuteTasksLocally(List *taskList)
 
 
 /*
+ * AnyTaskAccessesLocalNode returns true if a task within the task list accesses
+ * to the local node.
+ */
+bool
+AnyTaskAccessesLocalNode(List *taskList)
+{
+	Task *task = NULL;
+
+	foreach_ptr(task, taskList)
+	{
+		if (TaskAccessesLocalNode(task))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+/*
  * TaskAccessesLocalNode returns true if any placements of the task reside on
  * the node that we're executing the query.
  */
@@ -649,6 +670,21 @@ TaskAccessesLocalNode(Task *task)
 	}
 
 	return false;
+}
+
+
+/*
+ * ErrorIfRemoteTaskExecutionOnLocallyAccessedNode errors out if the current
+ * transaction already accessed local placements locally and any of the given
+ * remote tasks will access a local placement.
+ */
+void
+ErrorIfRemoteTaskExecutionOnLocallyAccessedNode(List *remoteTaskList)
+{
+	if (AnyTaskAccessesLocalNode(remoteTaskList))
+	{
+		ErrorIfTransactionAccessedPlacementsLocally();
+	}
 }
 
 

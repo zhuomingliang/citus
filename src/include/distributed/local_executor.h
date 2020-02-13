@@ -28,6 +28,7 @@ extern void ExtractLocalAndRemoteTasks(bool readOnlyPlan, List *taskList,
 extern bool ShouldExecuteTasksLocally(List *taskList);
 extern bool AnyTaskAccessesLocalNode(List *taskList);
 extern bool TaskAccessesLocalNode(Task *task);
+extern void ErrorIfRemoteTaskExecutionOnLocallyAccessedNode(List *taskList);
 extern void ErrorIfTransactionAccessedPlacementsLocally(void);
 extern void DisableLocalExecution(void);
 
