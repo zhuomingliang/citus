@@ -11,9 +11,14 @@
 #define MULTI_EXPLAIN_H
 
 #include "executor/executor.h"
+#include "commands/explain.h"
+#include "distributed/multi_physical_planner.h"
 
 /* Config variables managed via guc.c to explain distributed query plans */
 extern bool ExplainDistributedQueries;
 extern bool ExplainAllTasks;
+
+ExplainState * GetExplainStateFromExplainStmt(ExplainStmt *stmt);
+void ExplainPlan(ExplainState *es, DistributedPlan *distributedPlan);
 
 #endif /* MULTI_EXPLAIN_H */

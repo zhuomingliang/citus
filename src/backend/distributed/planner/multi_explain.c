@@ -17,6 +17,7 @@
 #include "commands/copy.h"
 #include "commands/createas.h"
 #include "commands/dbcommands.h"
+#include "commands/defrem.h"
 #include "commands/explain.h"
 #include "commands/tablecmds.h"
 #include "optimizer/cost.h"
@@ -104,6 +105,7 @@ static void ExplainOneQuery(Query *query, int cursorOptions,
 void
 CitusExplainScan(CustomScanState *node, List *ancestors, struct ExplainState *es)
 {
+	elog(WARNING, "EXPLAIN SCAN");
 	CitusScanState *scanState = (CitusScanState *) node;
 	DistributedPlan *distributedPlan = scanState->distributedPlan;
 
@@ -115,6 +117,16 @@ CitusExplainScan(CustomScanState *node, List *ancestors, struct ExplainState *es
 		return;
 	}
 
+	ExplainPlan(es, distributedPlan);
+}
+
+
+/*
+ * ExplainPlan fills the supplied ExplainState with EXPLAIN of distributedPlan.
+ */
+void
+ExplainPlan(ExplainState *es, DistributedPlan *distributedPlan)
+{
 	ExplainOpenGroup("Distributed Query", "Distributed Query", true, es);
 
 	if (distributedPlan->subPlanList != NIL)
@@ -591,7 +603,7 @@ static StringInfo
 BuildRemoteExplainQuery(char *queryString, ExplainState *es)
 {
 	StringInfo explainQuery = makeStringInfo();
-	char *formatStr = NULL;
+	const char *formatStr = NULL;
 
 	switch (es->format)
 	{
@@ -676,4 +688,87 @@ ExplainOneQuery(Query *query, int cursorOptions,
 		ExplainOnePlan(plan, into, es, queryString, params, queryEnv,
 					   &planduration);
 	}
+}
+
+/*
+ * GetExplainStateFromExplainStmt copies initial logic from ExplainQuery in explain.c
+ */
+ExplainState *
+GetExplainStateFromExplainStmt(ExplainStmt *stmt)
+{
+	ExplainState *es = NewExplainState();
+	ListCell   *lc;
+	bool		timing_set = false;
+	bool		summary_set = false;
+
+	/* Parse options list. */
+	foreach(lc, stmt->options)
+	{
+		DefElem    *opt = (DefElem *) lfirst(lc);
+
+		if (strcmp(opt->defname, "analyze") == 0)
+			es->analyze = defGetBoolean(opt);
+		else if (strcmp(opt->defname, "verbose") == 0)
+			es->verbose = defGetBoolean(opt);
+		else if (strcmp(opt->defname, "costs") == 0)
+			es->costs = defGetBoolean(opt);
+		else if (strcmp(opt->defname, "buffers") == 0)
+			es->buffers = defGetBoolean(opt);
+#if PG_VERSION_NUM >= 120000
+		else if (strcmp(opt->defname, "settings") == 0)
+			es->settings = defGetBoolean(opt);
+#endif
+		else if (strcmp(opt->defname, "timing") == 0)
+		{
+			timing_set = true;
+			es->timing = defGetBoolean(opt);
+		}
+		else if (strcmp(opt->defname, "summary") == 0)
+		{
+			summary_set = true;
+			es->summary = defGetBoolean(opt);
+		}
+		else if (strcmp(opt->defname, "format") == 0)
+		{
+			char	   *p = defGetString(opt);
+
+			if (strcmp(p, "text") == 0)
+				es->format = EXPLAIN_FORMAT_TEXT;
+			else if (strcmp(p, "xml") == 0)
+				es->format = EXPLAIN_FORMAT_XML;
+			else if (strcmp(p, "json") == 0)
+				es->format = EXPLAIN_FORMAT_JSON;
+			else if (strcmp(p, "yaml") == 0)
+				es->format = EXPLAIN_FORMAT_YAML;
+			else
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("unrecognized value for EXPLAIN option \"%s\": \"%s\"",
+								opt->defname, p)));
+		}
+		else
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("unrecognized EXPLAIN option \"%s\"",
+							opt->defname)));
+	}
+
+	if (es->buffers && !es->analyze)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("EXPLAIN option BUFFERS requires ANALYZE")));
+
+	/* if the timing was not set explicitly, set default value */
+	es->timing = (timing_set) ? es->timing : es->analyze;
+
+	/* check that timing is used with EXPLAIN ANALYZE */
+	if (es->timing && !es->analyze)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("EXPLAIN option TIMING requires ANALYZE")));
+
+	/* if the summary was not set explicitly, set default value */
+	es->summary = (summary_set) ? es->summary : es->analyze;
+
+	return es;
 }

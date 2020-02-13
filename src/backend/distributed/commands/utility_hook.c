@@ -200,6 +200,31 @@ multi_ProcessUtility(PlannedStmt *pstmt,
 		 * executed. Shall we add a INFO output?
 		 */
 		DisableLocalExecution();
+
+		if (1)
+		{
+			PlannedStmt *plannedStmt = distributed_planner((Query *) copyObject(
+															   explainStmt->query),
+														   0, params);
+			Node *node = (Node *) plannedStmt->planTree;
+			elog(WARNING, "explain plan customscan? %d", IsA(node, CustomScan));
+			if (IsA(node, CustomScan))
+			{
+				CustomScan *cscan = castNode(CustomScan, node);
+				DistributedPlan *distributedPlan = linitial(cscan->custom_private);
+				elog(WARNING, "distributedplan? %d", CitusIsA(distributedPlan,
+															  DistributedPlan));
+				if (CitusIsA(distributedPlan, DistributedPlan))
+				{
+					ExplainState *explainState = GetExplainStateFromExplainStmt(
+						explainStmt);
+					elog(WARNING, "explain state %p", explainState);
+					ExplainPlan(explainState, distributedPlan);
+
+					elog(WARNING, "%s", explainState->str->data);
+				}
+			}
+		}
 	}
 
 	if (IsA(parsetree, CreateSubscriptionStmt))
