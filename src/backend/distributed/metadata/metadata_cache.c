@@ -2111,7 +2111,7 @@ CitusReadIntermediateResultFuncId(void)
 											makeString("read_intermediate_result"));
 		Oid copyFormatTypeOid = CitusCopyFormatTypeId();
 		Oid paramOids[2] = { TEXTOID, copyFormatTypeOid };
-		bool missingOK = false;
+		bool missingOK = true; /* citus extension may not created yet, do not error */
 
 		MetadataCache.readIntermediateResultFuncId =
 			LookupFuncName(functionNameList, 2, paramOids, missingOK);

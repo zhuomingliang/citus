@@ -48,9 +48,8 @@
 #if PG_VERSION_NUM >= 120000
 #include "optimizer/optimizer.h"
 #include "optimizer/plancat.h"
-#else
-#include "optimizer/cost.h"
 #endif
+#include "optimizer/cost.h"
 #include "optimizer/pathnode.h"
 #include "optimizer/planner.h"
 #include "utils/builtins.h"
@@ -101,6 +100,11 @@ static PlannedStmt * FinalizeRouterPlan(PlannedStmt *localPlan, CustomScan *cust
 static int32 BlessRecordExpressionList(List *exprs);
 static void CheckNodeIsDumpable(Node *node);
 static Node * CheckNodeCopyAndSerialization(Node *node);
+static bool PreventNestedLoopJoinsWithIntermediateResults(PlannerInfo *root,
+														  RelOptInfo *joinRel,
+														  List **alreadyPreventedJoins);
+static void IncreaseRowCountEstimateForJoin(List **alreadyPreventedJoins,
+										   RelOptInfo *joinRel);
 static void AdjustReadIntermediateResultCost(RangeTblEntry *rangeTableEntry,
 											 RelOptInfo *relOptInfo);
 static void AdjustReadIntermediateResultArrayCost(RangeTblEntry *rangeTableEntry,
@@ -249,6 +253,7 @@ distributed_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 			planContext.plan = standard_planner(planContext.query,
 												planContext.cursorOptions,
 												planContext.boundParams);
+
 			if (needsDistributedPlanning)
 			{
 				result = PlanDistributedStmt(&planContext, rangeTableList, rteIdCounter);
@@ -1765,13 +1770,119 @@ multi_join_restriction_hook(PlannerInfo *root,
 	plannerRestrictionContext->hasSemiJoin = plannerRestrictionContext->hasSemiJoin ||
 											 extra->sjinfo->jointype == JOIN_SEMI;
 
+	PreventNestedLoopJoinsWithIntermediateResults(root, joinrel,
+												  &plannerRestrictionContext->
+												  alreadyPreventedJoins);
+
 	MemoryContextSwitchTo(oldMemoryContext);
 }
 
 
 /*
+ * PreventNestedLoopJoinsWithIntermediateResults is used to prevent Nested Loop joins
+ * when intermediate results if exists in the join.  This function primarly aims the
+ * joins on the workers/shards
+ *
+ * The reason is that Postgres does very poor estimates when functions are involved
+ * in the joins. This sometimes leads joins with read_intermediate_results() to yield
+ * nested loop join in the planning. However, the execution of such joins might be
+ * terrible.
+ *
+ * Instead, we think that not having any nested loop joins with intermediate results
+ * is a better approach. In general, the cost of having nested loop joins with bad
+ * estimates could perform really bad. However, an actual nested loop join can
+ * still be efficiently executed as a hash join.
+ *
+ * Note that some join clauses (like >, <) can only be executed with nested loops. In that
+ * case, Postgres would still pick nested loop joins, irrespective of what we do here.
+ */
+static bool
+PreventNestedLoopJoinsWithIntermediateResults(PlannerInfo *root, RelOptInfo *joinRel,
+											  List **alreadyPreventedJoins)
+{
+	int relid = -1;
+	Relids relids = joinRel->relids;
+	bool intermediateResultIsFound = false;
+
+	while ((relid = bms_next_member(relids, relid)) >= 0)
+	{
+		RangeTblEntry *rte = planner_rt_fetch(relid, root);
+
+		if (rte->rtekind == RTE_FUNCTION)
+		{
+
+			if (FindIntermediateResultIdIfExists(rte) != NULL)
+			{
+				IncreaseRowCountEstimateForJoin(alreadyPreventedJoins, joinRel);
+				intermediateResultIsFound = true;
+				continue;
+			}
+
+			RelOptInfo *innerJoin = root->simple_rel_array[relid];
+			if (innerJoin == joinRel)
+			{
+				continue;
+			}
+
+			if (PreventNestedLoopJoinsWithIntermediateResults(root, innerJoin, alreadyPreventedJoins))
+			{
+				IncreaseRowCountEstimateForJoin(alreadyPreventedJoins, innerJoin);
+				IncreaseRowCountEstimateForJoin(alreadyPreventedJoins, joinRel);
+
+				intermediateResultIsFound = true;
+
+				continue;
+			}
+		}
+		else if (rte->rtekind == RTE_SUBQUERY && ContainsReadIntermediateResultFunction((Node *)rte->subquery))
+		{
+			intermediateResultIsFound = true;
+			IncreaseRowCountEstimateForJoin(alreadyPreventedJoins, joinRel);
+
+			continue;
+		}
+		else if (rte->rtekind == RTE_FUNCTION && FindIntermediateResultIdIfExists(rte) != NULL)
+		{
+			intermediateResultIsFound = true;
+			IncreaseRowCountEstimateForJoin(alreadyPreventedJoins, joinRel);
+
+			continue;
+		}
+	}
+
+	return intermediateResultIsFound;
+}
+
+
+static void
+IncreaseRowCountEstimateForJoin(List **alreadyPreventedJoins, RelOptInfo *joinRel)
+{
+	if (list_member_ptr(*alreadyPreventedJoins, joinRel))
+	{
+		return;
+	}
+
+	*alreadyPreventedJoins = list_append_unique_ptr(*alreadyPreventedJoins, joinRel);
+	joinRel->rows = clamp_row_est(joinRel->rows);
+	joinRel->rows = joinRel->rows * 3;
+
+	/* probably not necessary? */
+	ListCell *pathCell = NULL;
+	List *joinPathList = joinRel->pathlist;
+	foreach(pathCell, joinPathList)
+	{
+		Path *path = lfirst(pathCell);
+
+		path->rows = clamp_row_est(path->rows);
+		path->rows = path->rows * 3;
+	}
+}
+
+
+
+/*
  * multi_relation_restriction_hook is a hook called by postgresql standard planner
- * to notify us about various planning information regarding a relation. We use
+ * to notify us about various planning information regarding a relatiqon. We use
  * it to retrieve restrictions on relations.
  */
 void
@@ -2134,6 +2245,8 @@ CreateAndPushPlannerRestrictionContext(void)
 
 	/* we'll apply logical AND as we add tables */
 	plannerRestrictionContext->relationRestrictionContext->allReferenceTables = true;
+
+	plannerRestrictionContext->alreadyPreventedJoins = NIL;
 
 	plannerRestrictionContextList = lcons(plannerRestrictionContext,
 										  plannerRestrictionContextList);

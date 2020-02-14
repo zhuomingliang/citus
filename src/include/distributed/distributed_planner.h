@@ -117,6 +117,8 @@ typedef struct PlannerRestrictionContext
 	FastPathRestrictionContext *fastPathRestrictionContext;
 	bool hasSemiJoin;
 	MemoryContext memoryContext;
+
+	List *alreadyPreventedJoins;
 } PlannerRestrictionContext;
 
 typedef struct RelationShard
