@@ -27,7 +27,9 @@
 #include "commands/dbcommands.h"
 #include "distributed/commands/utility_hook.h"
 #include "distributed/connection_management.h"
+#include "distributed/deparse_shard_query.h"
 #include "distributed/listutils.h"
+#include "distributed/local_executor.h"
 #include "distributed/master_protocol.h"
 #include "distributed/metadata_sync.h"
 #include "distributed/multi_client_executor.h"
@@ -78,12 +80,14 @@ static List * ShardsMatchingDeleteCriteria(Oid relationId, List *shardList,
 										   Node *deleteCriteria);
 static int DropShards(Oid relationId, char *schemaName, char *relationName,
 					  List *deletableShardIntervalList);
+static List * SingleDropTaskListForLocalPlacement(ShardPlacement *shardPlacement,
+												  char *dropShardPlacementCommand);
 static void ExecuteDropShardPlacementCommandRemotely(ShardPlacement *shardPlacement,
 													 const char *shardRelationName,
 													 const char *dropShardPlacementCommand);
 static char * CreateDropShardPlacementCommand(const char *schemaName,
-											  const char *shardRelationName, char
-											  storageType);
+											  const char *shardRelationName,
+											  char storageType);
 
 
 /* exports for SQL callable functions */
@@ -373,6 +377,12 @@ DropShards(Oid relationId, char *schemaName, char *relationName,
 	UseCoordinatedTransaction();
 
 	/*
+	 * We will use below variable accross this function to decide if we can
+	 * use local execution
+	 */
+	int32 localGroupId = GetLocalGroupId();
+
+	/*
 	 * At this point we intentionally decided to not use 2PC for reference
 	 * tables
 	 */
@@ -385,6 +395,8 @@ DropShards(Oid relationId, char *schemaName, char *relationName,
 	foreach_ptr(shardInterval, deletableShardIntervalList)
 	{
 		uint64 shardId = shardInterval->shardId;
+		char storageType = shardInterval->storageType;
+
 		char *shardRelationName = pstrdup(relationName);
 
 		Assert(shardInterval->relationId == relationId);
@@ -398,29 +410,57 @@ DropShards(Oid relationId, char *schemaName, char *relationName,
 		foreach_ptr(shardPlacement, shardPlacementList)
 		{
 			uint64 shardPlacementId = shardPlacement->placementId;
+			int32 shardPlacementGroupId = shardPlacement->groupId;
 
-			if (shardPlacement->groupId == COORDINATOR_GROUP_ID &&
-				IsCoordinator() &&
+			if (shardPlacementGroupId == COORDINATOR_GROUP_ID && IsCoordinator() &&
 				DropSchemaOrDBInProgress())
 			{
 				/*
 				 * The active DROP SCHEMA/DATABASE ... CASCADE will drop the
 				 * shard, if we try to drop it over another connection, we will
-				 * get into a distributed deadlock.
+				 * get into a distributed deadlock. Hence, just delete the shard
+				 * placement metadata and skip it for now.
 				 */
+				DeleteShardPlacementRow(shardPlacementId);
+				continue;
 			}
-			else
+
+			char *dropShardPlacementCommand =
+				CreateDropShardPlacementCommand(schemaName, shardRelationName,
+												storageType);
+
+			/*
+			 * If it is a local placement of a distributed table, then try to
+			 * execute the DROP command locally.
+			 */
+			bool dropTaskExecutedLocally = false;
+
+			if (shardPlacementGroupId == localGroupId)
 			{
-				char storageType = shardInterval->storageType;
+				List *localPlacementTaskList = SingleDropTaskListForLocalPlacement(
+					shardPlacement, dropShardPlacementCommand);
 
-				const char *dropShardPlacementCommand =
-					CreateDropShardPlacementCommand(schemaName, shardRelationName,
-													storageType);
+				if (ShouldExecuteTasksLocally(localPlacementTaskList))
+				{
+					ExecuteLocalUtilityTaskList(localPlacementTaskList);
 
+					dropTaskExecutedLocally = true;
+				}
+			}
+
+			if (dropTaskExecutedLocally == false)
+			{
 				/*
-				 * Try to open a new connection (or use an existing one) to
-				 * connect to target node to drop shard placement over that
-				 * remote connection
+				 * Either it was not a local placement or we could not use
+				 * local execution even if it was a local placement.
+				 * If it is the second case, then it is possibly because in
+				 * current transaction, some commands or queries connected
+				 * to local group as well.
+				 *
+				 * Regardless of the node is a remote node or the current node,
+				 * try to open a new connection (or use an existing one) to
+				 * connect to that node to drop the shard placement over that
+				 * remote connection.
 				 */
 				ExecuteDropShardPlacementCommandRemotely(shardPlacement,
 														 shardRelationName,
@@ -440,6 +480,35 @@ DropShards(Oid relationId, char *schemaName, char *relationName,
 	int droppedShardCount = list_length(deletableShardIntervalList);
 
 	return droppedShardCount;
+}
+
+
+/*
+ * SingleDropTaskListForLocalPlacement creates the task to DROP the given shard
+ * placement locally and returns that task within a single element list to be
+ * used directly within the local execution logic.
+ */
+static List *
+SingleDropTaskListForLocalPlacement(ShardPlacement *shardPlacement,
+									char *dropShardPlacementCommand)
+{
+	Assert(shardPlacement != NULL);
+
+	/* prepare the task for local execution */
+	Task *localPlacementTask = CitusMakeNode(Task);
+
+	localPlacementTask->jobId = INVALID_JOB_ID;
+	localPlacementTask->taskId = INVALID_TASK_ID;
+	localPlacementTask->taskType = DDL_TASK;
+	SetTaskQueryString(localPlacementTask, dropShardPlacementCommand);
+	localPlacementTask->dependentTaskList = NULL;
+	localPlacementTask->replicationModel = REPLICATION_MODEL_INVALID;
+	localPlacementTask->anchorShardId = shardPlacement->shardId;
+	localPlacementTask->taskPlacementList = list_make1(shardPlacement);
+
+	List *localPlacementTaskList = list_make1(localPlacementTask);
+
+	return localPlacementTaskList;
 }
 
 
