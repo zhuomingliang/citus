@@ -46,14 +46,14 @@ typedef enum TransactionBlocksUsage
  */
 typedef struct TransactionProperties
 {
-	/* if true, any failure on the worker causes the execution to end immediately */
-	bool errorOnAnyFailure;
-
 	/*
 	 * Determines whether transaction blocks on workers are required, disallowed, or
 	 * allowed (will use them if already in a coordinated transaction).
 	 */
 	TransactionBlocksUsage useRemoteTransactionBlocks;
+
+	/* if true, any failure on the worker causes the execution to end immediately */
+	bool errorOnAnyFailure;
 
 	/* if true, the current execution requires 2PC to be globally enabled */
 	bool requires2PC;

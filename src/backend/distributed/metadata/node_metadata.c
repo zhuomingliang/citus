@@ -61,14 +61,14 @@ char *CurrentCluster = "default";
 
 typedef struct NodeMetadata
 {
-	int32 groupId;
 	char *nodeRack;
+	char *nodeCluster;
+	int32 groupId;
+	Oid nodeRole;
 	bool hasMetadata;
 	bool metadataSynced;
 	bool isActive;
-	Oid nodeRole;
 	bool shouldHaveShards;
-	char *nodeCluster;
 } NodeMetadata;
 
 /* local function forward declarations */

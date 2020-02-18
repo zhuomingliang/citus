@@ -40,8 +40,8 @@
 
 typedef struct
 {
-	File fd;
 	off_t offset;
+	File fd;
 } FileCompat;
 
 static inline int
