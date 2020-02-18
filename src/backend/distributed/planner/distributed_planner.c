@@ -1803,6 +1803,7 @@ PreventNestedLoopJoinsWithIntermediateResults(PlannerInfo *root, RelOptInfo *joi
 	int relid = -1;
 	Relids relids = joinRel->relids;
 	bool intermediateResultIsFound = false;
+	IncreaseRowCountEstimateForJoin(alreadyPreventedJoins, joinRel);
 
 	while ((relid = bms_next_member(relids, relid)) >= 0)
 	{
