@@ -82,8 +82,8 @@ check-empty: all
 	$(pg_regress_multi_check) --load-extension=citus \
 	-- $(MULTI_REGRESS_OPTS) $(EXTRA_TESTS)
 
-check-multi: all tempinstall-main
-	$(pg_regress_multi_check) --load-extension=citus \
+check-multi: all tempinstall-main 
+	$(pg_regress_multi_check) --constr="$(constr)" --hoststr="$(hoststr)" --load-extension=citus \
 	-- $(MULTI_REGRESS_OPTS) --schedule=$(citus_abs_srcdir)/multi_schedule $(EXTRA_TESTS)
 
 check-multi-non-adaptive: all tempinstall-main

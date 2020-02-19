@@ -581,11 +581,11 @@ DROP TABLE http_request;
 
 -- first create helper function
 CREATE OR REPLACE FUNCTION immutable_bleat(text) RETURNS int LANGUAGE plpgsql IMMUTABLE AS $$BEGIN RAISE NOTICE '%', $1;RETURN 1;END$$;
-\c - - - :worker_1_port
+\c - - :real_worker_1_host :worker_1_port
 CREATE OR REPLACE FUNCTION immutable_bleat(text) RETURNS int LANGUAGE plpgsql IMMUTABLE AS $$BEGIN RAISE NOTICE '%', $1;RETURN 1;END$$;
-\c - - - :worker_2_port
+\c - - :real_worker_2_host :worker_2_port
 CREATE OR REPLACE FUNCTION immutable_bleat(text) RETURNS int LANGUAGE plpgsql IMMUTABLE AS $$BEGIN RAISE NOTICE '%', $1;RETURN 1;END$$;
-\c - - - :master_port
+\c - - :real_master_host :master_port
 
 -- test table
 CREATE TABLE test_table (test_id integer NOT NULL, data text);
@@ -612,7 +612,7 @@ EXECUTE countsome; -- should indicate replanning
 EXECUTE countsome; -- no replanning
 
 -- repair shards, should invalidate via master_metadata_utility.c
-SELECT master_copy_shard_placement(shardid, 'localhost', :worker_2_port, 'localhost', :worker_1_port)
+SELECT master_copy_shard_placement(shardid, :'worker_2_host', :worker_2_port, :'worker_1_host', :worker_1_port)
 FROM pg_dist_shard_placement
 WHERE shardid IN (
         SELECT shardid FROM pg_dist_shard WHERE logicalrelid = 'test_table'::regclass)

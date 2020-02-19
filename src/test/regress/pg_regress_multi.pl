@@ -80,6 +80,8 @@ my $pgCtlTimeout = undef;
 my $connectionTimeout = 5000;
 my $useMitmproxy = 0;
 my $mitmFifoPath = catfile($TMP_CHECKDIR, "mitmproxy.fifo");
+my $constr = "";
+my $hoststr = "";
 
 my $serversAreShutdown = "TRUE";
 my $usingWindows = 0;
@@ -108,6 +110,8 @@ GetOptions(
     'pg_ctl-timeout=s' => \$pgCtlTimeout,
     'connection-timeout=s' => \$connectionTimeout,
     'mitmproxy' => \$useMitmproxy,
+    'constr=s' => \$constr,
+    'hoststr=s' => \$hoststr,
     'help' => sub { Usage() });
 
 # Update environment to include [DY]LD_LIBRARY_PATH/LIBDIR/etc -
@@ -261,6 +265,9 @@ sub revert_replace_postgres
 # partial run, even if we're now not using valgrind.
 revert_replace_postgres();
 
+my $host = "localhost";
+my $user = "postgres";
+
 # n.b. previously this was on port 57640, which caused issues because that's in the
 # ephemeral port range, it was sometimes in the TIME_WAIT state which prevented us from
 # binding to it. 9060 is now used because it will never be used for client connections,
@@ -270,12 +277,65 @@ my $mitmPort = 9060;
 
 # Set some default configuration options
 my $masterPort = 57636;
-my $workerCount = 2;
-my @workerPorts = ();
 
-for (my $workerIndex = 1; $workerIndex <= $workerCount; $workerIndex++) {
-    my $workerPort = $masterPort + $workerIndex;
-    push(@workerPorts, $workerPort);
+my $workerCount = 2;
+my @workerHosts = ();
+my @workerPorts = ();
+my $realCHost = "";
+my $realWHost1 = "";
+my $realWHost2 = "";
+my $dbname = "";
+
+if ( $constr )
+{
+    my %convals = split /=|\s/, $constr;
+    $user = $convals{user};
+    $host = $convals{host};
+    $masterPort = $convals{port};
+    $dbname = $convals{dbname};
+    my %hostvals = split /=|\s/, $hoststr;
+    $realCHost = $hostvals{hc};
+    $realWHost1 = $hostvals{h1};
+    $realWHost2 = $hostvals{h2};
+    open my $in, '<', "bin/normalize.sed" or die "neeeeeeee";
+    open my $out, '>', "bin/normalizeBetter.sed" or die "Cannot normalizeeeeeeee";
+
+    while ( <$in> )
+    {
+        print $out $_;
+    }
+
+    close $in;
+
+    print $out "\n";
+    print $out "s/$user/<user>/g\n";
+    print $out "s/$host/<host>/g\n";
+    print $out "s/", substr("$masterPort", 0, length("$masterPort")-2), "[0-9][0-9]/<port>/g\n";
+
+    my $worker1host = `psql "$constr" -t -c "SELECT nodename FROM pg_dist_node ORDER BY nodeid LIMIT 1;"`;
+    my $worker1port = `psql "$constr" -t -c "SELECT nodeport FROM pg_dist_node ORDER BY nodeid LIMIT 1;"`;
+    my $worker2host = `psql "$constr" -t -c "SELECT nodename FROM pg_dist_node ORDER BY nodeid OFFSET 1 LIMIT 1;"`;
+    my $worker2port = `psql "$constr" -t -c "SELECT nodeport FROM pg_dist_node ORDER BY nodeid OFFSET 1 LIMIT 1;"`;
+
+    $worker1host =~ s/^\s+|\s+$//g;
+    $worker1port =~ s/^\s+|\s+$//g;
+    $worker2host =~ s/^\s+|\s+$//g;
+    $worker2port =~ s/^\s+|\s+$//g;
+
+    push(@workerPorts, $worker1port);
+    push(@workerPorts, $worker2port);
+    push(@workerHosts, $worker1host);
+    push(@workerHosts, $worker2host);
+
+    print "$worker1host-$worker1port/$worker2host-$worker2port\n ";
+}
+else 
+{
+
+    for (my $workerIndex = 1; $workerIndex <= $workerCount; $workerIndex++) {
+        my $workerPort = $masterPort + $workerIndex;
+        push(@workerPorts, $workerPort);
+    }
 }
 
 my $followerCoordPort = 9070;
@@ -285,8 +345,6 @@ for (my $workerIndex = 1; $workerIndex <= $workerCount; $workerIndex++) {
     push(@followerWorkerPorts, $workerPort);
 }
 
-my $host = "localhost";
-my $user = "postgres";
 my @pgOptions = ();
 
 # Postgres options set for the tests
@@ -392,7 +450,7 @@ for my $option (@userPgOptions)
 }
 
 # define functions as signature->definition
-%functions = ('fake_fdw_handler()', 'fdw_handler AS \'citus\' LANGUAGE C STRICT;');
+%functions = ('fake_fdw_handler()', 'fdw_handler AS \'\'citus\'\' LANGUAGE C STRICT;');
 
 #define fdws as name->handler name
 %fdws = ('fake_fdw', 'fake_fdw_handler');
@@ -458,6 +516,15 @@ for my $workeroff (0 .. $#workerPorts)
 	my $port = $workerPorts[$workeroff];
 	print $fh "--variable=worker_".($workeroff+1)."_port=$port ";
 }
+for my $workeroff (0 .. $#workerHosts)
+{
+	my $host = $workerHosts[$workeroff];
+	print $fh "--variable=worker_".($workeroff+1)."_host=\"$host\" ";
+}
+print $fh "--variable=real_master_host=\"$realCHost\" ";
+print $fh "--variable=real_worker_1_host=\"$realWHost1\" ";
+print $fh "--variable=real_worker_2_host=\"$realWHost2\" ";
+print $fh "--variable=dbname=\"$dbname\"";
 for my $workeroff (0 .. $#followerWorkerPorts)
 {
 	my $port = $followerWorkerPorts[$workeroff];
@@ -487,7 +554,7 @@ else
 	print $fh "\"\$@\"\n"; # pass on the commandline arguments
 }
 close $fh;
-
+=co
 make_path(catfile($TMP_CHECKDIR, $MASTERDIR, 'log')) or die "Could not create $MASTERDIR directory";
 for my $port (@workerPorts)
 {
@@ -526,18 +593,76 @@ else
 	}
 }
 
+=cut
 
 # Routine to shutdown servers at failure/exit
 sub ShutdownServers()
 {
-    if ($serversAreShutdown eq "FALSE")
+    system(catfile($bindir, "psql"),
+        ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "citus",
+            '-c', "SELECT run_command_on_workers(\'DELETE FROM pg_authid WHERE rolname LIKE ''alter%'';\'); ")) == 0
+        or die "Could not create regression database on worker";
+    system(catfile($bindir, "psql"),
+        ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "citus",
+            '-c', "DROP ROLE IF EXISTS testuser; DROP ROLE IF EXISTS non_super_user; DROP ROLE IF EXISTS node_metadata_user; DELETE FROM pg_authid WHERE rolname LIKE 'alter%'; ")) == 0
+        or die "Could not create regression database on worker";
+    system(catfile($bindir, "psql"),
+        ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "citus",
+            '-c', "SELECT run_command_on_workers(\'DROP ROLE IF EXISTS testuser;\'); ")) == 0
+        or die "Could not create regression database on worker";
+    system(catfile($bindir, "psql"),
+        ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "citus",
+            '-c', "SELECT run_command_on_workers(\'DROP ROLE IF EXISTS non_super_user;\'); ")) == 0
+        or die "Could not create regression database on worker";
+    system(catfile($bindir, "psql"),
+        ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "citus",
+            '-c', "SELECT run_command_on_workers(\'DROP ROLE IF EXISTS node_metadata_user;\'); ")) == 0
+        or die "Could not create regression database on worker";
+    if (0 && $serversAreShutdown eq "FALSE")
     {
+        
+
+        system(catfile($bindir, "psql"),
+            ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "postgres",
+                '-c', "UPDATE pg_database SET datallowconn = 'false' WHERE datname = 'regression';")) == 0
+            or die "Could not create regression database on worker";
+
+        system(catfile($bindir, "psql"),
+            ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "postgres",
+                '-c', "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'regression';")) == 0
+            or die "Could not create regression database on worker";
+
+        system(catfile($bindir, "psql"),
+            ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "postgres",
+                '-c', "DROP DATABASE IF EXISTS regression;")) == 0
+            or die "Could not create regression database on worker";
         system(catfile("$bindir", "pg_ctl"),
                ('stop', '-w', '-D', catfile($TMP_CHECKDIR, $MASTERDIR, 'data'))) == 0
             or warn "Could not shutdown worker server";
 
         for my $port (@workerPorts)
         {
+            
+            system(catfile($bindir, "psql"),
+                ('-X', '-h', $host, '-p', $port, '-U', $user, "-d", "postgres",
+                    '-c', "DROP ROLE IF EXISTS testuser; DROP ROLE IF EXISTS non_super_user; DROP ROLE IF EXISTS node_metadata_user; DELETE FROM pg_authid WHERE rolname LIKE 'alter%';")) == 0
+            or die "Could not create regression database on worker";
+
+            system(catfile($bindir, "psql"),
+                ('-X', '-h', $host, '-p', $port, '-U', $user, "-d", "postgres",
+                    '-c', "UPDATE pg_database SET datallowconn = 'false' WHERE datname = 'regression';")) == 0
+                or die "Could not create regression database on worker";
+
+            system(catfile($bindir, "psql"),
+                ('-X', '-h', $host, '-p', $port, '-U', $user, "-d", "postgres",
+                    '-c', "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'regression';")) == 0
+                or die "Could not create regression database on worker";
+
+            system(catfile($bindir, "psql"),
+                ('-X', '-h', $host, '-p', $port, '-U', $user, "-d", "postgres",
+                    '-c', "DROP DATABASE IF EXISTS regression;")) == 0
+                or die "Could not create regression database on worker";
+
             system(catfile("$bindir", "pg_ctl"),
                    ('stop', '-w', '-D', catfile($TMP_CHECKDIR, "worker.$port", "data"))) == 0
                 or warn "Could not shutdown worker server";
@@ -657,25 +782,28 @@ if ($followercluster)
 }
 
 # Start servers
-if(system(catfile("$bindir", "pg_ctl"),
-       ('start', '-w',
-        '-o', join(" ", @pgOptions)." -c port=$masterPort $synchronousReplication",
-       '-D', catfile($TMP_CHECKDIR, $MASTERDIR, 'data'), '-l', catfile($TMP_CHECKDIR, $MASTERDIR, 'log', 'postmaster.log'))) != 0)
-{
-  system("tail", ("-n20", catfile($TMP_CHECKDIR, $MASTERDIR, "log", "postmaster.log")));
-  die "Could not start master server";
-}
-
-for my $port (@workerPorts)
+if (!$constr)
 {
     if(system(catfile("$bindir", "pg_ctl"),
-           ('start', '-w',
-            '-o', join(" ", @pgOptions)." -c port=$port $synchronousReplication",
-            '-D', catfile($TMP_CHECKDIR, "worker.$port", "data"),
-            '-l', catfile($TMP_CHECKDIR, "worker.$port", "log", "postmaster.log"))) != 0)
+        ('start', '-w',
+            '-o', join(" ", @pgOptions)." -c port=$masterPort $synchronousReplication",
+        '-D', catfile($TMP_CHECKDIR, $MASTERDIR, 'data'), '-l', catfile($TMP_CHECKDIR, $MASTERDIR, 'log', 'postmaster.log'))) != 0)
     {
-      system("tail", ("-n20", catfile($TMP_CHECKDIR, "worker.$port", "log", "postmaster.log")));
-      die "Could not start worker server";
+    system("tail", ("-n20", catfile($TMP_CHECKDIR, $MASTERDIR, "log", "postmaster.log")));
+    die "Could not start master server";
+    }
+
+    for my $port (@workerPorts)
+    {
+        if(system(catfile("$bindir", "pg_ctl"),
+            ('start', '-w',
+                '-o', join(" ", @pgOptions)." -c port=$port $synchronousReplication",
+                '-D', catfile($TMP_CHECKDIR, "worker.$port", "data"),
+                '-l', catfile($TMP_CHECKDIR, "worker.$port", "log", "postmaster.log"))) != 0)
+        {
+        system("tail", ("-n20", catfile($TMP_CHECKDIR, "worker.$port", "log", "postmaster.log")));
+        die "Could not start worker server";
+        }
     }
 }
 
@@ -720,49 +848,46 @@ if ($followercluster)
     }
 }
 
+print "-1-1-1-1-1-1-1-1-1-1-1-\n";
+
 ###
 # Create database, extensions, types, functions and fdws on the workers,
 # pg_regress won't know to create them for us.
 ###
-for my $port (@workerPorts)
+for my $extension (@extensions)
 {
     system(catfile($bindir, "psql"),
-           ('-X', '-h', $host, '-p', $port, '-U', $user, "-d", "postgres",
-            '-c', "CREATE DATABASE regression;")) == 0
-        or die "Could not create regression database on worker";
-
-    for my $extension (@extensions)
-    {
-        system(catfile($bindir, "psql"),
-               ('-X', '-h', $host, '-p', $port, '-U', $user, "-d", "regression",
-                '-c', "CREATE EXTENSION IF NOT EXISTS $extension;")) == 0
-            or die "Could not create extension on worker";
-    }
-
-    foreach my $function (keys %functions)
-    {
-        system(catfile($bindir, "psql"),
-                ('-X', '-h', $host, '-p', $port, '-U', $user, "-d", "regression",
-                 '-c', "CREATE FUNCTION $function RETURNS $functions{$function};")) == 0
-            or die "Could not create FUNCTION $function on worker";
-    }
-
-    foreach my $fdw (keys %fdws)
-    {
-        system(catfile($bindir, "psql"),
-                ('-X', '-h', $host, '-p', $port, '-U', $user, "-d", "regression",
-                 '-c', "CREATE FOREIGN DATA WRAPPER $fdw HANDLER $fdws{$fdw};")) == 0
-            or die "Could not create foreign data wrapper $fdw on worker";
-    }
-
-    foreach my $fdwServer (keys %fdwServers)
-    {
-        system(catfile($bindir, "psql"),
-                ('-X', '-h', $host, '-p', $port, '-U', $user, "-d", "regression",
-                 '-c', "CREATE SERVER $fdwServer FOREIGN DATA WRAPPER $fdwServers{$fdwServer};")) == 0
-            or die "Could not create server $fdwServer on worker";
-    }
+            ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "citus",
+            '-c', "SELECT run_command_on_workers('CREATE EXTENSION IF NOT EXISTS $extension;');")) == 0
+        or die "Could not create extension on worker";
 }
+
+foreach my $function (keys %functions)
+{
+    system(catfile($bindir, "psql"),
+            ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "citus",
+                '-c', "SELECT run_command_on_workers('CREATE FUNCTION $function RETURNS $functions{$function};');")) == 0
+        or die "Could not create FUNCTION $function on worker";
+}
+
+foreach my $fdw (keys %fdws)
+{
+    system(catfile($bindir, "psql"),
+            ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "citus",
+                '-c', "SELECT run_command_on_workers('CREATE FOREIGN DATA WRAPPER $fdw HANDLER $fdws{$fdw};');")) == 0
+        or die "Could not create foreign data wrapper $fdw on worker";
+}
+
+foreach my $fdwServer (keys %fdwServers)
+{
+    system(catfile($bindir, "psql"),
+            ('-X', '-h', $host, '-p', $masterPort, '-U', $user, "-d", "citus",
+                '-c', "SELECT run_command_on_workers('CREATE SERVER $fdwServer FOREIGN DATA WRAPPER $fdwServers{$fdwServer};');")) == 0
+        or die "Could not create server $fdwServer on worker";
+}
+
+print "-2-2-2-2-2-2-2-2-2-2-2-\n";
+
 
 # Prepare pg_regress arguments
 my @arguments = (
@@ -815,6 +940,8 @@ elsif ($isolationtester)
 }
 else
 {
+    push(@arguments, "--dbname=citus");
+    push(@arguments, "--use-existing");
     system("$plainRegress", @arguments) == 0
 	or die "Could not run regression tests";
 }

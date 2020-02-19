@@ -6,7 +6,7 @@
 
 -- run all the router queries from the one of the workers
 
-\c - - - :worker_1_port
+\c - - :real_worker_1_host :worker_1_port
 -- this table is used in a CTE test
 CREATE TABLE authors_hash_mx ( name text, id bigint );
 

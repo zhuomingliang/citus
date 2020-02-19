@@ -4,8 +4,8 @@
 
 ALTER SEQUENCE pg_catalog.pg_dist_shardid_seq RESTART 1220000;
 
-SELECT start_metadata_sync_to_node('localhost', :worker_1_port);
-SELECT start_metadata_sync_to_node('localhost', :worker_2_port);
+SELECT start_metadata_sync_to_node(:'worker_1_host', :worker_1_port);
+SELECT start_metadata_sync_to_node(:'worker_2_host', :worker_2_port);
 
 -- create schema to test schema support
 CREATE SCHEMA citus_mx_test_schema;
@@ -57,7 +57,7 @@ CREATE TYPE citus_mx_test_schema.new_composite_type as (key1 text, key2 text);
 CREATE TYPE order_side_mx AS ENUM ('buy', 'sell');
 
 -- now create required stuff in the worker 1
-\c - - - :worker_1_port
+\c - - :real_worker_1_host :worker_1_port
 
 -- create schema to test schema support
 CREATE SCHEMA citus_mx_test_schema_join_1;
@@ -104,7 +104,7 @@ SET search_path TO public;
 CREATE COLLATION citus_mx_test_schema.english (LOCALE=:current_locale);
 
 -- now create required stuff in the worker 2
-\c - - - :worker_2_port
+\c - - :real_worker_2_host :worker_2_port
 
 -- create schema to test schema support
 CREATE SCHEMA citus_mx_test_schema_join_1;
@@ -153,7 +153,7 @@ SET search_path TO public;
 CREATE COLLATION citus_mx_test_schema.english (LOCALE=:current_locale);
 
 -- connect back to the master, and do some more tests
-\c - - - :master_port
+\c - - :real_master_host :master_port
 
 SET citus.shard_replication_factor TO 1;
 SET citus.replication_model TO streaming;

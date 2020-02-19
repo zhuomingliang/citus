@@ -56,8 +56,8 @@ DROP EXTENSION citus;
 CREATE EXTENSION citus;
 
 -- re-add the nodes to the cluster
-SELECT 1 FROM master_add_node('localhost', :worker_1_port);
-SELECT 1 FROM master_add_node('localhost', :worker_2_port);
+SELECT 1 FROM master_add_node(:'worker_1_host', :worker_1_port);
+SELECT 1 FROM master_add_node(:'worker_2_host', :worker_2_port);
 
 -- create a table with a SERIAL column
 CREATE TABLE testserialtable(id serial, group_id integer);
@@ -83,9 +83,9 @@ ALTER SEQUENCE standalone_sequence OWNED BY testserialtable.group_id;
 ALTER SEQUENCE testserialtable_id_seq OWNED BY testserialtable.id;
 
 -- drop distributed table
-\c - - - :master_port
+\c - - :real_master_host :master_port
 DROP TABLE testserialtable;
 
 -- verify owned sequence is dropped
-\c - - - :worker_1_port
+\c - - :real_worker_1_host :worker_1_port
 \ds

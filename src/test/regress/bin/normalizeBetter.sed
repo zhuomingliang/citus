@@ -92,3 +92,6 @@ s/postgres/<user>/g
 s/:real_worker_1_host/-/g
 s/:real_worker_2_host/-/g
 s/:real_master_host/-/g
+s/citus/<user>/g
+s/b44e106ce0d1-pip.eastus2.cloudapp.azure.com/<host>/g
+s/54[0-9][0-9]/<port>/g

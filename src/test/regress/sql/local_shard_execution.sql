@@ -37,7 +37,7 @@ CREATE TABLE collections_list_0
 	FOR VALUES IN ( 0 );
 
 -- connection worker and get ready for the tests
-\c - - - :worker_1_port
+\c - - :real_worker_1_host :worker_1_port
 SET search_path TO local_shard_execution;
 
 -- returns true of the distribution key filter
@@ -646,7 +646,7 @@ BEGIN;
 COMMIT;
 
 
-\c - - - :master_port
+\c - - :real_master_host :master_port
 
 -- local execution with custom type
 SET citus.replication_model TO "streaming";

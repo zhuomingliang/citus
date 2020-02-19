@@ -13,8 +13,8 @@ SET citus.shard_count TO 4;
 SET citus.shard_replication_factor TO 1;
 
 SET citus.replication_model TO 'streaming';
-SELECT start_metadata_sync_to_node('localhost', :worker_1_port);
-SELECT start_metadata_sync_to_node('localhost', :worker_2_port);
+SELECT start_metadata_sync_to_node(:'worker_1_host', :worker_1_port);
+SELECT start_metadata_sync_to_node(:'worker_2_host', :worker_2_port);
 
 CREATE TABlE ref_table(id int, value_1 int);
 SELECT create_reference_table('ref_table');
@@ -26,7 +26,7 @@ CREATE TABLE test_table_1(id int, value_1 int);
 SELECT create_distributed_table('test_table_1', 'id');
 INSERT INTO test_table_1 VALUES(5,5),(6,6);
 
-\c - - - :worker_1_port
+\c - - :real_worker_1_host :worker_1_port
 SET search_path TO 'mx_modify_reference_table';
 
 -- Simple DML operations from the first worker node
@@ -58,7 +58,7 @@ INSERT INTO ref_table_2 SELECT * FROM ref_table;
 SELECT SUM(value_1) FROM ref_table_2;
 
 -- Now connect to the second worker and observe the results as well
-\c - - - :worker_2_port
+\c - - :real_worker_2_host :worker_2_port
 SET search_path TO 'mx_modify_reference_table';
 
 SELECT SUM(value_1) FROM ref_table;
@@ -85,7 +85,7 @@ SELECT SUM(value_1) FROM ref_table;
 INSERT INTO ref_table_2 SELECT * FROM ref_table;
 SELECT SUM(value_1) FROM ref_table_2;
 
-\c - - - :master_port
+\c - - :real_master_host :master_port
 
 SET search_path TO 'public';
 DROP SCHEMA mx_modify_reference_table CASCADE;

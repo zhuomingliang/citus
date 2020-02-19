@@ -31,8 +31,8 @@ fi
 
 if test -z "$VANILLATEST"
 then
-	sed -Ef $BASEDIR/normalize.sed < $file1 > $file1.modified
-	sed -Ef $BASEDIR/normalize.sed < $file2 > $file2.modified
+	sed -Ef $BASEDIR/normalizeBetter.sed < $file1 > $file1.modified
+	sed -Ef $BASEDIR/normalizeBetter.sed < $file2 > $file2.modified
 	$DIFF -w $args $file1.modified $file2.modified
 	exitcode=$?
 	rm -f $file1.modified $file2.modified
