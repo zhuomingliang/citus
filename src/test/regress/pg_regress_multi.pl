@@ -278,6 +278,7 @@ my $mitmPort = 9060;
 my $masterPort = 57636;
 
 my $workerCount = 2;
+my @workerHosts = ();
 my @workerPorts = ();
 
 if ( $constr )
@@ -315,14 +316,20 @@ if ( $constr )
     print $out "s/$host/<host>/g\n";
     print $out "s/", substr("$masterPort", 0, length("$masterPort")-2), "[0-9][0-9]/xxxxx/g\n";
 
+    my $worker1host = `psql "$constr" -t -c "SELECT nodename FROM pg_dist_node ORDER BY nodeid LIMIT 1;"`;
     my $worker1port = `psql "$constr" -t -c "SELECT nodeport FROM pg_dist_node ORDER BY nodeid LIMIT 1;"`;
+    my $worker2host = `psql "$constr" -t -c "SELECT nodename FROM pg_dist_node ORDER BY nodeid OFFSET 1 LIMIT 1;"`;
     my $worker2port = `psql "$constr" -t -c "SELECT nodeport FROM pg_dist_node ORDER BY nodeid OFFSET 1 LIMIT 1;"`;
 
+    $worker1host =~ s/^\s+|\s+$//g;
     $worker1port =~ s/^\s+|\s+$//g;
+    $worker2host =~ s/^\s+|\s+$//g;
     $worker2port =~ s/^\s+|\s+$//g;
 
     push(@workerPorts, $worker1port);
     push(@workerPorts, $worker2port);
+    push(@workerHosts, $worker1host);
+    push(@workerHosts, $worker2host);
 }
 else 
 {
@@ -518,6 +525,11 @@ for my $workeroff (0 .. $#workerPorts)
 {
 	my $port = $workerPorts[$workeroff];
 	print $fh "--variable=worker_".($workeroff+1)."_port=$port ";
+}
+for my $workeroff (0 .. $#workerHosts)
+{
+	my $host = $workerHosts[$workeroff];
+	print $fh "--variable=worker_".($workeroff+1)."_host=\"$host\" ";
 }
 for my $workeroff (0 .. $#followerWorkerPorts)
 {
