@@ -13,13 +13,13 @@ WHERE name = 'hll'
 
 :create_cmd;
 
-\c - - - :worker_1_port
+\c - - :real_worker_1_host :worker_1_port
 :create_cmd;
 
-\c - - - :worker_2_port
+\c - - :real_worker_2_host :worker_2_port
 :create_cmd;
 
-\c - - - :master_port
+\c - - :real_master_host :master_port
 
 -- Try to execute count(distinct) when approximate distincts aren't enabled
 

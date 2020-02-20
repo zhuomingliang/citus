@@ -3,7 +3,7 @@
 --
 
 -- connect to a worker node and run some queries
-\c - - - :worker_1_port
+\c - - :real_worker_1_host :worker_1_port
 
 -- test very basic queries
 SELECT * FROM nation_hash ORDER BY n_nationkey LIMIT 4;
@@ -223,7 +223,7 @@ SET citus.task_executor_type TO "adaptive";
 -- connect to the master and do some test
 -- regarding DDL support on schemas where
 -- the search_path is set
-\c - - - :master_port
+\c - - :real_master_host :master_port
 
 CREATE SCHEMA mx_ddl_schema_1;
 CREATE SCHEMA mx_ddl_schema_2;

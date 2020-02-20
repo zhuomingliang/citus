@@ -39,13 +39,13 @@ INSERT INTO ref VALUES (1);
 TRUNCATE ref;
 
 -- test that changes from a metadata node is reflected in the coordinator placement
-\c - - - :worker_1_port
+\c - - :real_worker_1_host :worker_1_port
 SET search_path TO mx_add_coordinator,public;
 INSERT INTO ref VALUES (1), (2), (3);
 UPDATE ref SET a = a + 1;
 DELETE FROM ref WHERE a > 3;
 
-\c - - - :master_port
+\c - - :real_master_host :master_port
 SET search_path TO mx_add_coordinator,public;
 SELECT * FROM ref ORDER BY a;
 
