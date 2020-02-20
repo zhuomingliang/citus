@@ -118,6 +118,7 @@ CREATE TABLE countries (id serial, name varchar(250), CONSTRAINT countries_pkey 
 select create_reference_table('countries');
 INSERT INTO countries (name) VALUES ('France');
 EXPLAIN (COSTS FALSE, ANALYZE TRUE, TIMING FALSE, SUMMARY FALSE) INSERT INTO countries (name) VALUES ('Germany');
+EXPLAIN (COSTS FALSE, ANALYZE TRUE, TIMING FALSE, SUMMARY FALSE) INSERT INTO countries (name) VALUES ('Spain'),('Serbia');
 
 -- Test delete
 EXPLAIN (COSTS FALSE)

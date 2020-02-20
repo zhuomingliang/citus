@@ -203,6 +203,7 @@ multi_ProcessUtility(PlannedStmt *pstmt,
 
 		if (1)
 		{
+			elog(WARNING, "params %s", nodeToString(params));
 			PlannedStmt *plannedStmt = distributed_planner((Query *) copyObject(
 															   explainStmt->query),
 														   0, params);
@@ -216,6 +217,7 @@ multi_ProcessUtility(PlannedStmt *pstmt,
 															  DistributedPlan));
 				if (CitusIsA(distributedPlan, DistributedPlan))
 				{
+					elog(WARNING, "plan %s", nodeToString(distributedPlan));
 					ExplainState *explainState = GetExplainStateFromExplainStmt(
 						explainStmt);
 					elog(WARNING, "explain state %p", explainState);
