@@ -248,8 +248,7 @@ LIMIT 10;
        3 |  18
 (10 rows)
 
--- similar query with no distribution column is on the partition by clause
--- is not supported
+-- similar query with no distribution column on the partition by clause
 SELECT
 	DISTINCT ON (events_table.user_id, rnk) events_table.user_id, rank() OVER my_win AS rnk
 FROM
@@ -261,8 +260,7 @@ WINDOW
 ORDER BY
 	rnk DESC, 1 DESC
 LIMIT 10;
-ERROR:  could not run distributed query because the window function that is used cannot be pushed down
-HINT:  Window functions are supported in two ways. Either add an equality filter on the distributed tables' partition column or use the window functions with a PARTITION BY clause containing the distribution column
+ERROR:  ORDER/GROUP BY expression not found in targetlist
 -- ORDER BY in the window function is an aggregate
 SELECT
 	user_id, rank() OVER my_win as rnk, avg(value_2) as avg_val_2

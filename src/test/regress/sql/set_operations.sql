@@ -110,10 +110,11 @@ UNION
 SELECT x, y, rnk FROM (SELECT *, rank() OVER my_win as rnk FROM test WINDOW my_win AS (PARTITION BY x ORDER BY y DESC)) as bar
 ORDER BY 1 DESC, 2 DESC, 3 DESC;
 
--- set operations errors out with non-pushdownable window functions
+-- set operations works fine with non-pushdownable window functions
 SELECT x, y, rnk FROM (SELECT *, rank() OVER my_win as rnk FROM test WINDOW my_win AS (PARTITION BY y ORDER BY x DESC)) as foo
 UNION
-SELECT x, y, rnk FROM (SELECT *, rank() OVER my_win as rnk FROM test WINDOW my_win AS (PARTITION BY y ORDER BY x DESC)) as bar;
+SELECT x, y, rnk FROM (SELECT *, rank() OVER my_win as rnk FROM test WINDOW my_win AS (PARTITION BY y ORDER BY x DESC)) as bar
+ORDER BY 1 DESC, 2 DESC, 3 DESC;
 
 -- other set operations in joins also cannot be pushed down
 SELECT * FROM ((SELECT * FROM test) EXCEPT (SELECT * FROM test ORDER BY x LIMIT 1)) u JOIN test USING (x) ORDER BY 1,2;

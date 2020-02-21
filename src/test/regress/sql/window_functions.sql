@@ -136,8 +136,7 @@ ORDER BY
 	rnk DESC, 1 DESC
 LIMIT 10;
 
--- similar query with no distribution column is on the partition by clause
--- is not supported
+-- similar query with no distribution column on the partition by clause
 SELECT
 	DISTINCT ON (events_table.user_id, rnk) events_table.user_id, rank() OVER my_win AS rnk
 FROM

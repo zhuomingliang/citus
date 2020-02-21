@@ -2493,7 +2493,8 @@ ProcessHavingClauseForWorkerQuery(Node *originalHavingQual,
 	 *
 	 */
 	if (extendedOpNodeProperties->groupedByDisjointPartitionColumn ||
-		extendedOpNodeProperties->pushDownWindowFunctions)
+		(extendedOpNodeProperties->hasWindowFuncs &&
+		 extendedOpNodeProperties->pushDownWindowFunctions))
 	{
 		/*
 		 * We converted the having expression to a list in subquery pushdown
