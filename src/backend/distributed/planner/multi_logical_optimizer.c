@@ -215,6 +215,8 @@ static Expr * MasterAggregateExpression(Aggref *originalAggregate,
 static Expr * MasterAverageExpression(Oid sumAggregateType, Oid countAggregateType,
 									  AttrNumber *columnId);
 static Expr * AddTypeConversion(Node *originalAggregate, Node *newExpression);
+static Node * MasterPullWindowFunction(Node *originalExpression,
+									   MasterAggregateWalkerContext *walkerContext);
 static MultiExtendedOp * WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 											  ExtendedOpNodeProperties *
 											  extendedOpNodeProperties);
@@ -239,6 +241,8 @@ static void ProcessWindowFunctionsForWorkerQuery(List *windowClauseList,
 												 List *originalTargetEntryList,
 												 QueryWindowClause *queryWindowClause,
 												 QueryTargetList *queryTargetList);
+static void ProcessWindowFunctionPullUpForWorkerQuery(MultiExtendedOp *originalOpNode,
+													  QueryTargetList *queryTargetList);
 static void ProcessLimitOrderByForWorkerQuery(OrderByLimitReference orderByLimitReference,
 											  Node *originalLimitCount, Node *limitOffset,
 											  List *sortClauseList, List *groupClauseList,
@@ -1426,6 +1430,10 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 	walkerContext.extendedOpNodeProperties = extendedOpNodeProperties;
 	walkerContext.columnId = 1;
 
+	bool pullWindowFunctions = extendedOpNodeProperties->pullDistinctColumns ||
+							   originalOpNode->hasNonPushableWindowFunction ||
+							   extendedOpNodeProperties->pullUpIntermediateRows;
+
 	/* iterate over original target entries */
 	foreach(targetEntryCell, targetEntryList)
 	{
@@ -1446,6 +1454,12 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 		{
 			Node *newNode = MasterAggregateMutator((Node *) originalExpression,
 												   &walkerContext);
+			newExpression = (Expr *) newNode;
+		}
+		else if (hasWindowFunction && !extendedOpNodeProperties->pushDownWindowFunctions)
+		{
+			Node *newNode = MasterPullWindowFunction((Node *) originalExpression,
+													 &walkerContext);
 			newExpression = (Expr *) newNode;
 		}
 		else
@@ -1506,6 +1520,13 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 	masterExtendedOpNode->limitCount = originalOpNode->limitCount;
 	masterExtendedOpNode->limitOffset = originalOpNode->limitOffset;
 	masterExtendedOpNode->havingQual = newHavingQual;
+
+	if (pullWindowFunctions)
+	{
+		masterExtendedOpNode->hasWindowFuncs = originalOpNode->hasWindowFuncs;
+		masterExtendedOpNode->windowClause = originalOpNode->windowClause;
+		masterExtendedOpNode->hasNonPushableWindowFunction = true;
+	}
 
 	return masterExtendedOpNode;
 }
@@ -2164,6 +2185,29 @@ AddTypeConversion(Node *originalAggregate, Node *newExpression)
 
 
 /*
+ * MasterPullWindowFunction implements window functions being applied on coordinator.
+ */
+static Node *
+MasterPullWindowFunction(Node *originalExpression,
+						 MasterAggregateWalkerContext *walkerContext)
+{
+	Node *newExpression = copyObject(originalExpression);
+	List *varList = pull_var_clause_default(newExpression);
+	ListCell *varCell = NULL;
+
+	foreach(varCell, varList)
+	{
+		Var *column = (Var *) lfirst(varCell);
+		column->varattno = walkerContext->columnId;
+		column->varoattno = walkerContext->columnId;
+		walkerContext->columnId++;
+	}
+
+	return newExpression;
+}
+
+
+/*
  * WorkerExtendedOpNode creates the worker extended operator node from the given
  * originalOpNode and extendedOpNodeProperties.
  *
@@ -2240,8 +2284,16 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 									  &queryHavingQual, &queryTargetList,
 									  &queryGroupClause);
 
-	ProcessWindowFunctionsForWorkerQuery(originalWindowClause, originalTargetEntryList,
-										 &queryWindowClause, &queryTargetList);
+	if (extendedOpNodeProperties->pushDownWindowFunctions)
+	{
+		ProcessWindowFunctionsForWorkerQuery(originalWindowClause,
+											 originalTargetEntryList,
+											 &queryWindowClause, &queryTargetList);
+	}
+	else
+	{
+		ProcessWindowFunctionPullUpForWorkerQuery(originalOpNode, &queryTargetList);
+	}
 
 	if (!extendedOpNodeProperties->pullUpIntermediateRows)
 	{
@@ -2258,10 +2310,12 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 		 * LIMIT and ORDER BY clauses as described below:
 		 *      (1) Creating a new group by clause during aggregate mutation, or
 		 *      (2) Distinct clause is not pushed down
+		 *		(3) Window function needs to be processed before limit
 		 */
 		bool groupByExtended =
 			list_length(queryGroupClause.groupClauseList) > originalGroupClauseLength;
-		if (!groupByExtended && !distinctPreventsLimitPushdown)
+		if (!groupByExtended && !distinctPreventsLimitPushdown &&
+			extendedOpNodeProperties->pushDownWindowFunctions)
 		{
 			/* both sort and limit clauses rely on similar information */
 			OrderByLimitReference limitOrderByReference =
@@ -2361,6 +2415,10 @@ ProcessTargetListForWorkerQuery(List *targetEntryList,
 			WorkerAggregateWalker((Node *) originalExpression, &workerAggContext);
 
 			newExpressionList = workerAggContext.expressionList;
+		}
+		else if (hasWindowFunction && !extendedOpNodeProperties->pushDownWindowFunctions)
+		{
+			newExpressionList = pull_var_clause_default((Node *) originalExpression);
 		}
 		else
 		{
@@ -2529,11 +2587,6 @@ ProcessDistinctClauseForWorkerQuery(List *distinctClause, bool hasDistinctOn,
  * that worker query's workerWindowClauseList is set when the window clauses are safe to
  * pushdown.
  *
- * TODO: Citus only supports pushing down window clauses as-is under certain circumstances.
- * And, at this point in the planning, we are guaranteed to process a window function
- * which is safe to pushdown as-is. It should also be possible to pull the relevant data
- * to the coordinator and apply the window clauses for the remaining cases.
- *
  * Note that even though Citus only pushes down the window functions, it may need to
  * modify the target list of the worker query when the window function refers to
  * an avg(). The reason is that any aggregate which is also referred by other
@@ -2595,6 +2648,41 @@ ProcessWindowFunctionsForWorkerQuery(List *windowClauseList,
 
 	queryWindowClause->workerWindowClauseList = windowClauseList;
 	queryWindowClause->hasWindowFunctions = true;
+}
+
+
+/* ProcessWindowFunctionPullUpForWorkerQuery pulls up inputs for window functions */
+static void
+ProcessWindowFunctionPullUpForWorkerQuery(MultiExtendedOp *originalOpNode,
+										  QueryTargetList *queryTargetList)
+{
+	if (originalOpNode->windowClause != NIL)
+	{
+		List *columnList = pull_var_clause_default((Node *) originalOpNode->windowClause);
+		ListCell *columnCell = NULL;
+
+		foreach(columnCell, columnList)
+		{
+			TargetEntry *newTargetEntry = makeNode(TargetEntry);
+			StringInfoData columnNameString;
+			initStringInfo(&columnNameString);
+
+			Expr *newExpression = (Expr *) lfirst(columnCell);
+			newTargetEntry->expr = newExpression;
+
+			appendStringInfo(&columnNameString, WORKER_COLUMN_FORMAT,
+							 queryTargetList->targetProjectionNumber);
+			newTargetEntry->resname = columnNameString.data;
+
+			/* force resjunk to false as we may need this on the master */
+			newTargetEntry->resjunk = false;
+			newTargetEntry->resno = queryTargetList->targetProjectionNumber;
+
+			queryTargetList->targetEntryList =
+				lappend(queryTargetList->targetEntryList, newTargetEntry);
+			queryTargetList->targetProjectionNumber++;
+		}
+	}
 }
 
 
