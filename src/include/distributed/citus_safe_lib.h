@@ -13,6 +13,8 @@
 #ifndef CITUS_safe_lib_H
 #define CITUS_safe_lib_H
 
+#include "postgres.h"
+
 #include "safe_lib.h"
 
 /* Helper function that is used by the macro below */
@@ -27,5 +29,8 @@ extern void ErrnoToEreport(char *functionName, errno_t err);
 #define SafeStrncpy(...) CallErnnoToEreportForFunction(strncpy_s, __VA_ARGS__)
 #define SafeStrcpy(...) CallErnnoToEreportForFunction(strcpy_s, __VA_ARGS__)
 #define SafeMemcpy(...) CallErnnoToEreportForFunction(memcpy_s, __VA_ARGS__)
+
+extern int64 SafeStringToInt64(const char *str);
+extern uint64 SafeStringToUint64(const char *str);
 
 #endif
