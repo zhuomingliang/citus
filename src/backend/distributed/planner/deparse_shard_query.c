@@ -21,6 +21,7 @@
 #include "distributed/metadata_cache.h"
 #include "distributed/multi_physical_planner.h"
 #include "distributed/multi_router_planner.h"
+#include "distributed/shard_utils.h"
 #include "distributed/version_compat.h"
 #include "lib/stringinfo.h"
 #include "nodes/makefuncs.h"
@@ -325,15 +326,9 @@ UpdateRelationsToLocalShardTables(Node *node, List *relationShardList)
 		return true;
 	}
 
-	uint64 shardId = relationShard->shardId;
-	Oid relationId = relationShard->relationId;
+	Oid shardOid = GetShardOid(relationShard->relationId, relationShard->shardId);
 
-	char *relationName = get_rel_name(relationId);
-	AppendShardIdToName(&relationName, shardId);
-
-	Oid schemaId = get_rel_namespace(relationId);
-
-	newRte->relid = get_relname_relid(relationName, schemaId);
+	newRte->relid = shardOid;
 
 	return false;
 }
