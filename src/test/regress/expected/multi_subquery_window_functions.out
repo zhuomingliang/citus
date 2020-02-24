@@ -1136,7 +1136,30 @@ ORDER BY
   1, 2, 3
 LIMIT
   20;
-ERROR:  no relation entry for relid 2
+ user_id | it_name | count
+---------------------------------------------------------------------
+       1 | User_1  |     6
+       1 | User_2  |     6
+       1 | User_3  |     6
+       1 | User_4  |     6
+       1 | User_5  |     6
+       1 | User_6  |     6
+       2 | User_1  |     6
+       2 | User_2  |     6
+       2 | User_3  |     6
+       2 | User_4  |     6
+       2 | User_5  |     6
+       2 | User_6  |     6
+       3 | User_1  |     6
+       3 | User_2  |     6
+       3 | User_3  |     6
+       3 | User_4  |     6
+       3 | User_5  |     6
+       3 | User_6  |     6
+       4 | User_1  |     6
+       4 | User_2  |     6
+(20 rows)
+
 SELECT
   max(avg)
 FROM

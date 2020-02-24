@@ -1430,10 +1430,6 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 	walkerContext.extendedOpNodeProperties = extendedOpNodeProperties;
 	walkerContext.columnId = 1;
 
-	bool pullWindowFunctions = extendedOpNodeProperties->pullDistinctColumns ||
-							   originalOpNode->hasNonPushableWindowFunction ||
-							   extendedOpNodeProperties->pullUpIntermediateRows;
-
 	/* iterate over original target entries */
 	foreach(targetEntryCell, targetEntryList)
 	{
@@ -1521,7 +1517,7 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 	masterExtendedOpNode->limitOffset = originalOpNode->limitOffset;
 	masterExtendedOpNode->havingQual = newHavingQual;
 
-	if (pullWindowFunctions)
+	if (!extendedOpNodeProperties->pushDownWindowFunctions)
 	{
 		masterExtendedOpNode->hasWindowFuncs = originalOpNode->hasWindowFuncs;
 		masterExtendedOpNode->windowClause = originalOpNode->windowClause;
@@ -2193,11 +2189,11 @@ MasterPullWindowFunction(Node *originalExpression,
 {
 	Node *newExpression = copyObject(originalExpression);
 	List *varList = pull_var_clause_default(newExpression);
-	ListCell *varCell = NULL;
 
-	foreach(varCell, varList)
+	Var *column = NULL;
+	foreach_ptr(column, varList)
 	{
-		Var *column = (Var *) lfirst(varCell);
+		column->varno = 1;
 		column->varattno = walkerContext->columnId;
 		column->varoattno = walkerContext->columnId;
 		walkerContext->columnId++;
