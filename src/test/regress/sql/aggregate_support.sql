@@ -179,12 +179,6 @@ select floor(val/2), corr(valf, valf + val) from aggdata group by floor(val/2) o
 select floor(val/2), corr(valf, valf + val) from aggdata group by floor(val/2) having corr(valf + val, val) < 1 order by 1;
 select array_agg(val order by valf) from aggdata;
 
--- Test alongside window functions
-select id, mode() within group (order by floor(val/2)), sum(2) over (partition by id) from aggdata group by id order by 1, 2, 3;
-select key, mode() within group (order by floor(val/2)), sum(2) over (partition by key) from aggdata group by key order by 1, 2, 3;
-select sum(2) over (partition by id) from aggdata order by 1;
-select sum(2) over (partition by key) from aggdata order by 1;
-
 -- Test TransformSubqueryNode
 SET citus.task_executor_type to "task-tracker";
 
