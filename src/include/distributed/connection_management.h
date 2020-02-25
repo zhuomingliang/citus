@@ -172,7 +172,6 @@ typedef struct ConnParamsHashEntry
 	char **values;
 } ConnParamsHashEntry;
 
-
 /* maximum duration to wait for connection */
 extern int NodeConnectionTimeout;
 
@@ -192,6 +191,7 @@ extern struct MemoryContextData *ConnectionContext;
 
 extern void AfterXactConnectionHandling(bool isCommit);
 extern void InitializeConnectionManagement(void);
+extern void DecrementAllSharedConnectionCounters(void);
 
 extern void InitConnParams(void);
 extern void ResetConnParams(void);

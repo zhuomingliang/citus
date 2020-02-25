@@ -69,4 +69,8 @@ extern bool MyBackendGotCancelledDueToDeadlock(void);
 extern List * ActiveDistributedTransactionNumbers(void);
 LocalTransactionId GetMyProcLocalTransactionId(void);
 
+void DecrementSharedConnectionCounter(const char *hostname, int port);
+void IncrementSharedConnectionCounter(const char *hostname, int port);
+uint32 GetConnectionCounter(const char *hostname, int port);
+
 #endif /* BACKEND_DATA_H */

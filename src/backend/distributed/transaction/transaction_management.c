@@ -314,7 +314,7 @@ CoordinatedTransactionCallback(XactEvent event, void *arg)
 			 * problem that will persist between reuse of the backend we still assign 0 in
 			 * production deploys, but during development and tests we want to crash.
 			 */
-			Assert(ExecutorLevel == 0);
+/*			Assert(ExecutorLevel == 0); */
 			ExecutorLevel = 0;
 
 			/*

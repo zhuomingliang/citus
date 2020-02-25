@@ -39,6 +39,13 @@
 #include "storage/s_lock.h"
 #include "utils/timestamp.h"
 
+#include "utils/hashutils.h"
+#include "access/hash.h"
+
+
+static int ConnectionStatsHashCompare(const void *a, const void *b, Size keysize);
+static uint32 ConnectionStatsHashHash(const void *key, Size keysize);
+
 
 #define GET_ACTIVE_TRANSACTION_QUERY "SELECT * FROM get_all_active_transactions();"
 #define ACTIVE_TRANSACTION_COLUMN_COUNT 6
@@ -60,8 +67,26 @@ typedef struct BackendManagementShmemData
 	 */
 	pg_atomic_uint64 nextTransactionNumber;
 
+	/* TODO: Move to a separate shared memory */
+	HTAB *ConnTrackingHash;
+
 	BackendData backends[FLEXIBLE_ARRAY_MEMBER];
 } BackendManagementShmemData;
+
+
+/* hash key for per worker stats */
+typedef struct ConnStatsHashKey
+{
+	char hostname[MAX_NODE_LENGTH];
+	uint32 port;
+} ConnStatsHashKey;
+
+/* hash entry for per worker stats */
+typedef struct ConnStatsHashEntry
+{
+	ConnStatsHashKey key;
+	pg_atomic_uint32 connectionCount;
+} ConnStatsHashEntry;
 
 
 static void StoreAllActiveTransactions(Tuplestorestate *tupleStore, TupleDesc
@@ -80,6 +105,7 @@ PG_FUNCTION_INFO_V1(assign_distributed_transaction_id);
 PG_FUNCTION_INFO_V1(get_current_transaction_id);
 PG_FUNCTION_INFO_V1(get_global_active_transactions);
 PG_FUNCTION_INFO_V1(get_all_active_transactions);
+PG_FUNCTION_INFO_V1(get_connection_stats);
 
 
 /*
@@ -340,6 +366,37 @@ get_all_active_transactions(PG_FUNCTION_ARGS)
 }
 
 
+#include "storage/procarray.h"
+
+Datum
+get_connection_stats(PG_FUNCTION_ARGS)
+{
+	TupleDesc tupleDescriptor = NULL;
+
+	CheckCitusVersion(ERROR);
+	Tuplestorestate *tupleStore = SetupTuplestore(fcinfo, &tupleDescriptor);
+
+	Datum values[2];
+	bool isNulls[2];
+
+
+	int activeDBConnections = CountDBConnections(MyDatabaseId);
+	const char *maxConnectionsStrValue = GetConfigOption("max_connections", true, true);
+
+	int maxConnections = atoi(maxConnectionsStrValue);
+
+	values[0] = Int32GetDatum(activeDBConnections);
+	values[1] = Int32GetDatum(maxConnections);
+
+	tuplestore_putvalues(tupleStore, tupleDescriptor, values, isNulls);
+
+	/* clean up and return the tuplestore */
+	tuplestore_donestoring(tupleStore);
+
+	PG_RETURN_VOID();
+}
+
+
 /*
  * StoreAllActiveTransactions gets active transaction from the local node and inserts
  * them into the given tuplestore.
@@ -512,6 +569,24 @@ BackendManagementShmemInit(void)
 			backendData->citusBackend.initiatorNodeIdentifier = -1;
 			SpinLockInit(&backendData->mutex);
 		}
+
+
+		uint32 hashFlags = (HASH_ELEM | HASH_FUNCTION | HASH_CONTEXT | HASH_COMPARE);
+
+		HASHCTL connTrackingInfo;
+		memset(&connTrackingInfo, 0, sizeof(connTrackingInfo));
+		connTrackingInfo.keysize = sizeof(ConnStatsHashKey);
+		connTrackingInfo.entrysize = sizeof(ConnStatsHashEntry);
+		connTrackingInfo.hash = ConnectionStatsHashHash;
+		connTrackingInfo.match = ConnectionStatsHashCompare;
+		connTrackingInfo.hcxt = ConnectionContext;  /* TODO? */
+
+
+		/*  allocate hash table */
+		backendManagementShmemData->ConnTrackingHash = ShmemInitHash(
+			"citus connection per database server (host,port)",
+			8, 264,
+			&connTrackingInfo, hashFlags);
 	}
 
 	LWLockRelease(AddinShmemInitLock);
@@ -519,6 +594,127 @@ BackendManagementShmemInit(void)
 	if (prev_shmem_startup_hook != NULL)
 	{
 		prev_shmem_startup_hook();
+	}
+}
+
+
+void
+IncrementSharedConnectionCounter(const char *hostname, int port)
+{
+	ConnStatsHashKey key;
+	bool found;
+
+	/* do some minimal input checks */
+	strlcpy(key.hostname, hostname, MAX_NODE_LENGTH);
+	if (strlen(hostname) > MAX_NODE_LENGTH)
+	{
+		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("hostname exceeds the maximum length of %d",
+							   MAX_NODE_LENGTH)));
+	}
+
+	key.port = port;
+
+	ConnStatsHashEntry *entry = hash_search(backendManagementShmemData->ConnTrackingHash,
+											&key, HASH_ENTER, &found);
+	if (!found)
+	{
+		pg_atomic_init_u32(&entry->connectionCount, 0);
+	}
+
+	pg_atomic_fetch_add_u32(&entry->connectionCount, 1);
+
+	elog(DEBUG1, "connection to %s:%u incremented to %u", key.hostname, key.port,
+		 pg_atomic_read_u32(&entry->connectionCount));
+}
+
+
+void
+DecrementSharedConnectionCounter(const char *hostname, int port)
+{
+	ConnStatsHashKey key;
+	bool found;
+
+	/* do some minimal input checks */
+	strlcpy(key.hostname, hostname, MAX_NODE_LENGTH);
+	if (strlen(hostname) > MAX_NODE_LENGTH)
+	{
+		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("hostname exceeds the maximum length of %d",
+							   MAX_NODE_LENGTH)));
+	}
+
+	key.port = port;
+
+	ConnStatsHashEntry *entry = hash_search(backendManagementShmemData->ConnTrackingHash,
+											&key, HASH_ENTER, &found);
+	if (!found)
+	{
+		/*Assert(false); */
+		return;
+	}
+
+	pg_atomic_fetch_sub_u32(&entry->connectionCount, 1);
+
+	elog(DEBUG1, "connection to %s:%d decremented to %u", key.hostname, key.port,
+		 pg_atomic_read_u32(&entry->connectionCount));
+}
+
+
+uint32
+GetConnectionCounter(const char *hostname, int port)
+{
+	ConnStatsHashKey key;
+	bool found;
+
+	/* do some minimal input checks */
+	strlcpy(key.hostname, hostname, MAX_NODE_LENGTH);
+	if (strlen(hostname) > MAX_NODE_LENGTH)
+	{
+		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("hostname exceeds the maximum length of %d",
+							   MAX_NODE_LENGTH)));
+	}
+
+	key.port = port;
+
+	ConnStatsHashEntry *entry = hash_search(backendManagementShmemData->ConnTrackingHash,
+											&key, HASH_ENTER, &found);
+	if (!found)
+	{
+		return 0;
+	}
+
+	return pg_atomic_read_u32(&entry->connectionCount);
+}
+
+
+static uint32
+ConnectionStatsHashHash(const void *key, Size keysize)
+{
+	ConnStatsHashKey *entry = (ConnStatsHashKey *) key;
+
+	uint32 hash = string_hash(entry->hostname, NAMEDATALEN);
+	hash = hash_combine(hash, hash_uint32(entry->port));
+
+	return hash;
+}
+
+
+static int
+ConnectionStatsHashCompare(const void *a, const void *b, Size keysize)
+{
+	ConnStatsHashKey *ca = (ConnStatsHashKey *) a;
+	ConnStatsHashKey *cb = (ConnStatsHashKey *) b;
+
+	if (strncmp(ca->hostname, cb->hostname, MAX_NODE_LENGTH) != 0 ||
+		ca->port != cb->port)
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
 	}
 }
 
@@ -535,6 +731,7 @@ BackendManagementShmemSize(void)
 
 	size = add_size(size, sizeof(BackendManagementShmemData));
 	size = add_size(size, mul_size(sizeof(BackendData), totalProcs));
+	size = add_size(size, hash_estimate_size(264, sizeof(ConnStatsHashEntry)));
 
 	return size;
 }

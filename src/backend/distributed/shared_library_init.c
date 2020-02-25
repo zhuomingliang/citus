@@ -83,6 +83,7 @@ static char *CitusVersion = CITUS_VERSION;
 
 void _PG_init(void);
 
+static void CitusBackendAtExit(void);
 static void ResizeStackToMaximumDepth(void);
 static void multi_log_hook(ErrorData *edata);
 static void CreateRequiredDirectories(void);
@@ -172,6 +173,36 @@ static const struct config_enum_entry multi_shard_modify_connection_options[] = 
 
 /* *INDENT-ON* */
 
+void
+CitusBackendAtExit(void)
+{
+	DecrementAllSharedConnectionCounters();
+}
+
+
+#include "libpq/auth.h"
+
+static ClientAuthentication_hook_type original_client_auth_hook = NULL;
+
+/* Our hook implementation. */
+static void
+auth_delay_checks(Port *port, int status)
+{
+	/* If any other extension registered its own hook handler, */
+	/* call it before performing our own logic. */
+	if (original_client_auth_hook)
+	{
+		original_client_auth_hook(port, status);
+	}
+
+	/* If authentication failed, we wait for one second before returning */
+	/* control to the caller. */
+	if (status == STATUS_OK)
+	{
+		elog(LOG, "Just auth");
+	}
+}
+
 
 /* shared library initialization function */
 void
@@ -185,6 +216,14 @@ _PG_init(void)
 								"that citus should be at the beginning of "
 								"shared_preload_libraries.")));
 	}
+
+	/* clean-up anything necessary */
+	atexit(CitusBackendAtExit);
+
+	/* Save the original hook value. */
+	original_client_auth_hook = ClientAuthentication_hook;
+	/* Register our handler. */
+	ClientAuthentication_hook = auth_delay_checks;
 
 	/*
 	 * Perform checks before registering any hooks, to avoid erroring out in a

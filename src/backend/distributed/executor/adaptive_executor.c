@@ -138,6 +138,7 @@
 #include "distributed/connection_management.h"
 #include "distributed/deparse_shard_query.h"
 #include "distributed/distributed_execution_locks.h"
+#include "distributed/lock_graph.h"
 #include "distributed/listutils.h"
 #include "distributed/local_executor.h"
 #include "distributed/multi_client_executor.h"
@@ -541,6 +542,13 @@ typedef struct TaskPlacementExecution
 	int placementExecutionIndex;
 } TaskPlacementExecution;
 
+/* used for retrieving get_connection_stats() results */
+typedef struct ConnectionStatsOnWorker
+{
+	int currentActiveConnections;
+	int maxConnectionOnTheWorker;
+} ConnectionStatsOnWorker;
+
 
 /* local functions */
 static DistributedExecution * CreateDistributedExecution(RowModifyLevel modLevel,
@@ -562,6 +570,14 @@ static void StartDistributedExecution(DistributedExecution *execution);
 static void RunLocalExecution(CitusScanState *scanState, DistributedExecution *execution);
 static void RunDistributedExecution(DistributedExecution *execution);
 static bool ShouldRunTasksSequentially(List *taskList);
+static void AdaptPoolSize_Local(DistributedExecution *execution);
+static void AdaptPoolSize_Remote(DistributedExecution *execution);
+static void ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
+							 int avaliableConnectionSlotsOnTheWorker,
+							 int maxConnectionOnTheWorker);
+static ConnectionStatsOnWorker GetConnectionStatsFromWorker(WorkerNode *worker);
+static WorkerNode * GetRoundRobinWorkerNode(void);
+static bool ThrottlingRequired(DistributedExecution *execution);
 static void SequentialRunDistributedExecution(DistributedExecution *execution);
 
 static void FinishDistributedExecution(DistributedExecution *execution);
@@ -2001,12 +2017,15 @@ SequentialRunDistributedExecution(DistributedExecution *execution)
  * any of the connections and runs the connection state machine when a connection
  * has an event.
  */
+#include "storage/procarray.h"
 void
 RunDistributedExecution(DistributedExecution *execution)
 {
 	WaitEvent *events = NULL;
 
 	AssignTasksToConnectionsOrWorkerPool(execution);
+
+	AdaptPoolSize_Remote(execution);
 
 	PG_TRY();
 	{
@@ -2024,6 +2043,8 @@ RunDistributedExecution(DistributedExecution *execution)
 			WorkerPool *workerPool = NULL;
 			foreach_ptr(workerPool, execution->workerList)
 			{
+				AdaptPoolSize_Local(execution);
+
 				ManageWorkerPool(workerPool);
 			}
 
@@ -2090,6 +2111,220 @@ RunDistributedExecution(DistributedExecution *execution)
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
+}
+
+
+static void
+AdaptPoolSize_Local(DistributedExecution *execution)
+{
+	if (!ThrottlingRequired(execution))
+	{
+		/* we don't need to throttle as have enough cached connections per node */
+		return;
+	}
+
+	/*
+	 * We currently prefer to rely on max_connections on the coordinator, but we should
+	 * probably call get_connection_stats() on every query (or maybe in the background)
+	 * to get maxConnections and/or GetConnectionCounter().
+	 *
+	 * Note that get_connection_stats() goes over Postgres' backend array, so not a cheap
+	 * call. That's useful to get
+	 */
+
+	/*int maxAllowedConnections = GetMaxAllowedConnectionsToAnyWorker(); */
+	const char *maxConnectionsStrValue = GetConfigOption("max_connections", true, true);
+	int maxConnections = atoi(maxConnectionsStrValue);
+
+	WorkerNode *workerNode = GetRoundRobinWorkerNode();
+	WorkerPool *workerPool =
+		FindOrCreateWorkerPool(execution, workerNode->workerName, workerNode->workerPort);
+
+	/*
+	 * TODO: We currently pick a random worker and do the calculation for a single worker,
+	 * and apply the same throttling to all nodes.
+	 *
+	 * To make it more generic, we should decide on each node separately. So, it probably makes
+	 * more sense to have
+	 *      AdaptPoolSize(workerPool), instead of AdaptPoolSize(execution)
+	 */
+	uint32 connectionCountToNode =
+		GetConnectionCounter(workerNode->workerName, workerNode->workerPort);
+
+	int avaliableConnectionSlotsOnTheWorker = maxConnections - connectionCountToNode;
+
+	ThrottlePoolSize(execution, workerPool, avaliableConnectionSlotsOnTheWorker,
+					 maxConnections);
+}
+
+
+static ConnectionStatsOnWorker
+GetConnectionStatsFromWorker(WorkerNode *workerNode)
+{
+	ConnectionStatsOnWorker connStat;
+
+	/* some sane? defaults */
+	connStat.maxConnectionOnTheWorker = MaxConnections;
+	connStat.maxConnectionOnTheWorker = MaxConnections / 2;
+
+	/*
+	 * Use current user hence the cached connection.
+	 */
+	int connectionFlags = 0;
+	MultiConnection *connection = StartNodeUserDatabaseConnection(connectionFlags,
+																  workerNode->workerName,
+																  workerNode->workerPort,
+																  NULL, NULL);
+
+	FinishConnectionEstablishment(connection);
+
+	const char *command = "SELECT * FROM get_connection_stats()";
+
+	int querySent = SendRemoteCommand(connection, command);
+	if (querySent == 0)
+	{
+		ReportConnectionError(connection, WARNING);
+	}
+
+	bool raiseInterrupts = true;
+	PGresult *result = GetRemoteCommandResult(connection, raiseInterrupts);
+	if (!IsResponseOK(result))
+	{
+		ReportResultError(connection, result, WARNING);
+
+		PQclear(result);
+		ForgetResults(connection);
+
+		/* TODO: should return something more meaningful */
+		return connStat;
+	}
+
+	int64 rowCount = PQntuples(result);
+	int64 colCount = PQnfields(result);
+	if (rowCount != 1)
+	{
+		PQclear(result);
+		ForgetResults(connection);
+
+		ereport(WARNING, (errmsg("unexpected number of rows from "
+								 "get_connection_stats")));
+
+		/* TODO: should return something more meaningful */
+		return connStat;
+	}
+
+	if (colCount != 2)
+	{
+		PQclear(result);
+		ForgetResults(connection);
+
+		ereport(WARNING, (errmsg("unexpected number of columns from "
+								 "get_connection_stats")));
+
+		/* TODO: should return something more meaningful */
+		return connStat;
+	}
+
+	int64 rowIndex = 0;
+	connStat.currentActiveConnections = ParseIntField(result, rowIndex, 0);
+	connStat.maxConnectionOnTheWorker = ParseIntField(result, rowIndex, 1);
+
+	PQclear(result);
+	ForgetResults(connection);
+
+	return connStat;
+}
+
+
+static void
+AdaptPoolSize_Remote(DistributedExecution *execution)
+{
+	if (!ThrottlingRequired(execution))
+	{
+		/* we don't need to throttle as have enough cached connections per node */
+		return;
+	}
+
+	WorkerNode *workerNode = GetRoundRobinWorkerNode();
+	ConnectionStatsOnWorker connStats = GetConnectionStatsFromWorker(workerNode);
+	WorkerPool *workerPool =
+		FindOrCreateWorkerPool(execution, workerNode->workerName, workerNode->workerPort);
+
+	int maxConnectionOnTheWorker = connStats.maxConnectionOnTheWorker;
+	int currentActiveConnections = connStats.currentActiveConnections;
+	int avaliableConnectionSlotsOnTheWorker = maxConnectionOnTheWorker -
+											  currentActiveConnections;
+
+	ThrottlePoolSize(execution, workerPool, avaliableConnectionSlotsOnTheWorker,
+					 maxConnectionOnTheWorker);
+}
+
+
+static void
+ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
+				 int avaliableConnectionSlotsOnTheWorker,
+				 int maxConnectionOnTheWorker)
+{
+	int unfinishedTaskCount = execution->unfinishedTaskCount;
+	int workerNodeCount = GetWorkerNodeCount();
+	int unfinishedTaskPerWorker = ceilf(unfinishedTaskCount / workerNodeCount);
+
+	if (avaliableConnectionSlotsOnTheWorker < unfinishedTaskPerWorker)
+	{
+		elog(DEBUG1,
+			 "Throttled on 1: avaliableConnectionSlotsOnTheWorker:%d - unfinishedTaskPerWorker:%d",
+			 avaliableConnectionSlotsOnTheWorker, unfinishedTaskPerWorker);
+
+		/* we don't want any more connections, otherwise, it'd definetly error out */
+		execution->targetPoolSize =
+			list_length(workerPool->sessionList) == 0 ? MaxCachedConnectionsPerWorker :
+			list_length(workerPool->sessionList);
+	}
+	else if (avaliableConnectionSlotsOnTheWorker < maxConnectionOnTheWorker * 0.4)
+	{
+		elog(DEBUG1,
+			 "Throttled on 3: avaliableConnectionSlotsOnTheWorker:%d - maxConnections:%d",
+			 avaliableConnectionSlotsOnTheWorker, maxConnectionOnTheWorker);
+
+		/* we don't want any more connections, otherwise, it'd error */
+		execution->targetPoolSize =
+			list_length(workerPool->sessionList) == 0 ? MaxCachedConnectionsPerWorker :
+			list_length(workerPool->sessionList);
+	}
+}
+
+
+static bool
+ThrottlingRequired(DistributedExecution *execution)
+{
+	int unfinishedTaskCount = execution->unfinishedTaskCount;
+	int workerNodeCount = GetWorkerNodeCount();
+	int unfinishedTaskPerWorker = ceilf(unfinishedTaskCount / workerNodeCount);
+
+	if (unfinishedTaskPerWorker <= MaxCachedConnectionsPerWorker)
+	{
+		/* we don't need to throttle as have enough cached connections per node */
+		return false;
+	}
+
+	return true;
+}
+
+
+static WorkerNode *
+GetRoundRobinWorkerNode(void)
+{
+	static uint32 roundRobinWorkerIndex = 0;
+
+	List *workerNodeList = ActiveReadableNodeList();
+
+	int workerNodeCount = list_length(workerNodeList);
+	int workerNodeIndex = roundRobinWorkerIndex % workerNodeCount;
+	WorkerNode *workerNode = (WorkerNode *) list_nth(workerNodeList, workerNodeIndex);
+
+	++roundRobinWorkerIndex;
+
+	return workerNode;
 }
 
 

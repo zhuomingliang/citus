@@ -33,6 +33,8 @@
 #include "utils/hsearch.h"
 #include "utils/memutils.h"
 
+#include "distributed/backend_data.h"
+
 
 int NodeConnectionTimeout = 5000;
 int MaxCachedConnectionsPerWorker = 1;
@@ -117,6 +119,35 @@ InitializeConnectionManagement(void)
 
 	ConnParamsHash = hash_create("citus connparams cache (host,port,user,database)",
 								 64, &connParamsInfo, hashFlags);
+}
+
+
+/*
+ * Utility function to adjust the connection counters for all workers
+ * atexit of the backends.
+ */
+void
+DecrementAllSharedConnectionCounters(void)
+{
+	ConnectionHashEntry *entry = NULL;
+	HASH_SEQ_STATUS status;
+
+	hash_seq_init(&status, ConnectionHash);
+	while ((entry = (ConnectionHashEntry *) hash_seq_search(&status)) != NULL)
+	{
+		dlist_iter iter;
+
+		dlist_foreach(iter, entry->connections)
+		{
+			MultiConnection *connection =
+				dlist_container(MultiConnection, connectionNode, iter.cur);
+
+			if (connection->pgConn != NULL)
+			{
+				DecrementSharedConnectionCounter(connection->hostname, connection->port);
+			}
+		}
+	}
 }
 
 
@@ -329,6 +360,8 @@ StartNodeUserDatabaseConnection(uint32 flags, const char *hostname, int32 port,
 	ResetShardPlacementAssociation(connection);
 	GivePurposeToConnection(connection, flags);
 
+	IncrementSharedConnectionCounter(hostname, port);
+
 	return connection;
 }
 
@@ -462,6 +495,11 @@ CloseConnection(MultiConnection *connection)
 	bool found;
 
 	/* close connection */
+	if (connection->pgConn != NULL)
+	{
+		DecrementSharedConnectionCounter(connection->hostname, connection->port);
+	}
+
 	PQfinish(connection->pgConn);
 	connection->pgConn = NULL;
 
@@ -512,6 +550,12 @@ ShutdownConnection(MultiConnection *connection)
 	{
 		SendCancelationRequest(connection);
 	}
+
+	if (connection->pgConn != NULL)
+	{
+		DecrementSharedConnectionCounter(connection->hostname, connection->port);
+	}
+
 	PQfinish(connection->pgConn);
 	connection->pgConn = NULL;
 }
