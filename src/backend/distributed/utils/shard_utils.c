@@ -19,13 +19,13 @@
  * GetShardOid returns the oid of the shard from the given distributed relation
  * with the shardid.
  */
-Oid GetShardOid(Oid distRelId, uint64 shardId) {
-    char *relationName = get_rel_name(distRelId);
+Oid
+GetShardOid(Oid distRelId, uint64 shardId)
+{
+	char *relationName = get_rel_name(distRelId);
 	AppendShardIdToName(&relationName, shardId);
 
 	Oid schemaId = get_rel_namespace(distRelId);
 
 	return get_relname_relid(relationName, schemaId);
 }
-
-

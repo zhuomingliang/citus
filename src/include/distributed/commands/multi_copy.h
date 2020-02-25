@@ -106,6 +106,8 @@ typedef struct CitusCopyDestReceiver
 	/* template for COPY statement to send to workers */
 	CopyStmt *copyStatement;
 
+	CopyStmt *originalCopySatement;
+
 	bool stopOnFailure;
 
 	/*

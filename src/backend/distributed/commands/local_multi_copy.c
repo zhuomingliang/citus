@@ -12,54 +12,137 @@
 #include "commands/copy.h"
 #include "catalog/namespace.h"
 #include "parser/parse_relation.h"
+#include "utils/lsyscache.h"
+#include "nodes/makefuncs.h"
+#include <netinet/in.h> /* for htons */
 
-#include "distributed/commands/multi_copy.h" 
+
+#include "distributed/commands/multi_copy.h"
 #include "distributed/multi_partitioning_utils.h"
 #include "distributed/local_multi_copy.h"
+#include "distributed/shard_utils.h"
+
+/*
+ * Data size threshold to switch over the active placement for a connection.
+ * If this is too low, overhead of starting COPY commands will hurt the
+ * performance. If this is too high, buffered data will use lots of memory.
+ * 8MB is a good balance between memory usage and performance. Note that this
+ * is irrelevant in the common case where we open one connection per placement.
+ */
+#define LOCAL_COPY_SWITCH_OVER_THRESHOLD (8 * 1024 * 1024)
 
 
-static int
-ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread);
-static List *
-make_copy_attnamelist(List* attlist);
+static int ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread);
+static List * make_copy_attnamelist(List *attlist);
+static Relation CreateCopiedShard(RangeVar *distributedRel, Relation shard);
+static void FillLocalCopyBuffer(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest,
+								bool isBinary);
 
-StringInfo copybuf = NULL;
+static bool ShouldSendCopyNow(void);
+static void DoLocalCopy(Oid relationId, int64 shardId, CopyStmt *copyStatement);
+static bool ShouldAddBinaryHeaders(bool isBinary);
 
-void DoLocaLCopy(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest) {
-	CopyStmt* copyStatement = copyDest->copyStatement;
-	Oid relationId = copyDest->distributedRelationId;
+StringInfo localCopyBuffer;
 
-	copybuf = makeStringInfo();
-	// Datum *columnValues = slot->tts_values;
-	// bool *columnNulls = slot->tts_isnull;
-	// FmgrInfo *columnOutputFunctions = copyDest->columnOutputFunctions;
-	// CopyCoercionData *columnCoercionPaths = copyDest->columnCoercionPaths;
+void
+ProcessLocalCopy(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, int64 shardId,
+				 StringInfo buffer, bool shouldSendNow)
+{
+	localCopyBuffer = buffer;
+	StringInfo previousBuffer = copyDest->copyOutState->fe_msgbuf;
+	copyDest->copyOutState->fe_msgbuf = localCopyBuffer;
+	bool isBinaryCopy = copyDest->copyOutState->binary;
 
-	// AppendCopyRowData(columnValues, columnNulls, copyDest->tupleDescriptor,
-	// 				copyDest->copyOutState, columnOutputFunctions,
-	// 				columnCoercionPaths);
 
-	// copybuf = copyDest->copyOutState->fe_msgbuf;
-	appendStringInfoChar(copybuf, '5');
-	appendStringInfoChar(copybuf, '\n');
+	FillLocalCopyBuffer(slot, copyDest, isBinaryCopy);
 
-	Oid tableId = RangeVarGetRelid(copyStatement->relation, NoLock, false);
-	
-	Relation distributedRel = heap_open(relationId, RowExclusiveLock);
-	Relation copiedDistributedRelation = NULL;
-	Form_pg_class copiedDistributedRelationTuple = NULL;
+	if (shouldSendNow || ShouldSendCopyNow())
+	{
+		if (isBinaryCopy)
+		{
+			AppendCopyBinaryFooters(copyDest->copyOutState);
+		}
+		DoLocalCopy(copyDest->distributedRelationId, shardId, copyDest->copyStatement);
+	}
 
-	TupleDesc tupleDescriptor = RelationGetDescr(distributedRel);
+	copyDest->copyOutState->fe_msgbuf = previousBuffer;
+}
 
-	copiedDistributedRelation = (Relation) palloc(sizeof(RelationData));
-	copiedDistributedRelationTuple = (Form_pg_class) palloc(CLASS_TUPLE_SIZE);
 
-	memcpy(copiedDistributedRelation, distributedRel, sizeof(RelationData));
-	memcpy(copiedDistributedRelationTuple, distributedRel->rd_rel,
+static bool
+ShouldSendCopyNow()
+{
+	return localCopyBuffer->len > LOCAL_COPY_SWITCH_OVER_THRESHOLD;
+}
+
+
+static void
+DoLocalCopy(Oid relationId, int64 shardId, CopyStmt *copyStatement)
+{
+	Oid shardOid = GetShardOid(relationId, shardId);
+	Relation shard = heap_open(shardOid, RowExclusiveLock);
+	Relation copiedShard = CreateCopiedShard(copyStatement->relation, shard);
+
+	CopyState cstate = BeginCopyFrom(NULL, copiedShard, NULL, false,
+									 ReadFromLocalBufferCallback, make_copy_attnamelist(
+										 copyStatement->attlist), copyStatement->options);
+	CopyFrom(cstate);
+	EndCopyFrom(cstate);
+	resetStringInfo(localCopyBuffer);
+	heap_close(shard, NoLock);
+}
+
+
+static void
+FillLocalCopyBuffer(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, bool isBinary)
+{
+	if (ShouldAddBinaryHeaders(isBinary))
+	{
+		AppendCopyBinaryHeaders(copyDest->copyOutState);
+	}
+
+	if (slot != NULL)
+	{
+		Datum *columnValues = slot->tts_values;
+		bool *columnNulls = slot->tts_isnull;
+		FmgrInfo *columnOutputFunctions = copyDest->columnOutputFunctions;
+		CopyCoercionData *columnCoercionPaths = copyDest->columnCoercionPaths;
+
+		AppendCopyRowData(columnValues, columnNulls, copyDest->tupleDescriptor,
+						  copyDest->copyOutState, columnOutputFunctions,
+						  columnCoercionPaths);
+	}
+}
+
+
+static bool
+ShouldAddBinaryHeaders(bool isBinary)
+{
+	if (!isBinary)
+	{
+		return false;
+	}
+	return localCopyBuffer->len == 0;
+}
+
+
+Relation
+CreateCopiedShard(RangeVar *distributedRel, Relation shard)
+{
+	TupleDesc tupleDescriptor = RelationGetDescr(shard);
+
+	Relation copiedDistributedRelation = (Relation) palloc(sizeof(RelationData));
+	Form_pg_class copiedDistributedRelationTuple = (Form_pg_class) palloc(
+		CLASS_TUPLE_SIZE);
+
+	memcpy(copiedDistributedRelation, shard, sizeof(RelationData));
+	memcpy(copiedDistributedRelationTuple, shard->rd_rel,
 		   CLASS_TUPLE_SIZE);
 
 	copiedDistributedRelation->rd_rel = copiedDistributedRelationTuple;
 	copiedDistributedRelation->rd_att = CreateTupleDescCopyConstr(tupleDescriptor);
+
+	Oid tableId = RangeVarGetRelid(distributedRel, NoLock, false);
 
 	/*
 	 * BeginCopyFrom opens all partitions of given partitioned table with relation_open
@@ -72,29 +155,22 @@ void DoLocaLCopy(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest) {
 	{
 		copiedDistributedRelationTuple->relkind = RELKIND_RELATION;
 	}
-
-	ParseState *pstate = make_parsestate(NULL);
-	addRangeTableEntryForRelation(pstate, copiedDistributedRelation, NULL, false, false);
-	CopyState cstate = BeginCopyFrom(pstate, distributedRel, NULL, false,
-				ReadFromLocalBufferCallback , make_copy_attnamelist(copyStatement->attlist), copyStatement->options);
-	CopyFrom(cstate);
-	EndCopyFrom(cstate);
-	heap_close(distributedRel, NoLock);
-
+	return copiedDistributedRelation;
 }
+
 
 /*
  * Create list of columns for COPY.
  */
 static List *
-make_copy_attnamelist(List* attlist)
+make_copy_attnamelist(List *attlist)
 {
-	List	   *attnamelist = NIL;
+	List *attnamelist = NIL;
 	ListCell *attCell = NULL;
 
 	foreach(attCell, attlist)
 	{
-		char* attname = (char *)lfirst(attCell);
+		char *attname = (char *) lfirst(attCell);
 		attnamelist = lappend(attnamelist, makeString(attname));
 	}
 	return attnamelist;
@@ -102,12 +178,15 @@ make_copy_attnamelist(List* attlist)
 
 
 static int
-ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread) {
-	int			bytesread = 0;
+ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread)
+{
+	int bytesread = 0;
+	int avail = localCopyBuffer->len - localCopyBuffer->cursor;
+	int bytesToRead = Min(avail, maxread);
 
-	memcpy(outbuf, &copybuf->data[0], copybuf->len);
-	bytesread += copybuf->len;
-	copybuf = makeStringInfo();
+	memcpy(outbuf, &localCopyBuffer->data[localCopyBuffer->cursor], bytesToRead);
+	bytesread += bytesToRead;
+	localCopyBuffer->cursor += bytesToRead;
 
 	return bytesread;
 }
