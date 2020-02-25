@@ -667,7 +667,7 @@ DEBUG:  Plan is router executable
  2 | 2
 (2 rows)
 
--- set operations works fine with pushdownable window functions
+-- set operations work fine with pushdownable window functions
 SELECT x, y, rnk FROM (SELECT *, rank() OVER my_win as rnk FROM test WINDOW my_win AS (PARTITION BY x ORDER BY y DESC)) as foo
 UNION
 SELECT x, y, rnk FROM (SELECT *, rank() OVER my_win as rnk FROM test WINDOW my_win AS (PARTITION BY x ORDER BY y DESC)) as bar
@@ -686,7 +686,7 @@ DEBUG:  Plan is router executable
  1 | 1 |   1
 (2 rows)
 
--- set operations works fine with non-pushdownable window functions
+-- set operations work fine with non-pushdownable window functions
 SELECT x, y, rnk FROM (SELECT *, rank() OVER my_win as rnk FROM test WINDOW my_win AS (PARTITION BY y ORDER BY x DESC)) as foo
 UNION
 SELECT x, y, rnk FROM (SELECT *, rank() OVER my_win as rnk FROM test WINDOW my_win AS (PARTITION BY y ORDER BY x DESC)) as bar
