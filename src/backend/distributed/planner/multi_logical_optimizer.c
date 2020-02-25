@@ -2291,7 +2291,8 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 		ProcessWindowFunctionPullUpForWorkerQuery(originalOpNode, &queryTargetList);
 	}
 
-	if (!extendedOpNodeProperties->pullUpIntermediateRows)
+	if (extendedOpNodeProperties->pushDownWindowFunctions &&
+		!extendedOpNodeProperties->pullUpIntermediateRows)
 	{
 		ProcessDistinctClauseForWorkerQuery(originalDistinctClause, hasDistinctOn,
 											queryGroupClause.groupClauseList,
@@ -2656,17 +2657,17 @@ ProcessWindowFunctionPullUpForWorkerQuery(MultiExtendedOp *originalOpNode,
 	if (originalOpNode->windowClause != NIL)
 	{
 		List *columnList = pull_var_clause_default((Node *) originalOpNode->windowClause);
-		ListCell *columnCell = NULL;
+		StringInfoData columnNameString;
+		initStringInfo(&columnNameString);
 
-		foreach(columnCell, columnList)
+		Expr *newExpression = NULL;
+		foreach_ptr(newExpression, columnList)
 		{
 			TargetEntry *newTargetEntry = makeNode(TargetEntry);
-			StringInfoData columnNameString;
-			initStringInfo(&columnNameString);
 
-			Expr *newExpression = (Expr *) lfirst(columnCell);
 			newTargetEntry->expr = newExpression;
 
+			resetStringInfo(&columnNameString);
 			appendStringInfo(&columnNameString, WORKER_COLUMN_FORMAT,
 							 queryTargetList->targetProjectionNumber);
 			newTargetEntry->resname = columnNameString.data;
@@ -4716,24 +4717,20 @@ HasOrderByHllType(List *sortClauseList, List *targetList)
 bool
 IsGroupBySubsetOfDistinct(List *groupClauses, List *distinctClauses)
 {
-	ListCell *distinctCell = NULL;
-	ListCell *groupCell = NULL;
-
 	/* There must be a group clause */
 	if (list_length(groupClauses) == 0)
 	{
 		return false;
 	}
 
-	foreach(groupCell, groupClauses)
+	SortGroupClause *groupClause = NULL;
+	foreach_ptr(groupClause, groupClauses)
 	{
-		SortGroupClause *groupClause = (SortGroupClause *) lfirst(groupCell);
 		bool isFound = false;
 
-		foreach(distinctCell, distinctClauses)
+		SortGroupClause *distinctClause = NULL;
+		foreach_ptr(distinctClause, distinctClauses)
 		{
-			SortGroupClause *distinctClause = (SortGroupClause *) lfirst(distinctCell);
-
 			if (groupClause->tleSortGroupRef == distinctClause->tleSortGroupRef)
 			{
 				isFound = true;
