@@ -71,8 +71,8 @@ BuildExtendedOpNodeProperties(MultiExtendedOp *extendedOpNode, bool
 	extendedOpNodeProperties.pullUpIntermediateRows =
 		!groupedByDisjointPartitionColumn && pullUpIntermediateRows;
 	extendedOpNodeProperties.hasWindowFuncs = extendedOpNode->hasWindowFuncs;
-	extendedOpNodeProperties.pushDownWindowFunctions =
-		!extendedOpNode->hasNonPushableWindowFunction;
+	extendedOpNodeProperties.hasNonPushableWindowFunction =
+		extendedOpNode->hasNonPushableWindowFunction;
 
 	return extendedOpNodeProperties;
 }

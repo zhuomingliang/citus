@@ -1452,7 +1452,8 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 												   &walkerContext);
 			newExpression = (Expr *) newNode;
 		}
-		else if (hasWindowFunction && !extendedOpNodeProperties->pushDownWindowFunctions)
+		else if (hasWindowFunction &&
+				 extendedOpNodeProperties->hasNonPushableWindowFunction)
 		{
 			Node *newNode = MasterPullWindowFunction((Node *) originalExpression,
 													 &walkerContext);
@@ -1517,7 +1518,7 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 	masterExtendedOpNode->limitOffset = originalOpNode->limitOffset;
 	masterExtendedOpNode->havingQual = newHavingQual;
 
-	if (!extendedOpNodeProperties->pushDownWindowFunctions)
+	if (extendedOpNodeProperties->hasNonPushableWindowFunction)
 	{
 		masterExtendedOpNode->hasWindowFuncs = originalOpNode->hasWindowFuncs;
 		masterExtendedOpNode->windowClause = originalOpNode->windowClause;
@@ -2280,7 +2281,7 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 									  &queryHavingQual, &queryTargetList,
 									  &queryGroupClause);
 
-	if (extendedOpNodeProperties->pushDownWindowFunctions)
+	if (!extendedOpNodeProperties->hasNonPushableWindowFunction)
 	{
 		ProcessWindowFunctionsForWorkerQuery(originalWindowClause,
 											 originalTargetEntryList,
@@ -2291,7 +2292,7 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 		ProcessWindowFunctionPullUpForWorkerQuery(originalOpNode, &queryTargetList);
 	}
 
-	if (extendedOpNodeProperties->pushDownWindowFunctions &&
+	if (!extendedOpNodeProperties->hasNonPushableWindowFunction &&
 		!extendedOpNodeProperties->pullUpIntermediateRows)
 	{
 		ProcessDistinctClauseForWorkerQuery(originalDistinctClause, hasDistinctOn,
@@ -2312,7 +2313,7 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 		bool groupByExtended =
 			list_length(queryGroupClause.groupClauseList) > originalGroupClauseLength;
 		if (!groupByExtended && !distinctPreventsLimitPushdown &&
-			extendedOpNodeProperties->pushDownWindowFunctions)
+			!extendedOpNodeProperties->hasNonPushableWindowFunction)
 		{
 			/* both sort and limit clauses rely on similar information */
 			OrderByLimitReference limitOrderByReference =
@@ -2413,7 +2414,8 @@ ProcessTargetListForWorkerQuery(List *targetEntryList,
 
 			newExpressionList = workerAggContext.expressionList;
 		}
-		else if (hasWindowFunction && !extendedOpNodeProperties->pushDownWindowFunctions)
+		else if (hasWindowFunction &&
+				 extendedOpNodeProperties->hasNonPushableWindowFunction)
 		{
 			newExpressionList = pull_var_clause_default((Node *) originalExpression);
 		}
@@ -2491,7 +2493,7 @@ ProcessHavingClauseForWorkerQuery(Node *originalHavingQual,
 	 */
 	if (extendedOpNodeProperties->groupedByDisjointPartitionColumn ||
 		(extendedOpNodeProperties->hasWindowFuncs &&
-		 extendedOpNodeProperties->pushDownWindowFunctions))
+		 !extendedOpNodeProperties->hasNonPushableWindowFunction))
 	{
 		/*
 		 * We converted the having expression to a list in subquery pushdown
