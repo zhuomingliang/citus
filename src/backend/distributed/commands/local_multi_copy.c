@@ -85,7 +85,7 @@ DoLocalCopy(Oid relationId, int64 shardId, CopyStmt *copyStatement)
 
 	CopyState cstate = BeginCopyFrom(NULL, copiedShard, NULL, false,
 									 ReadFromLocalBufferCallback, make_copy_attnamelist(
-										 copyStatement->attlist), copyStatement->options);
+										 copyStatement->attlist), copyStatement->options);									 
 	CopyFrom(cstate);
 	EndCopyFrom(cstate);
 	resetStringInfo(localCopyBuffer);

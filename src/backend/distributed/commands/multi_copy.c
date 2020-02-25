@@ -240,13 +240,13 @@ static CopyConnectionState * GetConnectionState(HTAB *connectionStateHash,
 												MultiConnection *connection);
 static CopyShardState * GetShardState(uint64 shardId, HTAB *shardStateHash,
 									  HTAB *connectionStateHash, bool stopOnFailure,
-									  bool *found);
+									  bool *found, bool canUseLocalCopy);
 static MultiConnection * CopyGetPlacementConnection(ShardPlacement *placement,
 													bool stopOnFailure);
 static List * ConnectionStateList(HTAB *connectionStateHash);
 static void InitializeCopyShardState(CopyShardState *shardState,
 									 HTAB *connectionStateHash,
-									 uint64 shardId, bool stopOnFailure);
+									 uint64 shardId, bool stopOnFailure, bool canUseLocalCopy);
 static void StartPlacementStateCopyCommand(CopyPlacementState *placementState,
 										   CopyStmt *copyStatement,
 										   CopyOutState copyOutState);
@@ -425,9 +425,10 @@ CopyToExistingShards(CopyStmt *copyStatement, char *completionTag)
 		stopOnFailure = true;
 	}
 
+	bool canUseLocalCopy = true;
 	/* set up the destination for the COPY */
 	copyDest = CreateCitusCopyDestReceiver(tableId, columnNameList, partitionColumnIndex,
-										   executorState, stopOnFailure, NULL);
+										   executorState, stopOnFailure, NULL, canUseLocalCopy);
 	copyDest->originalCopySatement = copyStatement;
 	dest = (DestReceiver *) copyDest;
 	dest->rStartup(dest, 0, tupleDescriptor);
@@ -1967,10 +1968,12 @@ CopyFlushOutput(CopyOutState cstate, char *start, char *pointer)
 CitusCopyDestReceiver *
 CreateCitusCopyDestReceiver(Oid tableId, List *columnNameList, int partitionColumnIndex,
 							EState *executorState, bool stopOnFailure,
-							char *intermediateResultIdPrefix)
+							char *intermediateResultIdPrefix, bool canUseLocalCopy)
 {
 	CitusCopyDestReceiver *copyDest = (CitusCopyDestReceiver *) palloc0(
 		sizeof(CitusCopyDestReceiver));
+
+	copyDest->canUseLocalCopy = canUseLocalCopy;
 
 	/* set up the DestReceiver function pointers */
 	copyDest->pub.receiveSlot = CitusCopyDestReceiverReceive;
@@ -2236,7 +2239,8 @@ CitusSendTupleToPlacements(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest
 	CopyShardState *shardState = GetShardState(shardId, copyDest->shardStateHash,
 											   copyDest->connectionStateHash,
 											   stopOnFailure,
-											   &cachedShardStateFound);
+											   &cachedShardStateFound,
+											   copyDest->canUseLocalCopy);
 	if (!cachedShardStateFound)
 	{
 		firstTupleInShard = true;
@@ -2257,7 +2261,7 @@ CitusSendTupleToPlacements(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest
 		}
 	}
 
-	if (ContainsLocalPlacement(shardId))
+	if (copyDest->canUseLocalCopy && ContainsLocalPlacement(shardId))
 	{
 		bool shouldSendNow = false;
 		ProcessLocalCopy(slot, copyDest, shardId, shardState->localCopyBuffer,
@@ -3142,14 +3146,14 @@ ConnectionStateList(HTAB *connectionStateHash)
  */
 static CopyShardState *
 GetShardState(uint64 shardId, HTAB *shardStateHash,
-			  HTAB *connectionStateHash, bool stopOnFailure, bool *found)
+			  HTAB *connectionStateHash, bool stopOnFailure, bool *found, bool canUseLocalCopy)
 {
 	CopyShardState *shardState = (CopyShardState *) hash_search(shardStateHash, &shardId,
 																HASH_ENTER, found);
 	if (!*found)
 	{
 		InitializeCopyShardState(shardState, connectionStateHash,
-								 shardId, stopOnFailure);
+								 shardId, stopOnFailure, canUseLocalCopy);
 	}
 
 	return shardState;
@@ -3164,7 +3168,7 @@ GetShardState(uint64 shardId, HTAB *shardStateHash,
 static void
 InitializeCopyShardState(CopyShardState *shardState,
 						 HTAB *connectionStateHash, uint64 shardId,
-						 bool stopOnFailure)
+						 bool stopOnFailure, bool canUseLocalCopy)
 {
 	ListCell *placementCell = NULL;
 	int failedPlacementCount = 0;
@@ -3191,7 +3195,7 @@ InitializeCopyShardState(CopyShardState *shardState,
 	{
 		ShardPlacement *placement = (ShardPlacement *) lfirst(placementCell);
 
-		if (placement->groupId == GetLocalGroupId())
+		if (canUseLocalCopy && placement->groupId == GetLocalGroupId())
 		{
 			continue;
 		}

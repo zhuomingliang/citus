@@ -584,13 +584,15 @@ ExecutePlanIntoColocatedIntermediateResults(Oid targetRelationId,
 	int partitionColumnIndex = PartitionColumnIndexFromColumnList(targetRelationId,
 																  columnNameList);
 
+	bool canUseLocalCopy = false;
 	/* set up a DestReceiver that copies into the intermediate table */
 	CitusCopyDestReceiver *copyDest = CreateCitusCopyDestReceiver(targetRelationId,
 																  columnNameList,
 																  partitionColumnIndex,
 																  executorState,
 																  stopOnFailure,
-																  intermediateResultIdPrefix);
+																  intermediateResultIdPrefix,
+																  canUseLocalCopy);
 
 	ExecutePlanIntoDestReceiver(selectPlan, paramListInfo, (DestReceiver *) copyDest);
 
@@ -626,12 +628,14 @@ ExecutePlanIntoRelation(Oid targetRelationId, List *insertTargetList,
 	int partitionColumnIndex = PartitionColumnIndexFromColumnList(targetRelationId,
 																  columnNameList);
 
+	bool canUseLocalCopy = false;
 	/* set up a DestReceiver that copies into the distributed table */
 	CitusCopyDestReceiver *copyDest = CreateCitusCopyDestReceiver(targetRelationId,
 																  columnNameList,
 																  partitionColumnIndex,
 																  executorState,
-																  stopOnFailure, NULL);
+																  stopOnFailure, NULL,
+																  canUseLocalCopy);
 
 	ExecutePlanIntoDestReceiver(selectPlan, paramListInfo, (DestReceiver *) copyDest);
 
