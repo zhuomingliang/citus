@@ -91,6 +91,10 @@ check-multi-non-adaptive: all tempinstall-main
 	--server-option=citus.task_executor_type=real-time \
 	-- $(MULTI_REGRESS_OPTS) --schedule=$(citus_abs_srcdir)/multi_schedule $(EXTRA_TESTS)
 
+check-multi-hyperscale-superuser: all tempinstall-main
+	$(pg_regress_multi_check) --constr="$(constr)" --hoststr="$(hoststr)" --load-extension=citus \
+	-- $(MULTI_REGRESS_OPTS) --schedule=$(citus_abs_srcdir)/multi_schedule_hyperscale_superuser $(EXTRA_TESTS)
+
 check-failure-non-adaptive: all tempinstall-main
 	$(pg_regress_multi_check) --load-extension=citus --mitmproxy \
 	--server-option=citus.task_executor_type=real-time \
