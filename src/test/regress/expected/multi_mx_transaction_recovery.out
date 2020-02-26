@@ -151,12 +151,12 @@ SELECT recover_prepared_transactions();
                              0
 (1 row)
 
--- Committed COPY should write 3 transaction records (2 fall into the same shard)
+-- Committed COPY should write 2 transaction records (2 fall into the same shard)
 COPY test_recovery (x) FROM STDIN CSV;
 SELECT count(*) FROM pg_dist_transaction;
  count
 ---------------------------------------------------------------------
-     3
+     2
 (1 row)
 
 -- Test whether auto-recovery runs
