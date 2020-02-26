@@ -2151,11 +2151,11 @@ AdaptPoolSize_Local(DistributedExecution *execution)
 	uint32 connectionCountToNode =
 		GetConnectionCounter(workerNode->workerName, workerNode->workerPort);
 
-	while(connectionCountToNode >= maxConnections)
+	while(list_length(workerPool->sessionList) == 0 && connectionCountToNode >= maxConnections)
 	{
 		elog(DEBUG1, "Sleeping because connectionCountToNode >= maxConnections: %d>=%d",
 			connectionCountToNode, maxConnections);
-		pg_usleep(10000L);
+		pg_usleep(1000000L);
 
 		connectionCountToNode = GetConnectionCounter(workerNode->workerName, workerNode->workerPort);
 	}
