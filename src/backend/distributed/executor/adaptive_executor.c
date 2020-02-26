@@ -2162,7 +2162,7 @@ AdaptPoolSize_Local(DistributedExecution *execution)
 
 
 	int avaliableConnectionSlotsOnTheWorker = maxConnections - connectionCountToNode;
-	int incomingConnectionCount = GetActiveIncomingConnectionCount();
+	int incomingConnectionCount = CountDBConnections(MyDatabaseId); /* todo: this is very expensive */
 
 	ThrottlePoolSize(execution, workerPool, avaliableConnectionSlotsOnTheWorker, incomingConnectionCount);
 }
@@ -2281,6 +2281,9 @@ ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
 
 	Assert (balancedConnectionCount >= 1);
 
+	/* let other backends to have some space for opening connections */
+	execution->targetPoolSize = Min(execution->targetPoolSize, balancedConnectionCount);
+
 	if (alreadyOpenConnectionsToNode >= balancedConnectionCount)
 	{
 		/* we don't want any more connections, otherwise, it'd definetly error out */
@@ -2293,6 +2296,19 @@ ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
 		return;
 	}
 
+
+	/* let other backends to have some space for opening connections */
+	if (avaliableConnectionSlotsOnTheWorker < balancedConnectionCount)
+	{
+		/* we don't want any more connections, otherwise, it'd definetly error out */
+		execution->targetPoolSize = alreadyOpenConnectionsToNode;
+
+		elog(DEBUG1,
+					 "Throttled on 2: alreadyOpenConnectionsToNode:%d - balancedConnectionCount:%d",
+					 alreadyOpenConnectionsToNode, balancedConnectionCount);
+
+		return;
+	}
 
 
 
