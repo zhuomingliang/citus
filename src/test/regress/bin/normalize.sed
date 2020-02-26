@@ -93,3 +93,10 @@ s/read_intermediate_result\('insert_select_[0-9]+_/read_intermediate_result('ins
 s/repartitioned_results_[0-9]+/repartitioned_results_xxxxx/g
 
 s/\\COPY/COPY/g
+
+s/dbname=regression/dbname=<db>/g
+s/dbname=citus/dbname=<db>/g
+s/576[0-9][0-9]/xxxxx/g
+s/localhost/<host>/g
+s/10.0.0.[0-9]+/<host>/g
+s/postgres/<user>/g
