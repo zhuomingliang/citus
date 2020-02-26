@@ -83,8 +83,8 @@ DoLocalCopy(Oid relationId, int64 shardId, CopyStmt *copyStatement)
 	Relation copiedShard = CreateCopiedShard(copyStatement->relation, shard);
 
 	CopyState cstate = BeginCopyFrom(NULL, copiedShard, NULL, false,
-									 ReadFromLocalBufferCallback, 
-										 copyStatement->attlist, copyStatement->options);									 
+									 ReadFromLocalBufferCallback,
+									 copyStatement->attlist, copyStatement->options);
 	CopyFrom(cstate);
 	EndCopyFrom(cstate);
 	resetStringInfo(localCopyBuffer);
@@ -156,6 +156,7 @@ CreateCopiedShard(RangeVar *distributedRel, Relation shard)
 	}
 	return copiedDistributedRelation;
 }
+
 
 static int
 ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread)

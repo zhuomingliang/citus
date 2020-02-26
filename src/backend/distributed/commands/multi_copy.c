@@ -246,7 +246,8 @@ static MultiConnection * CopyGetPlacementConnection(ShardPlacement *placement,
 static List * ConnectionStateList(HTAB *connectionStateHash);
 static void InitializeCopyShardState(CopyShardState *shardState,
 									 HTAB *connectionStateHash,
-									 uint64 shardId, bool stopOnFailure, bool canUseLocalCopy);
+									 uint64 shardId, bool stopOnFailure, bool
+									 canUseLocalCopy);
 static void StartPlacementStateCopyCommand(CopyPlacementState *placementState,
 										   CopyStmt *copyStatement,
 										   CopyOutState copyOutState);
@@ -427,9 +428,11 @@ CopyToExistingShards(CopyStmt *copyStatement, char *completionTag)
 	}
 
 	bool canUseLocalCopy = true;
+
 	/* set up the destination for the COPY */
 	copyDest = CreateCitusCopyDestReceiver(tableId, columnNameList, partitionColumnIndex,
-										   executorState, stopOnFailure, NULL, canUseLocalCopy);
+										   executorState, stopOnFailure, NULL,
+										   canUseLocalCopy);
 	copyDest->originalCopySatement = copyStatement;
 	dest = (DestReceiver *) copyDest;
 	dest->rStartup(dest, 0, tupleDescriptor);
@@ -1995,14 +1998,18 @@ CreateCitusCopyDestReceiver(Oid tableId, List *columnNameList, int partitionColu
 	return copyDest;
 }
 
-static bool ShouldExecuteCopyLocally() {
 
-	if (!EnableLocalExecution) {
+static bool
+ShouldExecuteCopyLocally()
+{
+	if (!EnableLocalExecution)
+	{
 		return false;
 	}
 
-	if (TransactionAccessedLocalPlacement) {
-				/*
+	if (TransactionAccessedLocalPlacement)
+	{
+		/*
 		 * For various reasons, including the transaction visibility
 		 * rules (e.g., read-your-own-writes), we have to use local
 		 * execution again if it has already happened within this
@@ -3174,7 +3181,8 @@ ConnectionStateList(HTAB *connectionStateHash)
  */
 static CopyShardState *
 GetShardState(uint64 shardId, HTAB *shardStateHash,
-			  HTAB *connectionStateHash, bool stopOnFailure, bool *found, bool shouldUseLocalCopy)
+			  HTAB *connectionStateHash, bool stopOnFailure, bool *found, bool
+			  shouldUseLocalCopy)
 {
 	CopyShardState *shardState = (CopyShardState *) hash_search(shardStateHash, &shardId,
 																HASH_ENTER, found);

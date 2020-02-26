@@ -585,6 +585,7 @@ ExecutePlanIntoColocatedIntermediateResults(Oid targetRelationId,
 																  columnNameList);
 
 	bool canUseLocalCopy = false;
+
 	/* set up a DestReceiver that copies into the intermediate table */
 	CitusCopyDestReceiver *copyDest = CreateCitusCopyDestReceiver(targetRelationId,
 																  columnNameList,
@@ -629,6 +630,7 @@ ExecutePlanIntoRelation(Oid targetRelationId, List *insertTargetList,
 																  columnNameList);
 
 	bool canUseLocalCopy = false;
+
 	/* set up a DestReceiver that copies into the distributed table */
 	CitusCopyDestReceiver *copyDest = CreateCitusCopyDestReceiver(targetRelationId,
 																  columnNameList,
