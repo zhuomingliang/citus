@@ -2274,7 +2274,7 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 		 * LIMIT and ORDER BY clauses as described below:
 		 *      (1) Creating a new group by clause during aggregate mutation, or
 		 *      (2) Distinct clause is not pushed down
-		 *		(3) Window function needs to be processed before limit
+		 *      (3) Window function needs to be processed before limit
 		 */
 		bool groupByExtended =
 			list_length(queryGroupClause.groupClauseList) > originalGroupClauseLength;
