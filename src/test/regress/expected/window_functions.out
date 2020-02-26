@@ -1017,6 +1017,26 @@ $Q$);
 (6 rows)
 
 SELECT
+	value_2,
+	AVG(avg(value_1)) OVER (PARTITION BY value_2, max(value_2), MIN(value_2)),
+	AVG(avg(value_2)) OVER (PARTITION BY value_2, min(value_2), AVG(value_1))
+FROM
+	users_table
+GROUP BY
+	1
+ORDER BY
+	3 DESC, 2 DESC, 1 DESC;
+ value_2 |        avg         |          avg
+---------------------------------------------------------------------
+       5 | 2.6923076923076923 |     5.0000000000000000
+       4 | 2.7500000000000000 |     4.0000000000000000
+       3 | 2.2941176470588235 |     3.0000000000000000
+       2 | 2.7619047619047619 |     2.0000000000000000
+       1 | 2.4285714285714286 | 1.00000000000000000000
+       0 | 2.2222222222222222 | 0.00000000000000000000
+(6 rows)
+
+SELECT
 	user_id,
 	1 + sum(value_1),
 	1 + AVG(value_2) OVER (partition by user_id)

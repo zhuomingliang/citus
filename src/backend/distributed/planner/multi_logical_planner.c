@@ -205,7 +205,6 @@ FindNodeCheck(Node *node, bool (*check)(Node *))
  *   - Only a single RTE_RELATION exists, which means only a single table
  *     name is specified on the whole query
  *   - No sublinks exists in the subquery
- *   - No window functions in the subquery
  *
  * Note that the caller should still call DeferErrorIfUnsupportedSubqueryRepartition()
  * to ensure that Citus supports the subquery. Also, this function is designed to run
@@ -219,12 +218,6 @@ SingleRelationRepartitionSubquery(Query *queryTree)
 
 	/* we don't support subqueries in WHERE */
 	if (queryTree->hasSubLinks)
-	{
-		return false;
-	}
-
-	/* we don't support window functions */
-	if (queryTree->hasWindowFuncs)
 	{
 		return false;
 	}

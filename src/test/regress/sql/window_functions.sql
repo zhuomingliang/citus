@@ -410,6 +410,17 @@ ORDER BY
 $Q$);
 
 SELECT
+	value_2,
+	AVG(avg(value_1)) OVER (PARTITION BY value_2, max(value_2), MIN(value_2)),
+	AVG(avg(value_2)) OVER (PARTITION BY value_2, min(value_2), AVG(value_1))
+FROM
+	users_table
+GROUP BY
+	1
+ORDER BY
+	3 DESC, 2 DESC, 1 DESC;
+
+SELECT
 	user_id,
 	1 + sum(value_1),
 	1 + AVG(value_2) OVER (partition by user_id)
