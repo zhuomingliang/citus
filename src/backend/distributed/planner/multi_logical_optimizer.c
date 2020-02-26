@@ -1432,12 +1432,12 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 
 		bool hasAggregates = contain_agg_clause((Node *) originalExpression);
 		bool hasWindowFunction = contain_window_function((Node *) originalExpression);
-		bool hasPushableWindowFunction = hasWindowFunction &&
-										 !extendedOpNodeProperties->
-										 hasNonPushableWindowFunction;
+		bool hasPushableWindowFunction =
+			hasWindowFunction && !extendedOpNodeProperties->hasNonPushableWindowFunction;
 
-		if ((hasAggregates || hasWindowFunction) && !hasPushableWindowFunction &&
-			!extendedOpNodeProperties->groupedByDisjointPartitionColumn)
+		if ((hasAggregates || hasWindowFunction) &&
+			(hasWindowFunction ? !hasPushableWindowFunction :
+			 !extendedOpNodeProperties->groupedByDisjointPartitionColumn))
 		{
 			Node *newNode = MasterAggregateMutator((Node *) originalExpression,
 												   &walkerContext);
@@ -2348,9 +2348,8 @@ ProcessTargetListForWorkerQuery(List *targetEntryList,
 		List *newExpressionList = NIL;
 		bool hasAggregates = contain_agg_clause((Node *) originalExpression);
 		bool hasWindowFunction = contain_window_function((Node *) originalExpression);
-		bool hasPushableWindowFunction = hasWindowFunction &&
-										 !extendedOpNodeProperties->
-										 hasNonPushableWindowFunction;
+		bool hasPushableWindowFunction =
+			hasWindowFunction && !extendedOpNodeProperties->hasNonPushableWindowFunction;
 
 		/* reset walker context */
 		workerAggContext.expressionList = NIL;
@@ -2361,8 +2360,9 @@ ProcessTargetListForWorkerQuery(List *targetEntryList,
 		 * then the results of those aggregates need to be combined on the coordinator.
 		 * In that case we rewrite the expressions using WorkerAggregateWalker.
 		 */
-		if ((hasAggregates || hasWindowFunction) && !hasPushableWindowFunction &&
-			!extendedOpNodeProperties->groupedByDisjointPartitionColumn)
+		if ((hasAggregates || hasWindowFunction) &&
+			(hasWindowFunction ? !hasPushableWindowFunction :
+			 !extendedOpNodeProperties->groupedByDisjointPartitionColumn))
 		{
 			WorkerAggregateWalker((Node *) originalExpression, &workerAggContext);
 
