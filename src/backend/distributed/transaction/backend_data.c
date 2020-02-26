@@ -624,7 +624,7 @@ IncrementSharedConnectionCounter(const char *hostname, int port)
 
 	pg_atomic_fetch_add_u32(&entry->connectionCount, 1);
 
-	elog(DEBUG1, "connection to %s:%u incremented to %u", key.hostname, key.port,
+	elog(DEBUG2, "connection to %s:%u incremented to %u", key.hostname, key.port,
 		 pg_atomic_read_u32(&entry->connectionCount));
 }
 
@@ -656,7 +656,7 @@ DecrementSharedConnectionCounter(const char *hostname, int port)
 
 	pg_atomic_fetch_sub_u32(&entry->connectionCount, 1);
 
-	elog(DEBUG1, "connection to %s:%d decremented to %u", key.hostname, key.port,
+	elog(DEBUG2, "connection to %s:%d decremented to %u", key.hostname, key.port,
 		 pg_atomic_read_u32(&entry->connectionCount));
 }
 
