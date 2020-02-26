@@ -571,10 +571,10 @@ static void RunLocalExecution(CitusScanState *scanState, DistributedExecution *e
 static void RunDistributedExecution(DistributedExecution *execution);
 static bool ShouldRunTasksSequentially(List *taskList);
 static void AdaptPoolSize_Local(DistributedExecution *execution);
-static void AdaptPoolSize_Remote(DistributedExecution *execution);
+//static void AdaptPoolSize_Remote(DistributedExecution *execution);
 static void ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
 							 int avaliableConnectionSlotsOnTheWorker,
-							 int maxConnectionOnTheWorker);
+							 int incomingConnectionCount);
 static ConnectionStatsOnWorker GetConnectionStatsFromWorker(WorkerNode *worker);
 static WorkerNode * GetRoundRobinWorkerNode(void);
 static bool ThrottlingRequired(DistributedExecution *execution);
@@ -2025,7 +2025,7 @@ RunDistributedExecution(DistributedExecution *execution)
 
 	AssignTasksToConnectionsOrWorkerPool(execution);
 
-	AdaptPoolSize_Remote(execution);
+	//AdaptPoolSize_Remote(execution);
 
 	PG_TRY();
 	{
@@ -2152,9 +2152,9 @@ AdaptPoolSize_Local(DistributedExecution *execution)
 		GetConnectionCounter(workerNode->workerName, workerNode->workerPort);
 
 	int avaliableConnectionSlotsOnTheWorker = maxConnections - connectionCountToNode;
+	int incomingConnectionCount = GetActiveIncomingConnectionCount();
 
-	ThrottlePoolSize(execution, workerPool, avaliableConnectionSlotsOnTheWorker,
-					 maxConnections);
+	ThrottlePoolSize(execution, workerPool, avaliableConnectionSlotsOnTheWorker, incomingConnectionCount);
 }
 
 
@@ -2236,35 +2236,51 @@ GetConnectionStatsFromWorker(WorkerNode *workerNode)
 }
 
 
-static void
-AdaptPoolSize_Remote(DistributedExecution *execution)
-{
-	if (!ThrottlingRequired(execution))
-	{
-		/* we don't need to throttle as have enough cached connections per node */
-		return;
-	}
-
-	WorkerNode *workerNode = GetRoundRobinWorkerNode();
-	ConnectionStatsOnWorker connStats = GetConnectionStatsFromWorker(workerNode);
-	WorkerPool *workerPool =
-		FindOrCreateWorkerPool(execution, workerNode->workerName, workerNode->workerPort);
-
-	int maxConnectionOnTheWorker = connStats.maxConnectionOnTheWorker;
-	int currentActiveConnections = connStats.currentActiveConnections;
-	int avaliableConnectionSlotsOnTheWorker = maxConnectionOnTheWorker -
-											  currentActiveConnections;
-
-	ThrottlePoolSize(execution, workerPool, avaliableConnectionSlotsOnTheWorker,
-					 maxConnectionOnTheWorker);
-}
+//static void
+//AdaptPoolSize_Remote(DistributedExecution *execution)
+//{
+//	if (!ThrottlingRequired(execution))
+//	{
+//		/* we don't need to throttle as have enough cached connections per node */
+//		return;
+//	}
+//
+//	WorkerNode *workerNode = GetRoundRobinWorkerNode();
+//	ConnectionStatsOnWorker connStats = GetConnectionStatsFromWorker(workerNode);
+//	WorkerPool *workerPool =
+//		FindOrCreateWorkerPool(execution, workerNode->workerName, workerNode->workerPort);
+//
+//	int maxConnectionOnTheWorker = connStats.maxConnectionOnTheWorker;
+//	int currentActiveConnections = connStats.currentActiveConnections;
+//	int avaliableConnectionSlotsOnTheWorker = maxConnectionOnTheWorker -
+//											  currentActiveConnections;
+//
+//	ThrottlePoolSize(execution, workerPool, avaliableConnectionSlotsOnTheWorker,
+//					 maxConnectionOnTheWorker);
+//}
 
 
 static void
 ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
 				 int avaliableConnectionSlotsOnTheWorker,
-				 int maxConnectionOnTheWorker)
+				 int incomingConnectionCount)
 {
+
+	int alreadyOpenConnectionsToNode = list_length(workerPool->sessionList);
+	int balancedConnectionCount = ceilf(1.0 * MaxConnections / incomingConnectionCount);
+
+	Assert (balancedConnectionCount >= 1);
+
+	if (alreadyOpenConnectionsToNode >= balancedConnectionCount)
+	{
+		/* we don't want any more connections, otherwise, it'd definetly error out */
+		execution->targetPoolSize = alreadyOpenConnectionsToNode;
+
+		return;
+	}
+
+
+
 	int unfinishedTaskCount = execution->unfinishedTaskCount;
 	int workerNodeCount = GetWorkerNodeCount();
 	int unfinishedTaskPerWorker = ceilf(unfinishedTaskCount / workerNodeCount);
