@@ -2133,12 +2133,12 @@ AdaptPoolSize_Local(DistributedExecution *execution)
 	 */
 
 	/*int maxAllowedConnections = GetMaxAllowedConnectionsToAnyWorker(); */
-	const char *maxConnectionsStrValue = GetConfigOption("max_connections", true, true);
-	int maxConnections = atoi(maxConnectionsStrValue);
+	int maxConnections = MaxConnections;
 
 	WorkerNode *workerNode = GetRoundRobinWorkerNode();
 	WorkerPool *workerPool =
 		FindOrCreateWorkerPool(execution, workerNode->workerName, workerNode->workerPort);
+
 
 	/*
 	 * TODO: We currently pick a random worker and do the calculation for a single worker,
@@ -2150,6 +2150,16 @@ AdaptPoolSize_Local(DistributedExecution *execution)
 	 */
 	uint32 connectionCountToNode =
 		GetConnectionCounter(workerNode->workerName, workerNode->workerPort);
+
+	while(connectionCountToNode >= maxConnections)
+	{
+		elog(DEBUG1, "Sleeping because connectionCountToNode >= maxConnections: %d>=%d",
+			connectionCountToNode, maxConnections);
+		pg_usleep(10000L);
+
+		connectionCountToNode = GetConnectionCounter(workerNode->workerName, workerNode->workerPort);
+	}
+
 
 	int avaliableConnectionSlotsOnTheWorker = maxConnections - connectionCountToNode;
 	int incomingConnectionCount = GetActiveIncomingConnectionCount();
@@ -2276,8 +2286,13 @@ ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
 		/* we don't want any more connections, otherwise, it'd definetly error out */
 		execution->targetPoolSize = alreadyOpenConnectionsToNode;
 
+		elog(DEBUG1,
+					 "Throttled on 1: alreadyOpenConnectionsToNode:%d - balancedConnectionCount:%d",
+					 alreadyOpenConnectionsToNode, balancedConnectionCount);
+
 		return;
 	}
+
 
 
 
