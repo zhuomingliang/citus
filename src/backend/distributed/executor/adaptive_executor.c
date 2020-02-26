@@ -2310,34 +2310,35 @@ ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
 		return;
 	}
 
+	return;
 
-
-	int unfinishedTaskCount = execution->unfinishedTaskCount;
-	int workerNodeCount = GetWorkerNodeCount();
-	int unfinishedTaskPerWorker = ceilf(unfinishedTaskCount / workerNodeCount);
-
-	if (avaliableConnectionSlotsOnTheWorker < unfinishedTaskPerWorker)
-	{
-		elog(DEBUG1,
-			 "Throttled on 1: avaliableConnectionSlotsOnTheWorker:%d - unfinishedTaskPerWorker:%d",
-			 avaliableConnectionSlotsOnTheWorker, unfinishedTaskPerWorker);
-
-		/* we don't want any more connections, otherwise, it'd definetly error out */
-		execution->targetPoolSize =
-			list_length(workerPool->sessionList) == 0 ? MaxCachedConnectionsPerWorker :
-			list_length(workerPool->sessionList);
-	}
-	else if (avaliableConnectionSlotsOnTheWorker < maxConnectionOnTheWorker * 0.4)
-	{
-		elog(DEBUG1,
-			 "Throttled on 3: avaliableConnectionSlotsOnTheWorker:%d - maxConnections:%d",
-			 avaliableConnectionSlotsOnTheWorker, maxConnectionOnTheWorker);
-
-		/* we don't want any more connections, otherwise, it'd error */
-		execution->targetPoolSize =
-			list_length(workerPool->sessionList) == 0 ? MaxCachedConnectionsPerWorker :
-			list_length(workerPool->sessionList);
-	}
+//
+//	int unfinishedTaskCount = execution->unfinishedTaskCount;
+//	int workerNodeCount = GetWorkerNodeCount();
+//	int unfinishedTaskPerWorker = ceilf(unfinishedTaskCount / workerNodeCount);
+//
+//	if (avaliableConnectionSlotsOnTheWorker < unfinishedTaskPerWorker)
+//	{
+//		elog(DEBUG1,
+//			 "Throttled on 1: avaliableConnectionSlotsOnTheWorker:%d - unfinishedTaskPerWorker:%d",
+//			 avaliableConnectionSlotsOnTheWorker, unfinishedTaskPerWorker);
+//
+//		/* we don't want any more connections, otherwise, it'd definetly error out */
+//		execution->targetPoolSize =
+//			list_length(workerPool->sessionList) == 0 ? MaxCachedConnectionsPerWorker :
+//			list_length(workerPool->sessionList);
+//	}
+//	else if (avaliableConnectionSlotsOnTheWorker < maxConnectionOnTheWorker * 0.4)
+//	{
+//		elog(DEBUG1,
+//			 "Throttled on 3: avaliableConnectionSlotsOnTheWorker:%d - maxConnections:%d",
+//			 avaliableConnectionSlotsOnTheWorker, maxConnectionOnTheWorker);
+//
+//		/* we don't want any more connections, otherwise, it'd error */
+//		execution->targetPoolSize =
+//			list_length(workerPool->sessionList) == 0 ? MaxCachedConnectionsPerWorker :
+//			list_length(workerPool->sessionList);
+//	}
 }
 
 
