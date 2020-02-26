@@ -570,7 +570,7 @@ static void StartDistributedExecution(DistributedExecution *execution);
 static void RunLocalExecution(CitusScanState *scanState, DistributedExecution *execution);
 static void RunDistributedExecution(DistributedExecution *execution);
 static bool ShouldRunTasksSequentially(List *taskList);
-static void AdaptPoolSize_Local(DistributedExecution *execution);
+static void AdaptPoolSize_Local(DistributedExecution *execution, WorkerPool *workerPool);
 //static void AdaptPoolSize_Remote(DistributedExecution *execution);
 static void ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
 							 int avaliableConnectionSlotsOnTheWorker,
@@ -1493,6 +1493,8 @@ FinishDistributedExecution(DistributedExecution *execution)
 		/* prevent copying shards in same transaction */
 		XactModificationLevel = XACT_MODIFICATION_DATA;
 	}
+
+	//elog(INFO, "FinishDistributedExecution");
 }
 
 
@@ -2027,6 +2029,24 @@ RunDistributedExecution(DistributedExecution *execution)
 
 	//AdaptPoolSize_Remote(execution);
 
+//	int incomingConnectionCount = CountDBConnections(MyDatabaseId); /* todo: this is very expensive */
+//	int balancedConnectionCount = ceilf(1.0 * MaxConnections / incomingConnectionCount);
+//
+//	WorkerPool *workerPool2 = NULL;
+//	foreach_ptr(workerPool2, execution->workerList)
+//	{
+//		int connectionCountToNode = GetConnectionCounter(workerPool2->nodeName, workerPool2->nodePort);
+//
+//		while (connectionCountToNode > 20 &&
+//			  connectionCountToNode * balancedConnectionCount > MaxConnections)
+//		{
+//			elog(DEBUG1, "Sleeping because connectionCountToNode(%d) * balancedConnectionCount(%d) >= MaxConnections(%d)",
+//					connectionCountToNode ,balancedConnectionCount, MaxConnections);
+//			pg_usleep(1000000L);
+//			connectionCountToNode = GetConnectionCounter(workerPool2->nodeName, workerPool2->nodePort);
+//		}
+//	}
+
 	PG_TRY();
 	{
 		bool cancellationReceived = false;
@@ -2043,7 +2063,7 @@ RunDistributedExecution(DistributedExecution *execution)
 			WorkerPool *workerPool = NULL;
 			foreach_ptr(workerPool, execution->workerList)
 			{
-				AdaptPoolSize_Local(execution);
+				AdaptPoolSize_Local(execution, workerPool);
 
 				ManageWorkerPool(workerPool);
 			}
@@ -2115,7 +2135,7 @@ RunDistributedExecution(DistributedExecution *execution)
 
 
 static void
-AdaptPoolSize_Local(DistributedExecution *execution)
+AdaptPoolSize_Local(DistributedExecution *execution, WorkerPool *workerPool)
 {
 	if (!ThrottlingRequired(execution))
 	{
@@ -2135,10 +2155,6 @@ AdaptPoolSize_Local(DistributedExecution *execution)
 	/*int maxAllowedConnections = GetMaxAllowedConnectionsToAnyWorker(); */
 	int maxConnections = MaxConnections;
 
-	WorkerNode *workerNode = GetRoundRobinWorkerNode();
-	WorkerPool *workerPool =
-		FindOrCreateWorkerPool(execution, workerNode->workerName, workerNode->workerPort);
-
 
 	/*
 	 * TODO: We currently pick a random worker and do the calculation for a single worker,
@@ -2149,17 +2165,7 @@ AdaptPoolSize_Local(DistributedExecution *execution)
 	 *      AdaptPoolSize(workerPool), instead of AdaptPoolSize(execution)
 	 */
 	uint32 connectionCountToNode =
-		GetConnectionCounter(workerNode->workerName, workerNode->workerPort);
-
-	while(list_length(workerPool->sessionList) == 0 && connectionCountToNode >= maxConnections)
-	{
-		elog(DEBUG1, "Sleeping because connectionCountToNode >= maxConnections: %d>=%d",
-			connectionCountToNode, maxConnections);
-		pg_usleep(1000000L);
-
-		connectionCountToNode = GetConnectionCounter(workerNode->workerName, workerNode->workerPort);
-	}
-
+		GetConnectionCounter(workerPool->nodeName, workerPool->nodePort);
 
 	int avaliableConnectionSlotsOnTheWorker = maxConnections - connectionCountToNode;
 	int incomingConnectionCount = CountDBConnections(MyDatabaseId); /* todo: this is very expensive */
@@ -2277,36 +2283,37 @@ ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
 {
 
 	int alreadyOpenConnectionsToNode = list_length(workerPool->sessionList);
-	int balancedConnectionCount = ceilf(1.0 * MaxConnections / incomingConnectionCount);
+	int balancedConnectionCount = rint(1.0 * (MaxConnections-5) / incomingConnectionCount);
 
 	Assert (balancedConnectionCount >= 1);
 
 	/* let other backends to have some space for opening connections */
-	execution->targetPoolSize = Min(execution->targetPoolSize, balancedConnectionCount);
+	execution->targetPoolSize = Min(MaxAdaptiveExecutorPoolSize, balancedConnectionCount);
 
-	if (alreadyOpenConnectionsToNode >= balancedConnectionCount)
+	if (alreadyOpenConnectionsToNode == 0)
+	{
+		/* each backend gets 1 connection, for sure */
+		return;
+	}
+	else if (avaliableConnectionSlotsOnTheWorker < execution->targetPoolSize - alreadyOpenConnectionsToNode)
 	{
 		/* we don't want any more connections, otherwise, it'd definetly error out */
 		execution->targetPoolSize = alreadyOpenConnectionsToNode;
 
-		elog(DEBUG1,
-					 "Throttled on 1: alreadyOpenConnectionsToNode:%d - balancedConnectionCount:%d",
+		elog(DEBUG2,
+					 "Throttled on 2: alreadyOpenConnectionsToNode:%d - balancedConnectionCount:%d",
 					 alreadyOpenConnectionsToNode, balancedConnectionCount);
 
 		return;
 	}
-
-
-	/* let other backends to have some space for opening connections */
-	if (avaliableConnectionSlotsOnTheWorker < balancedConnectionCount)
+	else if (alreadyOpenConnectionsToNode > balancedConnectionCount)
 	{
 		/* we don't want any more connections, otherwise, it'd definetly error out */
 		execution->targetPoolSize = alreadyOpenConnectionsToNode;
 
-		elog(DEBUG1,
-					 "Throttled on 2: alreadyOpenConnectionsToNode:%d - balancedConnectionCount:%d",
+		elog(DEBUG2,
+					 "Throttled on 1: alreadyOpenConnectionsToNode:%d - balancedConnectionCount:%d",
 					 alreadyOpenConnectionsToNode, balancedConnectionCount);
-
 		return;
 	}
 
