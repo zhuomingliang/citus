@@ -33,7 +33,6 @@
 
 
 static int ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread);
-static List * make_copy_attnamelist(List *attlist);
 static Relation CreateCopiedShard(RangeVar *distributedRel, Relation shard);
 static void FillLocalCopyBuffer(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest,
 								bool isBinary);
@@ -84,8 +83,8 @@ DoLocalCopy(Oid relationId, int64 shardId, CopyStmt *copyStatement)
 	Relation copiedShard = CreateCopiedShard(copyStatement->relation, shard);
 
 	CopyState cstate = BeginCopyFrom(NULL, copiedShard, NULL, false,
-									 ReadFromLocalBufferCallback, make_copy_attnamelist(
-										 copyStatement->attlist), copyStatement->options);									 
+									 ReadFromLocalBufferCallback, 
+										 copyStatement->attlist, copyStatement->options);									 
 	CopyFrom(cstate);
 	EndCopyFrom(cstate);
 	resetStringInfo(localCopyBuffer);
@@ -157,25 +156,6 @@ CreateCopiedShard(RangeVar *distributedRel, Relation shard)
 	}
 	return copiedDistributedRelation;
 }
-
-
-/*
- * Create list of columns for COPY.
- */
-static List *
-make_copy_attnamelist(List *attlist)
-{
-	List *attnamelist = NIL;
-	ListCell *attCell = NULL;
-
-	foreach(attCell, attlist)
-	{
-		char *attname = (char *) lfirst(attCell);
-		attnamelist = lappend(attnamelist, makeString(attname));
-	}
-	return attnamelist;
-}
-
 
 static int
 ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread)

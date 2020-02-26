@@ -240,7 +240,7 @@ static CopyConnectionState * GetConnectionState(HTAB *connectionStateHash,
 												MultiConnection *connection);
 static CopyShardState * GetShardState(uint64 shardId, HTAB *shardStateHash,
 									  HTAB *connectionStateHash, bool stopOnFailure,
-									  bool *found, bool canUseLocalCopy);
+									  bool *found, bool shouldUseLocalCopy);
 static MultiConnection * CopyGetPlacementConnection(ShardPlacement *placement,
 													bool stopOnFailure);
 static List * ConnectionStateList(HTAB *connectionStateHash);
@@ -284,6 +284,7 @@ static void CitusCopyDestReceiverShutdown(DestReceiver *destReceiver);
 static void CitusCopyDestReceiverDestroy(DestReceiver *destReceiver);
 static bool ContainsLocalPlacement(int64 shardId);
 static void FinishLocalCopy(CitusCopyDestReceiver *copyDest);
+static bool ShouldExecuteCopyLocally(void);
 
 
 /* exports for SQL callable functions */
@@ -1973,7 +1974,7 @@ CreateCitusCopyDestReceiver(Oid tableId, List *columnNameList, int partitionColu
 	CitusCopyDestReceiver *copyDest = (CitusCopyDestReceiver *) palloc0(
 		sizeof(CitusCopyDestReceiver));
 
-	copyDest->canUseLocalCopy = canUseLocalCopy;
+	copyDest->shouldUseLocalCopy = canUseLocalCopy && ShouldExecuteCopyLocally();
 
 	/* set up the DestReceiver function pointers */
 	copyDest->pub.receiveSlot = CitusCopyDestReceiverReceive;
@@ -1992,6 +1993,36 @@ CreateCitusCopyDestReceiver(Oid tableId, List *columnNameList, int partitionColu
 	copyDest->memoryContext = CurrentMemoryContext;
 
 	return copyDest;
+}
+
+static bool ShouldExecuteCopyLocally() {
+
+	if (!EnableLocalExecution) {
+		return false;
+	}
+
+	if (TransactionAccessedLocalPlacement) {
+				/*
+		 * For various reasons, including the transaction visibility
+		 * rules (e.g., read-your-own-writes), we have to use local
+		 * execution again if it has already happened within this
+		 * transaction block.
+		 *
+		 * We might error out later in the execution if it is not suitable
+		 * to execute the tasks locally.
+		 */
+		Assert(IsMultiStatementTransaction() || InCoordinatedTransaction());
+
+		/*
+		 * TODO: A future improvement could be to keep track of which placements
+		 * have been locally executed. At this point, only use local execution for
+		 * those placements. That'd help to benefit more from parallelism.
+		 */
+
+		return true;
+	}
+
+	return true;
 }
 
 
@@ -2022,9 +2053,6 @@ CitusCopyDestReceiverStartup(DestReceiver *dest, int operation,
 
 	const char *delimiterCharacter = "\t";
 	const char *nullPrintCharacter = "\\N";
-
-	/* Citus currently doesn't know how to handle COPY command locally */
-	ErrorIfTransactionAccessedPlacementsLocally();
 
 	/* look up table properties */
 	Relation distributedRelation = heap_open(tableId, RowExclusiveLock);
@@ -2240,7 +2268,7 @@ CitusSendTupleToPlacements(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest
 											   copyDest->connectionStateHash,
 											   stopOnFailure,
 											   &cachedShardStateFound,
-											   copyDest->canUseLocalCopy);
+											   copyDest->shouldUseLocalCopy);
 	if (!cachedShardStateFound)
 	{
 		firstTupleInShard = true;
@@ -2261,7 +2289,7 @@ CitusSendTupleToPlacements(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest
 		}
 	}
 
-	if (copyDest->canUseLocalCopy && ContainsLocalPlacement(shardId))
+	if (copyDest->shouldUseLocalCopy && ContainsLocalPlacement(shardId))
 	{
 		bool shouldSendNow = false;
 		ProcessLocalCopy(slot, copyDest, shardId, shardState->localCopyBuffer,
@@ -3146,14 +3174,14 @@ ConnectionStateList(HTAB *connectionStateHash)
  */
 static CopyShardState *
 GetShardState(uint64 shardId, HTAB *shardStateHash,
-			  HTAB *connectionStateHash, bool stopOnFailure, bool *found, bool canUseLocalCopy)
+			  HTAB *connectionStateHash, bool stopOnFailure, bool *found, bool shouldUseLocalCopy)
 {
 	CopyShardState *shardState = (CopyShardState *) hash_search(shardStateHash, &shardId,
 																HASH_ENTER, found);
 	if (!*found)
 	{
 		InitializeCopyShardState(shardState, connectionStateHash,
-								 shardId, stopOnFailure, canUseLocalCopy);
+								 shardId, stopOnFailure, shouldUseLocalCopy);
 	}
 
 	return shardState;
@@ -3168,7 +3196,7 @@ GetShardState(uint64 shardId, HTAB *shardStateHash,
 static void
 InitializeCopyShardState(CopyShardState *shardState,
 						 HTAB *connectionStateHash, uint64 shardId,
-						 bool stopOnFailure, bool canUseLocalCopy)
+						 bool stopOnFailure, bool shouldUseLocalCopy)
 {
 	ListCell *placementCell = NULL;
 	int failedPlacementCount = 0;
@@ -3195,7 +3223,7 @@ InitializeCopyShardState(CopyShardState *shardState,
 	{
 		ShardPlacement *placement = (ShardPlacement *) lfirst(placementCell);
 
-		if (canUseLocalCopy && placement->groupId == GetLocalGroupId())
+		if (shouldUseLocalCopy && placement->groupId == GetLocalGroupId())
 		{
 			continue;
 		}

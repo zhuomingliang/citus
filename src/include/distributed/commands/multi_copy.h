@@ -132,7 +132,7 @@ typedef struct CitusCopyDestReceiver
 	/* useful for tracking multi shard accesses */
 	bool multiShardCopy;
 
-	bool canUseLocalCopy;
+	bool shouldUseLocalCopy;
 
 	/* copy into intermediate result */
 	char *intermediateResultIdPrefix;
