@@ -3,6 +3,17 @@
  * local_multi_copy.c
  *    Commands for running a copy locally
  *
+ * For each local placement, we have a buffer. When we receive a slot
+ * from a copy, the slot will be put to the corresponding buffer based
+ * on the shard id. When the buffer size exceeds the threshold a local
+ * copy will be done. Also If we reach to the end of copy, we will send
+ * the current buffer for local copy.
+ *
+ * The existing logic from multi_copy.c and format are used, therefore
+ * even if user did not do a copy with binary format, it is possible that
+ * we are going to be using binary format internally.
+ *
+ *
  * Copyright (c) Citus Data, Inc.
  *
  *-------------------------------------------------------------------------
@@ -16,7 +27,7 @@
 #include "nodes/makefuncs.h"
 #include <netinet/in.h> /* for htons */
 
-
+#include "distributed/transmit.h"
 #include "distributed/commands/multi_copy.h"
 #include "distributed/multi_partitioning_utils.h"
 #include "distributed/local_multi_copy.h"
@@ -26,22 +37,23 @@
  * Data size threshold to switch over the active placement for a connection.
  * If this is too low, overhead of starting COPY commands will hurt the
  * performance. If this is too high, buffered data will use lots of memory.
- * 8MB is a good balance between memory usage and performance. Note that this
+ * 512KB is a good balance between memory usage and performance. Note that this
  * is irrelevant in the common case where we open one connection per placement.
  */
-#define LOCAL_COPY_SWITCH_OVER_THRESHOLD (8 * 1024 * 1024)
+#define LOCAL_COPY_SWITCH_OVER_THRESHOLD (1 * 512 * 1024)
 
 
 static int ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread);
 static Relation CreateCopiedShard(RangeVar *distributedRel, Relation shard);
 static void AddSlotToBuffer(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest,
-								bool isBinary);
+							bool isBinary);
 
 static bool ShouldSendCopyNow(StringInfo buffer);
-static void DoLocalCopy(StringInfo buffer, Oid relationId, int64 shardId, CopyStmt *copyStatement);
+static void DoLocalCopy(StringInfo buffer, Oid relationId, int64 shardId,
+						CopyStmt *copyStatement);
 static bool ShouldAddBinaryHeaders(StringInfo buffer, bool isBinary);
 
-/* 
+/*
  * localCopyBuffer is used in copy callback to return the copied rows.
  * The reason this is a global variable is that we cannot pass an additional
  * argument to the copy callback.
@@ -73,11 +85,15 @@ ProcessLocalCopy(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, int64 sh
 		{
 			AppendCopyBinaryFooters(copyDest->copyOutState);
 		}
-		DoLocalCopy(buffer, copyDest->distributedRelationId, shardId, copyDest->copyStatement);
-	}
+		MemoryContext oldContext = MemoryContextSwitchTo(copyDest->memoryContext);
 
+		DoLocalCopy(buffer, copyDest->distributedRelationId, shardId,
+					copyDest->copyStatement);
+		MemoryContextSwitchTo(oldContext);
+	}
 	copyDest->copyOutState->fe_msgbuf = previousBuffer;
 }
+
 
 /*
  * AddSlotToBuffer serializes the given slot and adds it to the buffer in copyDest.
@@ -106,7 +122,7 @@ AddSlotToBuffer(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, bool isBi
 
 
 /*
- * ShouldSendCopyNow returns true if the given buffer size exceeds the 
+ * ShouldSendCopyNow returns true if the given buffer size exceeds the
  * local copy buffer size threshold.
  */
 static bool
@@ -114,6 +130,7 @@ ShouldSendCopyNow(StringInfo buffer)
 {
 	return buffer->len > LOCAL_COPY_SWITCH_OVER_THRESHOLD;
 }
+
 
 /*
  * DoLocalCopy finds the shard table from the distributed relation id, and copies the given
@@ -133,9 +150,12 @@ DoLocalCopy(StringInfo buffer, Oid relationId, int64 shardId, CopyStmt *copyStat
 									 copyStatement->attlist, copyStatement->options);
 	CopyFrom(cstate);
 	EndCopyFrom(cstate);
-	resetStringInfo(localCopyBuffer);
+
+	FreeStringInfo(buffer);
+	buffer = makeStringInfo();
 	heap_close(shard, NoLock);
 }
+
 
 /*
  * ShouldAddBinaryHeaders returns true if the given buffer
@@ -151,8 +171,9 @@ ShouldAddBinaryHeaders(StringInfo buffer, bool isBinary)
 	return buffer->len == 0;
 }
 
+
 /*
- * CreateCopiedShard clones deep copies the necessary fields of the given 
+ * CreateCopiedShard clones deep copies the necessary fields of the given
  * relation.
  */
 Relation
@@ -186,6 +207,7 @@ CreateCopiedShard(RangeVar *distributedRel, Relation shard)
 	}
 	return copiedDistributedRelation;
 }
+
 
 /*
  * ReadFromLocalBufferCallback is the copy callback.

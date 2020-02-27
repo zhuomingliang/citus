@@ -239,14 +239,15 @@ static CopyConnectionState * GetConnectionState(HTAB *connectionStateHash,
 												MultiConnection *connection);
 static CopyShardState * GetShardState(uint64 shardId, HTAB *shardStateHash,
 									  HTAB *connectionStateHash, bool stopOnFailure,
-									  bool *found, bool shouldUseLocalCopy);
+									  bool *found, bool shouldUseLocalCopy, MemoryContext
+									  context);
 static MultiConnection * CopyGetPlacementConnection(ShardPlacement *placement,
 													bool stopOnFailure);
 static List * ConnectionStateList(HTAB *connectionStateHash);
 static void InitializeCopyShardState(CopyShardState *shardState,
 									 HTAB *connectionStateHash,
 									 uint64 shardId, bool stopOnFailure, bool
-									 canUseLocalCopy);
+									 canUseLocalCopy, MemoryContext context);
 static void StartPlacementStateCopyCommand(CopyPlacementState *placementState,
 										   CopyStmt *copyStatement,
 										   CopyOutState copyOutState);
@@ -1992,7 +1993,7 @@ CreateCitusCopyDestReceiver(Oid tableId, List *columnNameList, int partitionColu
 	copyDest->executorState = executorState;
 	copyDest->stopOnFailure = stopOnFailure;
 	copyDest->intermediateResultIdPrefix = intermediateResultIdPrefix;
-	copyDest->memoryContext = CurrentMemoryContext;
+	copyDest->memoryContext = TopMemoryContext;
 
 	return copyDest;
 }
@@ -2132,7 +2133,13 @@ CitusCopyDestReceiverStartup(DestReceiver *dest, int operation,
 	copyOutState->null_print_client = (char *) nullPrintCharacter;
 	copyOutState->binary = CanUseBinaryCopyFormat(inputTupleDescriptor);
 	copyOutState->fe_msgbuf = makeStringInfo();
-	copyOutState->rowcontext = GetPerTupleMemoryContext(copyDest->executorState);
+	MemoryContext rowcontext = GetPerTupleMemoryContext(copyDest->executorState);
+	rowcontext = AllocSetContextCreateExtended(rowcontext,
+											   "InitializeCopyShardState",
+											   ALLOCSET_DEFAULT_MINSIZE,
+											   ALLOCSET_DEFAULT_INITSIZE,
+											   50 * ALLOCSET_DEFAULT_MAXSIZE);
+	copyOutState->rowcontext = rowcontext;
 	copyDest->copyOutState = copyOutState;
 	copyDest->multiShardCopy = false;
 
@@ -2278,7 +2285,8 @@ CitusSendTupleToPlacements(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest
 											   copyDest->connectionStateHash,
 											   stopOnFailure,
 											   &cachedShardStateFound,
-											   copyDest->shouldUseLocalCopy);
+											   copyDest->shouldUseLocalCopy,
+											   copyDest->memoryContext);
 	if (!cachedShardStateFound)
 	{
 		firstTupleInShard = true;
@@ -3185,14 +3193,14 @@ ConnectionStateList(HTAB *connectionStateHash)
 static CopyShardState *
 GetShardState(uint64 shardId, HTAB *shardStateHash,
 			  HTAB *connectionStateHash, bool stopOnFailure, bool *found, bool
-			  shouldUseLocalCopy)
+			  shouldUseLocalCopy, MemoryContext context)
 {
 	CopyShardState *shardState = (CopyShardState *) hash_search(shardStateHash, &shardId,
 																HASH_ENTER, found);
 	if (!*found)
 	{
 		InitializeCopyShardState(shardState, connectionStateHash,
-								 shardId, stopOnFailure, shouldUseLocalCopy);
+								 shardId, stopOnFailure, shouldUseLocalCopy, context);
 	}
 
 	return shardState;
@@ -3207,20 +3215,26 @@ GetShardState(uint64 shardId, HTAB *shardStateHash,
 static void
 InitializeCopyShardState(CopyShardState *shardState,
 						 HTAB *connectionStateHash, uint64 shardId,
-						 bool stopOnFailure, bool shouldUseLocalCopy)
+						 bool stopOnFailure, bool shouldUseLocalCopy, MemoryContext
+						 context)
 {
 	ListCell *placementCell = NULL;
 	int failedPlacementCount = 0;
-	shardState->localCopyBuffer = makeStringInfo();
+
+	MemoryContext oldContext = MemoryContextSwitchTo(context);
+
+	MemoryContextSwitchTo(oldContext);
+
 	MemoryContext localContext =
 		AllocSetContextCreateExtended(CurrentMemoryContext,
 									  "InitializeCopyShardState",
 									  ALLOCSET_DEFAULT_MINSIZE,
 									  ALLOCSET_DEFAULT_INITSIZE,
-									  ALLOCSET_DEFAULT_MAXSIZE);
+									  20 * ALLOCSET_DEFAULT_MAXSIZE);
+
 
 	/* release active placement list at the end of this function */
-	MemoryContext oldContext = MemoryContextSwitchTo(localContext);
+	oldContext = MemoryContextSwitchTo(localContext);
 
 	List *activePlacementList = ActiveShardPlacementList(shardId);
 
@@ -3228,6 +3242,7 @@ InitializeCopyShardState(CopyShardState *shardState,
 
 	shardState->shardId = shardId;
 	shardState->placementStateList = NIL;
+	shardState->localCopyBuffer = makeStringInfo();
 
 
 	foreach(placementCell, activePlacementList)
