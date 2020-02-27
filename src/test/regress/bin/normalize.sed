@@ -98,5 +98,7 @@ s/dbname=regression/dbname=<db>/g
 s/dbname=citus/dbname=<db>/g
 s/576[0-9][0-9]/xxxxx/g
 s/localhost/<host>/g
+s/:'worker_2_host'/'<host>'/g
+s/:'worker_1_host'/'<host>'/g
 s/10.0.0.[0-9]+/<host>/g
 s/postgres/<user>/g
