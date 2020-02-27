@@ -90,7 +90,7 @@ LocalTransactionId GetMyProcLocalTransactionId(void);
 
 void DecrementSharedConnectionCounter(const char *hostname, int port);
 void IncrementSharedConnectionCounter(const char *hostname, int port);
-uint32 GetConnectionCounter(const char *hostname, int port);
+uint32 GetSharedConnectionCounter(const char *hostname, int port);
 uint32 GetLocalConnectionCounter(const char *hostname, int port);
 void IncrementReservedConnectionBudget(const char *hostname, int port, int reserved);
 uint32 GetReservedConnectionCounter(const char *hostname, int port);

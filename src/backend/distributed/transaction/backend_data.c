@@ -736,7 +736,7 @@ DecrementReservedConnectionBudget(const char *hostname, int port, int reserved)
 
 
 uint32
-GetConnectionCounter(const char *hostname, int port)
+GetSharedConnectionCounter(const char *hostname, int port)
 {
 	ConnStatsHashKey key;
 	bool found;

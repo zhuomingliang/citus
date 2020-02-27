@@ -381,7 +381,7 @@ typedef struct WorkerPool
 	 */
 	bool failed;
 
-	int reservedPreviously;
+	int reservedBudget;
 } WorkerPool;
 
 struct TaskPlacementExecution;
@@ -572,7 +572,7 @@ static void StartDistributedExecution(DistributedExecution *execution);
 static void RunLocalExecution(CitusScanState *scanState, DistributedExecution *execution);
 static void RunDistributedExecution(DistributedExecution *execution);
 static bool ShouldRunTasksSequentially(List *taskList);
-static void AdaptPoolSize_Local(DistributedExecution *execution, WorkerPool *workerPool);
+static void AdaptPoolSize(DistributedExecution *execution, WorkerPool *workerPool);
 static void ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
 							 int avaliableConnectionSlotsOnTheWorker,
 							 int incomingConnectionCount);
@@ -1497,7 +1497,7 @@ FinishDistributedExecution(DistributedExecution *execution)
 	foreach_ptr(workerPool, execution->workerList)
 	{
 		DecrementReservedConnectionBudget(workerPool->nodeName, workerPool->nodePort,
-										  workerPool->reservedPreviously);
+										  workerPool->reservedBudget);
 	}
 }
 
@@ -2047,7 +2047,8 @@ RunDistributedExecution(DistributedExecution *execution)
 			WorkerPool *workerPool = NULL;
 			foreach_ptr(workerPool, execution->workerList)
 			{
-				AdaptPoolSize_Local(execution, workerPool);
+
+				AdaptPoolSize(execution, workerPool);
 
 				ManageWorkerPool(workerPool);
 			}
@@ -2127,7 +2128,7 @@ RunDistributedExecution(DistributedExecution *execution)
 
 
 static void
-AdaptPoolSize_Local(DistributedExecution *execution, WorkerPool *workerPool)
+AdaptPoolSize(DistributedExecution *execution, WorkerPool *workerPool)
 {
 	if (!ThrottlingRequired(execution))
 	{
@@ -2135,42 +2136,19 @@ AdaptPoolSize_Local(DistributedExecution *execution, WorkerPool *workerPool)
 		/*return; */
 	}
 
-	/*
-	 * We currently prefer to rely on max_connections on the coordinator, but we should
-	 * probably call get_connection_stats() on every query (or maybe in the background)
-	 * to get maxConnections and/or GetConnectionCounter().
-	 *
-	 * Note that get_connection_stats() goes over Postgres' backend array, so not a cheap
-	 * call. That's useful to get
-	 */
 
-	/*int maxAllowedConnections = GetMaxAllowedConnectionsToAnyWorker(); */
+	/* leave some space for other things */
 	int maxConnections = MaxConnections - 3;
 
+	uint32 ShardConnectionCountToNode =
+		GetSharedConnectionCounter(workerPool->nodeName, workerPool->nodePort);
 
-	/*
-	 * TODO: We currently pick a random worker and do the calculation for a single worker,
-	 * and apply the same throttling to all nodes.
-	 *
-	 * To make it more generic, we should decide on each node separately. So, it probably makes
-	 * more sense to have
-	 *      AdaptPoolSize(workerPool), instead of AdaptPoolSize(execution)
-	 */
-	uint32 connectionCountToNode =
-		GetConnectionCounter(workerPool->nodeName, workerPool->nodePort);
 	uint32 reservedConnectionCount =
 		GetReservedConnectionCounter(workerPool->nodeName, workerPool->nodePort);
 
-	int avaliableConnectionSlotsOnTheWorker = maxConnections - connectionCountToNode -
+	int avaliableConnectionSlotsOnTheWorker = maxConnections - ShardConnectionCountToNode -
 											  reservedConnectionCount;
 	int incomingConnectionCount = CountDBConnections(MyDatabaseId); /* todo: this is very expensive */
-
-	if (avaliableConnectionSlotsOnTheWorker < 0)
-	{
-		elog(DEBUG2,
-			 "maxConnections:%d connectionCountToNode: %d avaliableConnectionSlotsOnTheWorker:%d",
-			 maxConnections, connectionCountToNode, avaliableConnectionSlotsOnTheWorker);
-	}
 
 	ThrottlePoolSize(execution, workerPool, avaliableConnectionSlotsOnTheWorker,
 					 incomingConnectionCount);
@@ -2182,114 +2160,117 @@ ThrottlePoolSize(DistributedExecution *execution, WorkerPool *workerPool,
 				 int avaliableConnectionSlotsOnTheWorker,
 				 int incomingConnectionCount)
 {
-	int alreadyOpenConnectionsToNode = list_length(workerPool->sessionList);
-	int localConnectionCountToNode = GetLocalConnectionCounter(workerPool->nodeName,
+	int existingSessionCount = list_length(workerPool->sessionList);
+	int localShardConnectionCountToNode = GetLocalConnectionCounter(workerPool->nodeName,
 															   workerPool->nodePort);
 
-	uint32 connectionCountToNode =
-		GetConnectionCounter(workerPool->nodeName, workerPool->nodePort);
+	uint32 ShardConnectionCountToNode =
+			GetSharedConnectionCounter(workerPool->nodeName, workerPool->nodePort);
 
+	int allowedBudget = ceilf(1.0 * (MaxConnections - 3) / incomingConnectionCount);
 
-	int balancedConnectionCount = ceilf(1.0 * (MaxConnections - 3) /
-										incomingConnectionCount);
+	Assert(allowedBudget >= 1);
 
-	Assert(balancedConnectionCount >= 1);
-
+	/* we'll re-calculate the budget for this backend, so reset for now */
 	DecrementReservedConnectionBudget(workerPool->nodeName, workerPool->nodePort,
-									  workerPool->reservedPreviously);
-	workerPool->reservedPreviously = 0;
+									  workerPool->reservedBudget);
+	workerPool->reservedBudget = 0;
 
+	/* get the total reserved connections across all backends */
 	uint32 reservedConnectionCount =
 		GetReservedConnectionCounter(workerPool->nodeName, workerPool->nodePort);
-	elog(DEBUG1, "reservedConnectionCount:%d", reservedConnectionCount);
 
 
-	/* this is a special case, the local session doesn't have any connections, so safe to sleep for a while and retry */
-	if (localConnectionCountToNode == 0 && avaliableConnectionSlotsOnTheWorker <
-		balancedConnectionCount)
+	/*
+	 * This is a special case, the local doesn't have any cached connections,
+	 * and we don't have enough connections on the worker if this backend tries
+	 * to establish the necessary connections. So, trying to establish connections
+	 * would definitely fail.
+	 *
+	 * Instead, sleep for a while and retry until we've enough slots on the worker.
+	 */
+	if (localShardConnectionCountToNode == 0 &&
+		avaliableConnectionSlotsOnTheWorker < allowedBudget)
 	{
 		execution->targetPoolSize = 1;
 		IncrementReservedConnectionBudget(workerPool->nodeName, workerPool->nodePort, 1);
 
-		workerPool->reservedPreviously = 1;
-
+		workerPool->reservedBudget = 1;
 
 		while (avaliableConnectionSlotsOnTheWorker < 1)
 		{
-			elog(DEBUG1, "sleeping and retrying");
-
 			/* sleep 10 msecs */
 			pg_usleep(1000L * (ExecutorSlowStartInterval + random() % 5));
 
-			connectionCountToNode =
-				GetConnectionCounter(workerPool->nodeName, workerPool->nodePort);
+			ShardConnectionCountToNode =
+				GetSharedConnectionCounter(workerPool->nodeName, workerPool->nodePort);
 			reservedConnectionCount =
 				GetReservedConnectionCounter(workerPool->nodeName, workerPool->nodePort);
 
 			avaliableConnectionSlotsOnTheWorker = (MaxConnections - 3) -
-												  connectionCountToNode -
+												  ShardConnectionCountToNode -
 												  reservedConnectionCount;
 		}
 
-		/* we're really busy, only allow 1 connection for now */
 		INSTR_TIME_SET_CURRENT(workerPool->poolStartTime);
 
 		return;
 	}
 
 
-	/* let other backends to have some space for opening connections */
-	execution->targetPoolSize = Min(MaxAdaptiveExecutorPoolSize, balancedConnectionCount);
+	/* the executor should never open more connections than allowed */
+	execution->targetPoolSize = Min(MaxAdaptiveExecutorPoolSize, allowedBudget);
 
-	if (alreadyOpenConnectionsToNode == 0)
+	if (existingSessionCount == 0)
 	{
-		/* each backend gets 1 connection, for sure, later come here again */
+		/*
+		 * Each backend gets 1 connection, for sure, reserve one budget and re-calculate in
+		 * the next iteration.
+		 */
 		int reserveFromBudget = 1;
 
 		IncrementReservedConnectionBudget(workerPool->nodeName, workerPool->nodePort,
 										  reserveFromBudget);
-		workerPool->reservedPreviously = 1;
+		workerPool->reservedBudget = 1;
 
 		return;
 	}
-	else if (avaliableConnectionSlotsOnTheWorker <= execution->targetPoolSize -
-			 alreadyOpenConnectionsToNode)
+	else if (avaliableConnectionSlotsOnTheWorker <=
+			 (execution->targetPoolSize - existingSessionCount))
 	{
-		/* we don't want any more connections, otherwise, it'd definetly error out */
-		execution->targetPoolSize = alreadyOpenConnectionsToNode;
+		/*
+		 * If we open necessary connections, the worker would definitely error out.
+		 * So, punt for now. We'll re-visit our decision in the next iteration anyway.
+		 */
+		execution->targetPoolSize = existingSessionCount;
 
-		workerPool->reservedPreviously = 0;
-
-
-		elog(DEBUG2,
-			 "Throttled on 2: alreadyOpenConnectionsToNode:%d - balancedConnectionCount:%d avaliableConnectionSlotsOnTheWorker:%d connectionCountToNode:%d",
-			 alreadyOpenConnectionsToNode, balancedConnectionCount,
-			 avaliableConnectionSlotsOnTheWorker, connectionCountToNode);
+		workerPool->reservedBudget = 0;
 
 		return;
 	}
-	else if (alreadyOpenConnectionsToNode >= balancedConnectionCount)
+	else if (existingSessionCount >= allowedBudget)
 	{
-		/* we don't want any more connections, otherwise, it'd definetly error out */
-		execution->targetPoolSize = balancedConnectionCount;
+		/*
+		 * We're already over-budget. Do not try to initiate any connections. We'll re-visit our
+		 * decision in the next iteration anyway.
+		 */
+		execution->targetPoolSize = allowedBudget;
 
-		elog(DEBUG2,
-			 "Throttled on 1: alreadyOpenConnectionsToNode:%d - balancedConnectionCount:%d avaliableConnectionSlotsOnTheWorker:%d connectionCountToNode:%d",
-			 alreadyOpenConnectionsToNode, balancedConnectionCount,
-			 avaliableConnectionSlotsOnTheWorker, connectionCountToNode);
-
-		workerPool->reservedPreviously = 0;
+		workerPool->reservedBudget = 0;
 
 
 		return;
 	}
 
-
-	int reserveFromBudget = execution->targetPoolSize - alreadyOpenConnectionsToNode;
+	/*
+	 * Reserve the necessary connections as this execution may need them soon. If not needed,
+	 * the budget will be freed at the end of the execution.
+	 */
+	int reserveFromBudget = execution->targetPoolSize - existingSessionCount;
 	IncrementReservedConnectionBudget(workerPool->nodeName, workerPool->nodePort,
 									  reserveFromBudget);
 
-	workerPool->reservedPreviously = reserveFromBudget;
+	workerPool->reservedBudget = reserveFromBudget;
 }
 
 
