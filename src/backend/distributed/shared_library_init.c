@@ -222,6 +222,7 @@ _PG_init(void)
 
 	/* Save the original hook value. */
 	original_client_auth_hook = ClientAuthentication_hook;
+
 	/* Register our handler. */
 	ClientAuthentication_hook = auth_delay_checks;
 

@@ -43,10 +43,6 @@
 #include "access/hash.h"
 
 
-static int ConnectionStatsHashCompare(const void *a, const void *b, Size keysize);
-static uint32 ConnectionStatsHashHash(const void *key, Size keysize);
-
-
 #define GET_ACTIVE_TRANSACTION_QUERY "SELECT * FROM get_all_active_transactions();"
 #define ACTIVE_TRANSACTION_COLUMN_COUNT 6
 
@@ -72,21 +68,6 @@ typedef struct BackendManagementShmemData
 
 	BackendData backends[FLEXIBLE_ARRAY_MEMBER];
 } BackendManagementShmemData;
-
-
-/* hash key for per worker stats */
-typedef struct ConnStatsHashKey
-{
-	char hostname[MAX_NODE_LENGTH];
-	uint32 port;
-} ConnStatsHashKey;
-
-/* hash entry for per worker stats */
-typedef struct ConnStatsHashEntry
-{
-	ConnStatsHashKey key;
-	pg_atomic_uint32 connectionCount;
-} ConnStatsHashEntry;
 
 
 static void StoreAllActiveTransactions(Tuplestorestate *tupleStore, TupleDesc
@@ -626,6 +607,22 @@ IncrementSharedConnectionCounter(const char *hostname, int port)
 
 	elog(DEBUG2, "connection to %s:%u incremented to %u", key.hostname, key.port,
 		 pg_atomic_read_u32(&entry->connectionCount));
+
+
+	/*
+	 * TODO: local entry shouldn't be atomic integer
+	 */
+	ConnStatsHashEntry *localEntryentry = hash_search(LocalConnTrackingHash,
+													  &key, HASH_ENTER, &found);
+
+	if (!found)
+	{
+		pg_atomic_init_u32(&localEntryentry->connectionCount, 0);
+	}
+
+	pg_atomic_fetch_add_u32(&localEntryentry->connectionCount, 1);
+
+	pg_atomic_fetch_sub_u32(&localEntryentry->reservedConnectionCount, 1);
 }
 
 
@@ -658,6 +655,83 @@ DecrementSharedConnectionCounter(const char *hostname, int port)
 
 	elog(DEBUG2, "connection to %s:%d decremented to %u", key.hostname, key.port,
 		 pg_atomic_read_u32(&entry->connectionCount));
+
+
+	/*
+	 * TODO: local entry shouldn't be atomic integer
+	 */
+	ConnStatsHashEntry *localEntryentry = hash_search(LocalConnTrackingHash,
+													  &key, HASH_ENTER, &found);
+
+	if (!found)
+	{
+		return;
+	}
+
+	pg_atomic_fetch_sub_u32(&localEntryentry->connectionCount, 1);
+}
+
+
+void
+IncrementReservedConnectionBudget(const char *hostname, int port, int reserved)
+{
+	/*elog(INFO, "IncrementReservedConnectionBudget: %d", reserved); */
+	ConnStatsHashKey key;
+	bool found;
+
+	/* do some minimal input checks */
+	strlcpy(key.hostname, hostname, MAX_NODE_LENGTH);
+	if (strlen(hostname) > MAX_NODE_LENGTH)
+	{
+		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("hostname exceeds the maximum length of %d",
+							   MAX_NODE_LENGTH)));
+	}
+
+	key.port = port;
+
+	ConnStatsHashEntry *entry = hash_search(backendManagementShmemData->ConnTrackingHash,
+											&key, HASH_ENTER, &found);
+	if (!found)
+	{
+		pg_atomic_init_u32(&entry->reservedConnectionCount, 0);
+	}
+
+	pg_atomic_fetch_add_u32(&entry->reservedConnectionCount, reserved);
+
+	elog(DEBUG2, "reserved connection to %s:%u incremented to %u", key.hostname, key.port,
+		 pg_atomic_read_u32(&entry->reservedConnectionCount));
+}
+
+
+void
+DecrementReservedConnectionBudget(const char *hostname, int port, int reserved)
+{
+	ConnStatsHashKey key;
+	bool found;
+
+	/* do some minimal input checks */
+	strlcpy(key.hostname, hostname, MAX_NODE_LENGTH);
+	if (strlen(hostname) > MAX_NODE_LENGTH)
+	{
+		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("hostname exceeds the maximum length of %d",
+							   MAX_NODE_LENGTH)));
+	}
+
+	key.port = port;
+
+	ConnStatsHashEntry *entry = hash_search(backendManagementShmemData->ConnTrackingHash,
+											&key, HASH_ENTER, &found);
+	if (!found)
+	{
+		pg_atomic_init_u32(&entry->reservedConnectionCount, 0);
+	}
+
+	pg_atomic_fetch_sub_u32(&entry->reservedConnectionCount, reserved);
+
+	elog(DEBUG2, "reserved connection to %s:%u incremented to %u", key.hostname, key.port,
+		 pg_atomic_read_u32(&entry->reservedConnectionCount));
 }
 
 
@@ -689,7 +763,63 @@ GetConnectionCounter(const char *hostname, int port)
 }
 
 
-static uint32
+uint32
+GetReservedConnectionCounter(const char *hostname, int port)
+{
+	ConnStatsHashKey key;
+	bool found;
+
+	/* do some minimal input checks */
+	strlcpy(key.hostname, hostname, MAX_NODE_LENGTH);
+	if (strlen(hostname) > MAX_NODE_LENGTH)
+	{
+		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("hostname exceeds the maximum length of %d",
+							   MAX_NODE_LENGTH)));
+	}
+
+	key.port = port;
+
+	ConnStatsHashEntry *entry = hash_search(backendManagementShmemData->ConnTrackingHash,
+											&key, HASH_ENTER, &found);
+	if (!found)
+	{
+		pg_atomic_init_u32(&entry->reservedConnectionCount, 0);
+	}
+
+	return pg_atomic_read_u32(&entry->reservedConnectionCount);
+}
+
+
+uint32
+GetLocalConnectionCounter(const char *hostname, int port)
+{
+	ConnStatsHashKey key;
+	bool found;
+
+	/* do some minimal input checks */
+	strlcpy(key.hostname, hostname, MAX_NODE_LENGTH);
+	if (strlen(hostname) > MAX_NODE_LENGTH)
+	{
+		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("hostname exceeds the maximum length of %d",
+							   MAX_NODE_LENGTH)));
+	}
+
+	key.port = port;
+
+	ConnStatsHashEntry *entry = hash_search(LocalConnTrackingHash,
+											&key, HASH_ENTER, &found);
+	if (!found)
+	{
+		return 0;
+	}
+
+	return pg_atomic_read_u32(&entry->connectionCount);
+}
+
+
+uint32
 ConnectionStatsHashHash(const void *key, Size keysize)
 {
 	ConnStatsHashKey *entry = (ConnStatsHashKey *) key;
@@ -701,7 +831,7 @@ ConnectionStatsHashHash(const void *key, Size keysize)
 }
 
 
-static int
+int
 ConnectionStatsHashCompare(const void *a, const void *b, Size keysize)
 {
 	ConnStatsHashKey *ca = (ConnStatsHashKey *) a;

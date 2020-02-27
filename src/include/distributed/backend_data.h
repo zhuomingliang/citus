@@ -21,6 +21,9 @@
 #include "storage/proc.h"
 #include "storage/s_lock.h"
 
+/* TODO: move to a sane location */
+extern int ConnectionStatsHashCompare(const void *a, const void *b, Size keysize);
+extern uint32 ConnectionStatsHashHash(const void *key, Size keysize);
 
 /*
  * CitusInitiatedBackend keeps some information about the backends that are
@@ -55,6 +58,22 @@ typedef struct BackendData
 } BackendData;
 
 
+/* hash key for per worker stats */
+typedef struct ConnStatsHashKey
+{
+	char hostname[255];
+	uint32 port;
+} ConnStatsHashKey;
+
+/* hash entry for per worker stats */
+typedef struct ConnStatsHashEntry
+{
+	ConnStatsHashKey key;
+	pg_atomic_uint32 connectionCount;
+	pg_atomic_uint32 reservedConnectionCount;
+} ConnStatsHashEntry;
+
+
 extern void InitializeBackendManagement(void);
 extern int TotalProcCount(void);
 extern void InitializeBackendData(void);
@@ -72,5 +91,9 @@ LocalTransactionId GetMyProcLocalTransactionId(void);
 void DecrementSharedConnectionCounter(const char *hostname, int port);
 void IncrementSharedConnectionCounter(const char *hostname, int port);
 uint32 GetConnectionCounter(const char *hostname, int port);
+uint32 GetLocalConnectionCounter(const char *hostname, int port);
+void IncrementReservedConnectionBudget(const char *hostname, int port, int reserved);
+uint32 GetReservedConnectionCounter(const char *hostname, int port);
 
+void DecrementReservedConnectionBudget(const char *hostname, int port, int reserved);
 #endif /* BACKEND_DATA_H */

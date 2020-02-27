@@ -184,6 +184,7 @@ extern char *NodeConninfo;
 /* the hash table */
 extern HTAB *ConnectionHash;
 extern HTAB *ConnParamsHash;
+extern HTAB *LocalConnTrackingHash;
 
 /* context for all connection and transaction related memory */
 extern struct MemoryContextData *ConnectionContext;

@@ -41,6 +41,9 @@ int MaxCachedConnectionsPerWorker = 1;
 
 HTAB *ConnectionHash = NULL;
 HTAB *ConnParamsHash = NULL;
+HTAB *LocalConnTrackingHash = NULL;
+
+
 MemoryContext ConnectionContext = NULL;
 
 static uint32 ConnectionHashHash(const void *key, Size keysize);
@@ -82,6 +85,7 @@ static uint32 MultiConnectionStateEventMask(MultiConnectionPollState *connection
 
 static int CitusNoticeLogLevel = DEFAULT_CITUS_NOTICE_LEVEL;
 
+#include "distributed/backend_data.h"
 
 /*
  * Initialize per-backend connection management infrastructure.
@@ -119,6 +123,19 @@ InitializeConnectionManagement(void)
 
 	ConnParamsHash = hash_create("citus connparams cache (host,port,user,database)",
 								 64, &connParamsInfo, hashFlags);
+
+	HASHCTL connTrackingInfo;
+	memset(&connTrackingInfo, 0, sizeof(connTrackingInfo));
+	connTrackingInfo.keysize = sizeof(ConnStatsHashKey);
+	connTrackingInfo.entrysize = sizeof(ConnStatsHashEntry);
+	connTrackingInfo.hash = ConnectionStatsHashHash;
+	connTrackingInfo.match = ConnectionStatsHashCompare;
+	connTrackingInfo.hcxt = ConnectionContext;  /* TODO? */
+
+	/* per session connection tracking */
+	LocalConnTrackingHash = hash_create(
+		"citus connection per database server (host,port)",
+		64, &connTrackingInfo, hashFlags);
 }
 
 
