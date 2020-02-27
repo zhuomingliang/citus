@@ -34,68 +34,59 @@
 
 static int ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread);
 static Relation CreateCopiedShard(RangeVar *distributedRel, Relation shard);
-static void FillLocalCopyBuffer(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest,
+static void AddSlotToBuffer(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest,
 								bool isBinary);
 
-static bool ShouldSendCopyNow(void);
-static void DoLocalCopy(Oid relationId, int64 shardId, CopyStmt *copyStatement);
-static bool ShouldAddBinaryHeaders(bool isBinary);
+static bool ShouldSendCopyNow(StringInfo buffer);
+static void DoLocalCopy(StringInfo buffer, Oid relationId, int64 shardId, CopyStmt *copyStatement);
+static bool ShouldAddBinaryHeaders(StringInfo buffer, bool isBinary);
 
+/* 
+ * localCopyBuffer is used in copy callback to return the copied rows.
+ * The reason this is a global variable is that we cannot pass an additional
+ * argument to the copy callback.
+ */
 StringInfo localCopyBuffer;
 
+/*
+ * ProcessLocalCopy adds the given slot and does a local copy if
+ * this is the end of copy, or the buffer size exceeds the threshold.
+ */
 void
 ProcessLocalCopy(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, int64 shardId,
 				 StringInfo buffer, bool shouldSendNow)
 {
-	localCopyBuffer = buffer;
+	/*
+	 * Here we save the previous buffer, and put the local shard's buffer
+	 * into copyOutState. The motivation is to use the existing logic to
+	 * serialize a row slot into buffer.
+	 */
 	StringInfo previousBuffer = copyDest->copyOutState->fe_msgbuf;
-	copyDest->copyOutState->fe_msgbuf = localCopyBuffer;
+	copyDest->copyOutState->fe_msgbuf = buffer;
+
 	bool isBinaryCopy = copyDest->copyOutState->binary;
+	AddSlotToBuffer(slot, copyDest, isBinaryCopy);
 
-
-	FillLocalCopyBuffer(slot, copyDest, isBinaryCopy);
-
-	if (shouldSendNow || ShouldSendCopyNow())
+	if (shouldSendNow || ShouldSendCopyNow(buffer))
 	{
 		if (isBinaryCopy)
 		{
 			AppendCopyBinaryFooters(copyDest->copyOutState);
 		}
-		DoLocalCopy(copyDest->distributedRelationId, shardId, copyDest->copyStatement);
+		DoLocalCopy(buffer, copyDest->distributedRelationId, shardId, copyDest->copyStatement);
 	}
 
 	copyDest->copyOutState->fe_msgbuf = previousBuffer;
 }
 
-
-static bool
-ShouldSendCopyNow()
-{
-	return localCopyBuffer->len > LOCAL_COPY_SWITCH_OVER_THRESHOLD;
-}
-
-
+/*
+ * AddSlotToBuffer serializes the given slot and adds it to the buffer in copyDest.
+ * If the copy format is binary, it adds binary headers as well.
+ */
 static void
-DoLocalCopy(Oid relationId, int64 shardId, CopyStmt *copyStatement)
+AddSlotToBuffer(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, bool isBinary)
 {
-	Oid shardOid = GetShardOid(relationId, shardId);
-	Relation shard = heap_open(shardOid, RowExclusiveLock);
-	Relation copiedShard = CreateCopiedShard(copyStatement->relation, shard);
-
-	CopyState cstate = BeginCopyFrom(NULL, copiedShard, NULL, false,
-									 ReadFromLocalBufferCallback,
-									 copyStatement->attlist, copyStatement->options);
-	CopyFrom(cstate);
-	EndCopyFrom(cstate);
-	resetStringInfo(localCopyBuffer);
-	heap_close(shard, NoLock);
-}
-
-
-static void
-FillLocalCopyBuffer(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, bool isBinary)
-{
-	if (ShouldAddBinaryHeaders(isBinary))
+	if (ShouldAddBinaryHeaders(copyDest->copyOutState->fe_msgbuf, isBinary))
 	{
 		AppendCopyBinaryHeaders(copyDest->copyOutState);
 	}
@@ -114,17 +105,56 @@ FillLocalCopyBuffer(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, bool 
 }
 
 
+/*
+ * ShouldSendCopyNow returns true if the given buffer size exceeds the 
+ * local copy buffer size threshold.
+ */
 static bool
-ShouldAddBinaryHeaders(bool isBinary)
+ShouldSendCopyNow(StringInfo buffer)
+{
+	return buffer->len > LOCAL_COPY_SWITCH_OVER_THRESHOLD;
+}
+
+/*
+ * DoLocalCopy finds the shard table from the distributed relation id, and copies the given
+ * buffer into the shard.
+ */
+static void
+DoLocalCopy(StringInfo buffer, Oid relationId, int64 shardId, CopyStmt *copyStatement)
+{
+	localCopyBuffer = buffer;
+
+	Oid shardOid = GetShardOid(relationId, shardId);
+	Relation shard = heap_open(shardOid, RowExclusiveLock);
+	Relation copiedShard = CreateCopiedShard(copyStatement->relation, shard);
+
+	CopyState cstate = BeginCopyFrom(NULL, copiedShard, NULL, false,
+									 ReadFromLocalBufferCallback,
+									 copyStatement->attlist, copyStatement->options);
+	CopyFrom(cstate);
+	EndCopyFrom(cstate);
+	resetStringInfo(localCopyBuffer);
+	heap_close(shard, NoLock);
+}
+
+/*
+ * ShouldAddBinaryHeaders returns true if the given buffer
+ * is empty and the format is binary.
+ */
+static bool
+ShouldAddBinaryHeaders(StringInfo buffer, bool isBinary)
 {
 	if (!isBinary)
 	{
 		return false;
 	}
-	return localCopyBuffer->len == 0;
+	return buffer->len == 0;
 }
 
-
+/*
+ * CreateCopiedShard clones deep copies the necessary fields of the given 
+ * relation.
+ */
 Relation
 CreateCopiedShard(RangeVar *distributedRel, Relation shard)
 {
@@ -157,7 +187,10 @@ CreateCopiedShard(RangeVar *distributedRel, Relation shard)
 	return copiedDistributedRelation;
 }
 
-
+/*
+ * ReadFromLocalBufferCallback is the copy callback.
+ * It always tries to copy maxread bytes.
+ */
 static int
 ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread)
 {

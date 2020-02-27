@@ -182,9 +182,8 @@ struct CopyShardState
 	/* Used as hash key. */
 	uint64 shardId;
 
+	/* used for doing local copy */
 	StringInfo localCopyBuffer;
-
-	Relation copiedShard;
 
 	/* List of CopyPlacementStates for all active placements of the shard. */
 	List *placementStateList;
@@ -1999,6 +1998,10 @@ CreateCitusCopyDestReceiver(Oid tableId, List *columnNameList, int partitionColu
 }
 
 
+/*
+ * ShouldExecuteCopyLocally returns true if the current copy
+ * operation should be done locally for local placements.
+ */
 static bool
 ShouldExecuteCopyLocally()
 {

@@ -132,6 +132,7 @@ typedef struct CitusCopyDestReceiver
 	/* useful for tracking multi shard accesses */
 	bool multiShardCopy;
 
+	/* if true, should copy to local placements in the current session */
 	bool shouldUseLocalCopy;
 
 	/* copy into intermediate result */
