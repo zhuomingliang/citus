@@ -102,3 +102,6 @@ s/:'worker_2_host'/'<host>'/g
 s/:'worker_1_host'/'<host>'/g
 s/10.0.0.[0-9]+/<host>/g
 s/postgres/<user>/g
+s/:real_worker_1_host/-/g
+s/:real_worker_2_host/-/g
+s/:real_master_host/-/g
