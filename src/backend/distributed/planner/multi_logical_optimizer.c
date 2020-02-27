@@ -1457,12 +1457,12 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 			newExpression = (Expr *) newNode;
 		}
 
-
 		newTargetEntry->expr = newExpression;
 		newTargetEntryList = lappend(newTargetEntryList, newTargetEntry);
 	}
 
-	if (!extendedOpNodeProperties->groupedByDisjointPartitionColumn)
+	if (!extendedOpNodeProperties->groupedByDisjointPartitionColumn ||
+		extendedOpNodeProperties->hasNonPushableWindowFunction)
 	{
 		/*
 		 * Not pushing down GROUP BY, need to regroup on coordinator
@@ -2200,9 +2200,7 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 	/* targetProjectionNumber starts from 1 */
 	queryTargetList.targetProjectionNumber = 1;
 
-	/*
-	 * only push down grouping to worker query when pushing down aggregates
-	 */
+	/* only push down grouping to worker query when pushing down aggregates */
 	if (extendedOpNodeProperties->pullUpIntermediateRows)
 	{
 		queryGroupClause.groupClauseList = NIL;
@@ -3564,23 +3562,19 @@ CanPushDownExpression(Node *expression,
 		return true;
 	}
 
-	if (hasAggregate)
+	/* aggregates inside pushed down window functions can be pushed down */
+	if (hasPushableWindowFunction)
 	{
-		/* aggregates inside pushed down window functions can be pushed down */
-		if (hasPushableWindowFunction)
-		{
-			return true;
-		}
-
-		if (extendedOpNodeProperties->groupedByDisjointPartitionColumn)
-		{
-			return true;
-		}
-
-		return false;
+		return true;
 	}
 
-	return hasPushableWindowFunction;
+	if (hasAggregate && !hasWindowFunction &&
+		extendedOpNodeProperties->groupedByDisjointPartitionColumn)
+	{
+		return true;
+	}
+
+	return false;
 }
 
 

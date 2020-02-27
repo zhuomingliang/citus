@@ -420,6 +420,12 @@ GROUP BY
 ORDER BY
 	3 DESC, 2 DESC, 1 DESC;
 
+SELECT user_id, sum(avg(user_id)) OVER ()
+FROM users_table
+GROUP BY user_id
+ORDER BY 1
+LIMIT 10;
+
 SELECT
 	user_id,
 	1 + sum(value_1),
