@@ -80,8 +80,8 @@ static List * ShardsMatchingDeleteCriteria(Oid relationId, List *shardList,
 										   Node *deleteCriteria);
 static int DropShards(Oid relationId, char *schemaName, char *relationName,
 					  List *deletableShardIntervalList);
-static List * SingleDropTaskListForLocalPlacement(ShardPlacement *shardPlacement,
-												  char *dropShardPlacementCommand);
+static List * DropTaskList(Oid relationId, char *schemaName, char *relationName,
+						   List *deletableShardIntervalList);
 static void ExecuteDropShardPlacementCommandRemotely(ShardPlacement *shardPlacement,
 													 const char *shardRelationName,
 													 const char *dropShardPlacementCommand);
@@ -391,23 +391,20 @@ DropShards(Oid relationId, char *schemaName, char *relationName,
 		CoordinatedTransactionUse2PC();
 	}
 
-	ShardInterval *shardInterval = NULL;
-	foreach_ptr(shardInterval, deletableShardIntervalList)
+	List *dropTaskList = DropTaskList(relationId, schemaName, relationName,
+									  deletableShardIntervalList);
+
+	Task *task = NULL;
+	foreach_ptr(task, dropTaskList)
 	{
-		uint64 shardId = shardInterval->shardId;
-		char storageType = shardInterval->storageType;
-
+		uint64 shardId = task->anchorShardId;
 		char *shardRelationName = pstrdup(relationName);
-
-		Assert(shardInterval->relationId == relationId);
 
 		/* build shard relation name */
 		AppendShardIdToName(&shardRelationName, shardId);
 
-		List *shardPlacementList = ShardPlacementList(shardId);
-
 		ShardPlacement *shardPlacement = NULL;
-		foreach_ptr(shardPlacement, shardPlacementList)
+		foreach_ptr(shardPlacement, task->taskPlacementList)
 		{
 			uint64 shardPlacementId = shardPlacement->placementId;
 			int32 shardPlacementGroupId = shardPlacement->groupId;
@@ -425,30 +422,19 @@ DropShards(Oid relationId, char *schemaName, char *relationName,
 				continue;
 			}
 
-			char *dropShardPlacementCommand =
-				CreateDropShardPlacementCommand(schemaName, shardRelationName,
-												storageType);
+			bool isLocalShardPlacement = (shardPlacementGroupId == localGroupId);
 
 			/*
 			 * If it is a local placement of a distributed table, then try to
 			 * execute the DROP command locally.
 			 */
-			bool dropTaskExecutedLocally = false;
-
-			if (shardPlacementGroupId == localGroupId)
+			if (isLocalShardPlacement && ShouldExecuteTasksLocally(dropTaskList))
 			{
-				List *localPlacementTaskList = SingleDropTaskListForLocalPlacement(
-					shardPlacement, dropShardPlacementCommand);
+				List *singleTaskList = list_make1(task);
 
-				if (ShouldExecuteTasksLocally(localPlacementTaskList))
-				{
-					ExecuteLocalUtilityTaskList(localPlacementTaskList);
-
-					dropTaskExecutedLocally = true;
-				}
+				ExecuteLocalUtilityTaskList(singleTaskList);
 			}
-
-			if (dropTaskExecutedLocally == false)
+			else
 			{
 				/*
 				 * Either it was not a local placement or we could not use
@@ -462,6 +448,13 @@ DropShards(Oid relationId, char *schemaName, char *relationName,
 				 * connect to that node to drop the shard placement over that
 				 * remote connection.
 				 */
+
+				if (isLocalShardPlacement)
+				{
+					TransactionConnectedToLocalGroup = true;
+				}
+
+				const char *dropShardPlacementCommand = TaskQueryString(task);
 				ExecuteDropShardPlacementCommandRemotely(shardPlacement,
 														 shardRelationName,
 														 dropShardPlacementCommand);
@@ -484,31 +477,49 @@ DropShards(Oid relationId, char *schemaName, char *relationName,
 
 
 /*
- * SingleDropTaskListForLocalPlacement creates the task to DROP the given shard
- * placement locally and returns that task within a single element list to be
- * used directly within the local execution logic.
+ * DropTaskList returns a list of tasks to execute a DROP command on shard
+ * placements of distributed table. This is handled separately from other
+ * DDL commands because we handle it via the DROP trigger, which is called
+ * whenever a truncate cascades.
  */
 static List *
-SingleDropTaskListForLocalPlacement(ShardPlacement *shardPlacement,
-									char *dropShardPlacementCommand)
+DropTaskList(Oid relationId, char *schemaName, char *relationName,
+			 List *deletableShardIntervalList)
 {
-	Assert(shardPlacement != NULL);
+	/* resulting task list */
+	List *taskList = NIL;
 
-	/* prepare the task for local execution */
-	Task *localPlacementTask = CitusMakeNode(Task);
+	ShardInterval *shardInterval = NULL;
+	foreach_ptr(shardInterval, deletableShardIntervalList)
+	{
+		Assert(shardInterval->relationId == relationId);
 
-	localPlacementTask->jobId = INVALID_JOB_ID;
-	localPlacementTask->taskId = INVALID_TASK_ID;
-	localPlacementTask->taskType = DDL_TASK;
-	SetTaskQueryString(localPlacementTask, dropShardPlacementCommand);
-	localPlacementTask->dependentTaskList = NULL;
-	localPlacementTask->replicationModel = REPLICATION_MODEL_INVALID;
-	localPlacementTask->anchorShardId = shardPlacement->shardId;
-	localPlacementTask->taskPlacementList = list_make1(shardPlacement);
+		uint64 shardId = shardInterval->shardId;
+		char storageType = shardInterval->storageType;
 
-	List *localPlacementTaskList = list_make1(localPlacementTask);
+		char *shardRelationName = pstrdup(relationName);
 
-	return localPlacementTaskList;
+		/* build shard relation name */
+		AppendShardIdToName(&shardRelationName, shardId);
+
+		char *dropShardPlacementCommand =
+			CreateDropShardPlacementCommand(schemaName, shardRelationName,
+											storageType);
+
+		Task *task = CitusMakeNode(Task);
+		task->jobId = INVALID_JOB_ID;
+		task->taskId = INVALID_TASK_ID;
+		task->taskType = DDL_TASK;
+		SetTaskQueryString(task, dropShardPlacementCommand);
+		task->dependentTaskList = NULL;
+		task->replicationModel = REPLICATION_MODEL_INVALID;
+		task->anchorShardId = shardId;
+		task->taskPlacementList = ShardPlacementList(shardId);
+
+		taskList = lappend(taskList, task);
+	}
+
+	return taskList;
 }
 
 
