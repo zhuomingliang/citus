@@ -231,10 +231,10 @@ BEGIN
     WITH stock_update AS (
           UPDATE stock
              SET s_quantity = ( CASE WHEN s_quantity < (item_stock.quantity + 10) THEN s_quantity + 91 ELSE s_quantity END) - item_stock.quantity
-        FROM UNNEST(item_id_array, supply_wid_array, quantity_array, price_array)
-           AS item_stock (item_id, supply_wid, quantity, price)
+        FROM UNNEST(item_id_array, quantity_array, price_array)
+           AS item_stock (item_id, quantity, price)
        WHERE stock.s_i_id = item_stock.item_id
-         AND stock.s_w_id = item_stock.supply_wid
+         AND stock.s_w_id =ANY(supply_wid_array)
       RETURNING stock.s_dist_01 as s_dist, stock.s_quantity, ( item_stock.quantity + item_stock.price * ( 1 + no_w_tax + no_d_tax ) * ( 1 - no_c_discount ) ) amount
       )
     SELECT array_agg ( s_dist ), array_agg ( s_quantity ), array_agg ( amount )
@@ -245,10 +245,10 @@ BEGIN
     WITH stock_update AS (
           UPDATE stock
              SET s_quantity = ( CASE WHEN s_quantity < (item_stock.quantity + 10) THEN s_quantity + 91 ELSE s_quantity END) - item_stock.quantity
-        FROM UNNEST(item_id_array, supply_wid_array, quantity_array, price_array)
-           AS item_stock (item_id, supply_wid, quantity, price)
+        FROM UNNEST(item_id_array, quantity_array, price_array)
+           AS item_stock (item_id, quantity, price)
        WHERE stock.s_i_id = item_stock.item_id
-         AND stock.s_w_id = item_stock.supply_wid
+         AND stock.s_w_id =ANY(supply_wid_array)
       RETURNING stock.s_dist_02 as s_dist, stock.s_quantity, ( item_stock.quantity + item_stock.price * ( 1 + no_w_tax + no_d_tax ) * ( 1 - no_c_discount ) ) amount
       )
     SELECT array_agg ( s_dist ), array_agg ( s_quantity ), array_agg ( amount )
@@ -260,9 +260,9 @@ BEGIN
           UPDATE stock
              SET s_quantity = ( CASE WHEN s_quantity < (item_stock.quantity + 10) THEN s_quantity + 91 ELSE s_quantity END) - item_stock.quantity
         FROM UNNEST(item_id_array, supply_wid_array, quantity_array, price_array)
-           AS item_stock (item_id, supply_wid, quantity, price)
+           AS item_stock (item_id, quantity, price)
        WHERE stock.s_i_id = item_stock.item_id
-         AND stock.s_w_id = item_stock.supply_wid
+         AND stock.s_w_id = ANY(supply_wid_array)
       RETURNING stock.s_dist_03 as s_dist, stock.s_quantity, ( item_stock.quantity + item_stock.price * ( 1 + no_w_tax + no_d_tax ) * ( 1 - no_c_discount ) ) amount
       )
     SELECT array_agg ( s_dist ), array_agg ( s_quantity ), array_agg ( amount )
@@ -273,10 +273,10 @@ BEGIN
     WITH stock_update AS (
           UPDATE stock
              SET s_quantity = ( CASE WHEN s_quantity < (item_stock.quantity + 10) THEN s_quantity + 91 ELSE s_quantity END) - item_stock.quantity
-        FROM UNNEST(item_id_array, supply_wid_array, quantity_array, price_array)
-           AS item_stock (item_id, supply_wid, quantity, price)
+        FROM UNNEST(item_id_array, quantity_array, price_array)
+           AS item_stock (item_id, quantity, price)
        WHERE stock.s_i_id = item_stock.item_id
-         AND stock.s_w_id = item_stock.supply_wid
+         AND stock.s_w_id =ANY(supply_wid_array)
       RETURNING stock.s_dist_04 as s_dist, stock.s_quantity, ( item_stock.quantity + item_stock.price * ( 1 + no_w_tax + no_d_tax ) * ( 1 - no_c_discount ) ) amount
       )
     SELECT array_agg ( s_dist ), array_agg ( s_quantity ), array_agg ( amount )
@@ -288,9 +288,9 @@ BEGIN
           UPDATE stock
              SET s_quantity = ( CASE WHEN s_quantity < (item_stock.quantity + 10) THEN s_quantity + 91 ELSE s_quantity END) - item_stock.quantity
         FROM UNNEST(item_id_array, supply_wid_array, quantity_array, price_array)
-           AS item_stock (item_id, supply_wid, quantity, price)
+           AS item_stock (item_id, quantity, price)
        WHERE stock.s_i_id = item_stock.item_id
-         AND stock.s_w_id = item_stock.supply_wid
+         AND stock.s_w_id =ANY(supply_wid_array)
       RETURNING stock.s_dist_05 as s_dist, stock.s_quantity, ( item_stock.quantity + item_stock.price * ( 1 + no_w_tax + no_d_tax ) * ( 1 - no_c_discount ) ) amount
       )
     SELECT array_agg ( s_dist ), array_agg ( s_quantity ), array_agg ( amount )
@@ -301,10 +301,10 @@ BEGIN
     WITH stock_update AS (
           UPDATE stock
              SET s_quantity = ( CASE WHEN s_quantity < (item_stock.quantity + 10) THEN s_quantity + 91 ELSE s_quantity END) - item_stock.quantity
-        FROM UNNEST(item_id_array, supply_wid_array, quantity_array, price_array)
-           AS item_stock (item_id, supply_wid, quantity, price)
+        FROM UNNEST(item_id_array, quantity_array, price_array)
+           AS item_stock (item_id, quantity, price)
        WHERE stock.s_i_id = item_stock.item_id
-         AND stock.s_w_id = item_stock.supply_wid
+         AND stock.s_w_id =ANY(supply_wid_array)
       RETURNING stock.s_dist_06 as s_dist, stock.s_quantity, ( item_stock.quantity + item_stock.price * ( 1 + no_w_tax + no_d_tax ) * ( 1 - no_c_discount ) ) amount
       )
     SELECT array_agg ( s_dist ), array_agg ( s_quantity ), array_agg ( amount )
@@ -315,10 +315,10 @@ BEGIN
     WITH stock_update AS (
           UPDATE stock
              SET s_quantity = ( CASE WHEN s_quantity < (item_stock.quantity + 10) THEN s_quantity + 91 ELSE s_quantity END) - item_stock.quantity
-        FROM UNNEST(item_id_array, supply_wid_array, quantity_array, price_array)
-           AS item_stock (item_id, supply_wid, quantity, price)
+        FROM UNNEST(item_id_array, quantity_array, price_array)
+           AS item_stock (item_id, quantity, price)
        WHERE stock.s_i_id = item_stock.item_id
-         AND stock.s_w_id = item_stock.supply_wid
+         AND stock.s_w_id =ANY(supply_wid_array)
       RETURNING stock.s_dist_07 as s_dist, stock.s_quantity, ( item_stock.quantity + item_stock.price * ( 1 + no_w_tax + no_d_tax ) * ( 1 - no_c_discount ) ) amount
       )
     SELECT array_agg ( s_dist ), array_agg ( s_quantity ), array_agg ( amount )
@@ -329,10 +329,10 @@ BEGIN
     WITH stock_update AS (
           UPDATE stock
              SET s_quantity = ( CASE WHEN s_quantity < (item_stock.quantity + 10) THEN s_quantity + 91 ELSE s_quantity END) - item_stock.quantity
-        FROM UNNEST(item_id_array, supply_wid_array, quantity_array, price_array)
-           AS item_stock (item_id, supply_wid, quantity, price)
+        FROM UNNEST(item_id_array, quantity_array, price_array)
+           AS item_stock (item_id, quantity, price)
        WHERE stock.s_i_id = item_stock.item_id
-         AND stock.s_w_id = item_stock.supply_wid
+         AND stock.s_w_id =ANY(supply_wid_array)
       RETURNING stock.s_dist_08 as s_dist, stock.s_quantity, ( item_stock.quantity + item_stock.price * ( 1 + no_w_tax + no_d_tax ) * ( 1 - no_c_discount ) ) amount
       )
     SELECT array_agg ( s_dist ), array_agg ( s_quantity ), array_agg ( amount )
@@ -343,10 +343,10 @@ BEGIN
     WITH stock_update AS (
           UPDATE stock
              SET s_quantity = ( CASE WHEN s_quantity < (item_stock.quantity + 10) THEN s_quantity + 91 ELSE s_quantity END) - item_stock.quantity
-        FROM UNNEST(item_id_array, supply_wid_array, quantity_array, price_array)
-           AS item_stock (item_id, supply_wid, quantity, price)
+        FROM UNNEST(item_id_array, quantity_array, price_array)
+           AS item_stock (item_id, quantity, price)
        WHERE stock.s_i_id = item_stock.item_id
-         AND stock.s_w_id = item_stock.supply_wid
+         AND stock.s_w_id =ANY(supply_wid_array)
       RETURNING stock.s_dist_09 as s_dist, stock.s_quantity, ( item_stock.quantity + item_stock.price * ( 1 + no_w_tax + no_d_tax ) * ( 1 - no_c_discount ) ) amount
       )
     SELECT array_agg ( s_dist ), array_agg ( s_quantity ), array_agg ( amount )
@@ -357,10 +357,10 @@ BEGIN
     WITH stock_update AS (
           UPDATE stock
              SET s_quantity = ( CASE WHEN s_quantity < (item_stock.quantity + 10) THEN s_quantity + 91 ELSE s_quantity END) - item_stock.quantity
-        FROM UNNEST(item_id_array, supply_wid_array, quantity_array, price_array)
-           AS item_stock (item_id, supply_wid, quantity, price)
+        FROM UNNEST(item_id_array, quantity_array, price_array)
+           AS item_stock (item_id, quantity, price)
        WHERE stock.s_i_id = item_stock.item_id
-         AND stock.s_w_id = item_stock.supply_wid
+         AND stock.s_w_id =ANY(supply_wid_array)
       RETURNING stock.s_dist_10 as s_dist, stock.s_quantity, ( item_stock.quantity + item_stock.price * ( 1 + no_w_tax + no_d_tax ) * ( 1 - no_c_discount ) ) amount
       )
     SELECT array_agg ( s_dist ), array_agg ( s_quantity ), array_agg ( amount )
