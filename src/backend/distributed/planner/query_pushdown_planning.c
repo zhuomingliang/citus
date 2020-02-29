@@ -97,6 +97,7 @@ static bool PullVarClauseDeepWalker(Node *node, void *untypedContext);
 static List * pull_var_clause_deep(Node *node);
 static List * FlattenJoinVars(List *columnList, Query *queryTree);
 static Node * FlattenJoinVarsMutator(Node *node, Query *queryTree);
+static bool VarEqualsVar(Var *left, Var *right);
 static void UpdateVarMappingsForExtendedOpNode(List *columnList,
 											   List *flattenedColumnList,
 											   List *subqueryTargetEntryList);
@@ -1806,24 +1807,40 @@ FlattenJoinVarsMutator(Node *node, Query *queryTree)
 static List *
 CreateSubqueryTargetEntryList(List *exprList)
 {
-	AttrNumber resNo = 1;
-	ListCell *exprCell = NULL;
 	List *uniqueExprList = NIL;
 	List *subqueryTargetEntryList = NIL;
 
-	foreach(exprCell, exprList)
+	Var *expr = NULL;
+	foreach_ptr(expr, exprList)
 	{
-		Node *expr = (Node *) lfirst(exprCell);
-		uniqueExprList = list_append_unique(uniqueExprList, expr);
+		bool found = false;
+		Var *existingExpr = NULL;
+		foreach_ptr(existingExpr, uniqueExprList)
+		{
+			if (VarEqualsVar(expr, existingExpr))
+			{
+				found = true;
+				break;
+			}
+		}
+
+		if (!found)
+		{
+			/* expressions will be lifted to their referenced level */
+			Var *uniqueExpr = copyObject(expr);
+			uniqueExpr->varlevelsup = 0;
+			uniqueExprList = lappend(uniqueExprList, uniqueExpr);
+		}
 	}
 
-	foreach(exprCell, uniqueExprList)
+	AttrNumber resNo = 1;
+	Expr *uniqueExpr = NULL;
+	foreach_ptr(uniqueExpr, uniqueExprList)
 	{
-		Node *expr = (Node *) lfirst(exprCell);
 		TargetEntry *newTargetEntry = makeNode(TargetEntry);
 		StringInfo exprNameString = makeStringInfo();
 
-		newTargetEntry->expr = (Expr *) copyObject(expr);
+		newTargetEntry->expr = uniqueExpr;
 		appendStringInfo(exprNameString, WORKER_COLUMN_FORMAT, resNo);
 		newTargetEntry->resname = exprNameString->data;
 		newTargetEntry->resjunk = false;
@@ -1874,6 +1891,27 @@ UpdateVarMappingsForExtendedOpNode(List *columnList, List *flattenedExprList,
 
 
 /*
+ * VarEqualsVar compares Vars which may differ by varlevelsup
+ */
+static bool
+VarEqualsVar(Var *left, Var *right)
+{
+	elog(WARNING, "=? %d %s %s",
+		 left->varno == right->varno &&
+		 left->varattno == right->varattno &&
+		 left->vartype == right->vartype &&
+		 left->vartypmod == right->vartypmod &&
+		 left->varcollid == right->varcollid,
+		 nodeToString(left), nodeToString(right));
+	return left->varno == right->varno &&
+		   left->varattno == right->varattno &&
+		   left->vartype == right->vartype &&
+		   left->vartypmod == right->vartypmod &&
+		   left->varcollid == right->varcollid;
+}
+
+
+/*
  * UpdateColumnToMatchingTargetEntry sets the variable of given column entry to
  * the matching entry of the targetEntryList. Since data type of the column can
  * be different from the types of the elements of targetEntryList, we use flattenedExpr.
@@ -1881,18 +1919,20 @@ UpdateVarMappingsForExtendedOpNode(List *columnList, List *flattenedExprList,
 static void
 UpdateColumnToMatchingTargetEntry(Var *column, Node *flattenedExpr, List *targetEntryList)
 {
-	ListCell *targetEntryCell = NULL;
-
-	foreach(targetEntryCell, targetEntryList)
+	elog(WARNING, "COLUMN %d %s", column->varattno, nodeToString(column));
+	TargetEntry *targetEntry = NULL;
+	foreach_ptr(targetEntry, targetEntryList)
 	{
-		TargetEntry *targetEntry = (TargetEntry *) lfirst(targetEntryCell);
+		elog(WARNING, "TARGET %d %s", targetEntry->resno, nodeToString(targetEntry));
 
 		if (IsA(targetEntry->expr, Var))
 		{
 			Var *targetEntryVar = (Var *) targetEntry->expr;
 
-			if (IsA(flattenedExpr, Var) && equal(flattenedExpr, targetEntryVar))
+			if (IsA(flattenedExpr, Var) && VarEqualsVar((Var *) flattenedExpr,
+														(Var *) targetEntryVar))
 			{
+				elog(WARNING, "FOUND %d %d", targetEntry->resno, column->vartype);
 				column->varno = 1;
 				column->varattno = targetEntry->resno;
 				break;

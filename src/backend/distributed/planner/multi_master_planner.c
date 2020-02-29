@@ -233,7 +233,8 @@ BuildSelectStatementViaStdPlanner(Query *masterQuery, List *masterTargetList,
 	 * Print the master query at debug level 4. Since serializing the query is relatively
 	 * cpu intensive we only perform that if we are actually logging DEBUG4.
 	 */
-	const int logMasterQueryLevel = DEBUG4;
+	const int logMasterQueryLevel = WARNING;
+	elog(WARNING, "master query: %s", nodeToString(masterQuery));
 	if (IsLoggableLevel(logMasterQueryLevel))
 	{
 		StringInfo queryString = makeStringInfo();

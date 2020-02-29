@@ -2483,6 +2483,7 @@ QueryPushdownTaskCreate(Query *originalQuery, int shardIndex,
 	if ((taskType == MODIFY_TASK && !modifyRequiresMasterEvaluation) ||
 		taskType == SELECT_TASK)
 	{
+		elog(WARNING, "taskQuery %s", nodeToString(taskQuery));
 		pg_get_query_def(taskQuery, queryString);
 		ereport(DEBUG4, (errmsg("distributed statement: %s",
 								ApplyLogRedaction(queryString->data))));

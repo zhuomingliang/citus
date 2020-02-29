@@ -8,6 +8,13 @@ ANALYZE lineitem_hash_part;
 
 -- function calls are supported
 SELECT DISTINCT l_orderkey, now() FROM lineitem_hash_part LIMIT 0;
+set citus.log_remote_commands to on;
+SELECT DISTINCT l_orderkey, avg(l_linenumber)
+FROM lineitem_hash_part
+GROUP BY l_orderkey
+HAVING avg(l_linenumber) = (select avg(distinct l_linenumber))
+LIMIT 10;
+reset citus.log_remote_commands;
 
 SELECT DISTINCT l_partkey, 1 + (random() * 0)::int FROM lineitem_hash_part ORDER BY 1 DESC LIMIT 3;
 

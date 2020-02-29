@@ -3670,6 +3670,7 @@ get_variable(Var *var, int levelsup, bool istoplevel, deparse_context *context)
 		TargetEntry *tle;
 		deparse_namespace save_dpns;
 
+		elog(WARNING, "tlist: %s", nodeToString(dpns->inner_tlist));
 		tle = get_tle_by_resno(dpns->inner_tlist, var->varattno);
 		if (!tle)
 			elog(ERROR, "invalid attnum %d for relation \"%s\"",
@@ -3735,8 +3736,15 @@ get_variable(Var *var, int levelsup, bool istoplevel, deparse_context *context)
 	{
 		/* Get column name to use from the colinfo struct */
 		if (attnum > colinfo->num_cols)
+		{
+			elog(WARNING, "numcols: %d %s %s %s", colinfo->num_cols,
+					colinfo->colnames[0],
+					colinfo->colnames[1],
+					colinfo->colnames[2]
+					);
 			elog(ERROR, "invalid attnum %d for relation \"%s\"",
 				 attnum, rte->eref->aliasname);
+		}
 		attname = colinfo->colnames[attnum - 1];
 		if (attname == NULL)	/* dropped column? */
 			elog(ERROR, "invalid attnum %d for relation \"%s\"",
