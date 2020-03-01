@@ -1993,7 +1993,7 @@ CreateCitusCopyDestReceiver(Oid tableId, List *columnNameList, int partitionColu
 	copyDest->executorState = executorState;
 	copyDest->stopOnFailure = stopOnFailure;
 	copyDest->intermediateResultIdPrefix = intermediateResultIdPrefix;
-	copyDest->memoryContext = TopMemoryContext;
+	copyDest->memoryContext = CurrentMemoryContext;
 
 	return copyDest;
 }
@@ -2133,13 +2133,7 @@ CitusCopyDestReceiverStartup(DestReceiver *dest, int operation,
 	copyOutState->null_print_client = (char *) nullPrintCharacter;
 	copyOutState->binary = CanUseBinaryCopyFormat(inputTupleDescriptor);
 	copyOutState->fe_msgbuf = makeStringInfo();
-	MemoryContext rowcontext = GetPerTupleMemoryContext(copyDest->executorState);
-	rowcontext = AllocSetContextCreateExtended(rowcontext,
-											   "InitializeCopyShardState",
-											   ALLOCSET_DEFAULT_MINSIZE,
-											   ALLOCSET_DEFAULT_INITSIZE,
-											   50 * ALLOCSET_DEFAULT_MAXSIZE);
-	copyOutState->rowcontext = rowcontext;
+	copyOutState->rowcontext = GetPerTupleMemoryContext(copyDest->executorState);
 	copyDest->copyOutState = copyOutState;
 	copyDest->multiShardCopy = false;
 
@@ -3230,7 +3224,7 @@ InitializeCopyShardState(CopyShardState *shardState,
 									  "InitializeCopyShardState",
 									  ALLOCSET_DEFAULT_MINSIZE,
 									  ALLOCSET_DEFAULT_INITSIZE,
-									  20 * ALLOCSET_DEFAULT_MAXSIZE);
+									  ALLOCSET_DEFAULT_MAXSIZE);
 
 
 	/* release active placement list at the end of this function */

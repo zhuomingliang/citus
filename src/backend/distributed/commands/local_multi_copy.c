@@ -85,11 +85,9 @@ ProcessLocalCopy(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, int64 sh
 		{
 			AppendCopyBinaryFooters(copyDest->copyOutState);
 		}
-		MemoryContext oldContext = MemoryContextSwitchTo(copyDest->memoryContext);
 
 		DoLocalCopy(buffer, copyDest->distributedRelationId, shardId,
 					copyDest->copyStatement);
-		MemoryContextSwitchTo(oldContext);
 	}
 	copyDest->copyOutState->fe_msgbuf = previousBuffer;
 }
