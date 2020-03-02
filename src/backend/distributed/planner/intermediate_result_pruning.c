@@ -130,7 +130,7 @@ RecordSubplanExecutionsOnNodes(HTAB *intermediateResultsHash,
 		if (list_length(entry->nodeIdList) == workerNodeCount && entry->writeLocalFile)
 		{
 			elog(DEBUG4, "Subplan %s is used in all workers", resultId);
-			break;
+			continue;
 		}
 		else if (usedPlan->locationMask & SUBPLAN_ACCESS_REMOTE)
 		{
