@@ -492,6 +492,7 @@ OutTask(OUTFUNC_ARGS)
 	WRITE_NODE_FIELD(relationRowLockList);
 	WRITE_NODE_FIELD(rowValuesLists);
 	WRITE_BOOL_FIELD(partiallyLocalOrRemote);
+	WRITE_BOOL_FIELD(parametersRemovedFromQueryString);
 }
 
 
