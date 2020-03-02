@@ -260,6 +260,81 @@ EXECUTE fast_path_router_with_only_function;
 EXECUTE fast_path_router_with_only_function;
 
 
+-- make sure that it is also true for  fast-path router queries with paramaters
+PREPARE router_with_param(int) AS SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE user_id  = $1;
+
+execute router_with_param(3);
+execute router_with_param(3);
+execute router_with_param(3);
+execute router_with_param(3);
+execute router_with_param(3);
+execute router_with_param(3);
+execute router_with_param(3);
+execute router_with_param(3);
+
+
+PREPARE router_with_param_and_func(int) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data m1 JOIN user_info_data m2 USING(user_id) WHERE m1.user_id  = $1;
+
+execute router_with_param_and_func(3);
+execute router_with_param_and_func(3);
+execute router_with_param_and_func(3);
+execute router_with_param_and_func(3);
+execute router_with_param_and_func(3);
+execute router_with_param_and_func(3);
+execute router_with_param_and_func(3);
+execute router_with_param_and_func(3);
+
+-- same query as router_with_param, but with consts
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data m1 JOIN user_info_data m2 USING(user_id) WHERE m1.user_id  = 3;
+
+
+PREPARE router_with_param_on_non_dist_key(user_data) AS SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE u1.user_id = 3 AND u1.u_data  = $1;
+EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+
+PREPARE router_with_param_on_non_dist_key_and_func(user_data) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE u1.user_id = 3 AND u1.u_data  = $1;
+EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+
+
+PREPARE router_with_two_params(user_data, int) AS SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE user_id = $2 AND u1.u_data  = $1;
+
+EXECUTE router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE router_with_two_params(('test', 1)::user_data, 3);
+
+
+PREPARE router_with_only_function AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data u1 JOIN user_info_data u2 USING(user_id) WHERE user_id = 3;
+EXECUTE router_with_only_function;
+EXECUTE router_with_only_function;
+EXECUTE router_with_only_function;
+EXECUTE router_with_only_function;
+EXECUTE router_with_only_function;
+EXECUTE router_with_only_function;
+EXECUTE router_with_only_function;
+EXECUTE router_with_only_function;
+
+
 -- suppress notices
 \c - - - :master_port
 SET client_min_messages TO ERROR;
