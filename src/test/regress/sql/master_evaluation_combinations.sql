@@ -16,6 +16,9 @@ SELECT create_distributed_function('get_local_node_id_volatile()');
 
 CREATE TYPE user_data AS (name text, age int);
 
+SET citus.replication_model TO streaming;
+SET citus.shard_replication_factor TO 1;
+
 CREATE TABLE user_info_data (user_id int, u_data user_data);
 SELECT create_distributed_table('user_info_data', 'user_id');
 
@@ -175,7 +178,20 @@ EXECUTE router_with_only_function;
 EXECUTE router_with_only_function;
 EXECUTE router_with_only_function;
 
+\c - - - :worker_2_port
+
+SET citus.log_local_commands TO ON;
+SET client_min_messages TO DEBUG;
+SET search_path TO master_evaluation_combinations;
+
+-- show that the data with user_id = 3 is local
+SELECT count(*) FROM user_info_data WHERE user_id = 3;
+
+RESET citus.log_local_commands;
+RESET client_min_messages;
 
 
+-- suppress notices
+\c - - - :master_port
+SET client_min_messages TO ERROR;
 DROP SCHEMA master_evaluation_combinations CASCADE;
-
