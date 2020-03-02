@@ -181,14 +181,83 @@ EXECUTE router_with_only_function;
 \c - - - :worker_2_port
 
 SET citus.log_local_commands TO ON;
-SET client_min_messages TO DEBUG;
 SET search_path TO master_evaluation_combinations;
 
 -- show that the data with user_id = 3 is local
 SELECT count(*) FROM user_info_data WHERE user_id = 3;
 
-RESET citus.log_local_commands;
-RESET client_min_messages;
+
+-- make sure that it is also true for  fast-path router queries with paramaters
+PREPARE fast_path_router_with_param(int) AS SELECT count(*) FROM user_info_data WHERE user_id  = $1;
+
+execute fast_path_router_with_param(3);
+execute fast_path_router_with_param(3);
+execute fast_path_router_with_param(3);
+execute fast_path_router_with_param(3);
+execute fast_path_router_with_param(3);
+execute fast_path_router_with_param(3);
+execute fast_path_router_with_param(3);
+execute fast_path_router_with_param(3);
+
+
+-- make sure that it is also true for  fast-path router queries with paramaters
+PREPARE fast_path_router_with_param_and_func(int) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id  = $1;
+
+execute fast_path_router_with_param_and_func(3);
+execute fast_path_router_with_param_and_func(3);
+execute fast_path_router_with_param_and_func(3);
+execute fast_path_router_with_param_and_func(3);
+execute fast_path_router_with_param_and_func(3);
+execute fast_path_router_with_param_and_func(3);
+execute fast_path_router_with_param_and_func(3);
+execute fast_path_router_with_param_and_func(8);
+
+
+PREPARE fast_path_router_with_param_on_non_dist_key_and_func(user_data) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id = 3 AND u_data  = $1;
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+
+PREPARE fast_path_router_with_param_on_non_dist_key(user_data) AS SELECT count(*) FROM user_info_data WHERE user_id = 3 AND u_data  = $1;
+EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
+
+
+
+PREPARE fast_path_router_with_two_params(user_data, int) AS SELECT count(*) FROM user_info_data WHERE user_id = $2 AND u_data  = $1;
+
+EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
+
+
+PREPARE fast_path_router_with_only_function AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id = 3;
+EXECUTE fast_path_router_with_only_function;
+EXECUTE fast_path_router_with_only_function;
+EXECUTE fast_path_router_with_only_function;
+EXECUTE fast_path_router_with_only_function;
+EXECUTE fast_path_router_with_only_function;
+EXECUTE fast_path_router_with_only_function;
+EXECUTE fast_path_router_with_only_function;
+EXECUTE fast_path_router_with_only_function;
 
 
 -- suppress notices
