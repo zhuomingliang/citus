@@ -87,7 +87,7 @@ INSERT INTO test_recovery (x) SELECT 'hello-'||s FROM generate_series(1,100) s;
 SELECT count(*) FROM pg_dist_transaction;
 SELECT recover_prepared_transactions();
 
--- Committed COPY should write 2 transaction records (2 fall into the same shard)
+-- Committed COPY should write 3 transaction records (2 fall into the same shard)
 COPY test_recovery (x) FROM STDIN CSV;
 hello-0
 hello-1

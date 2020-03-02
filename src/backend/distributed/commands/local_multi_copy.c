@@ -30,6 +30,7 @@
 #include "distributed/transmit.h"
 #include "distributed/commands/multi_copy.h"
 #include "distributed/multi_partitioning_utils.h"
+#include "distributed/local_executor.h"
 #include "distributed/local_multi_copy.h"
 #include "distributed/shard_utils.h"
 
@@ -75,6 +76,8 @@ ProcessLocalCopy(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, int64 sh
 	 */
 	StringInfo previousBuffer = copyDest->copyOutState->fe_msgbuf;
 	copyDest->copyOutState->fe_msgbuf = buffer;
+
+	TransactionAccessedLocalPlacement = true;
 
 	bool isBinaryCopy = copyDest->copyOutState->binary;
 	AddSlotToBuffer(slot, copyDest, isBinaryCopy);
@@ -142,13 +145,16 @@ DoLocalCopy(StringInfo buffer, Oid relationId, int64 shardId, CopyStmt *copyStat
 	Oid shardOid = GetShardOid(relationId, shardId);
 	Relation shard = heap_open(shardOid, RowExclusiveLock);
 	Relation copiedShard = CreateCopiedShard(copyStatement->relation, shard);
+	ParseState *pState = make_parsestate(NULL);
+	pState->p_rtable = CreateRangeTable(copiedShard, ACL_INSERT);
 
-	CopyState cstate = BeginCopyFrom(NULL, copiedShard, NULL, false,
+	CopyState cstate = BeginCopyFrom(pState, copiedShard, NULL, false,
 									 ReadFromLocalBufferCallback,
 									 copyStatement->attlist, copyStatement->options);
 	CopyFrom(cstate);
 	EndCopyFrom(cstate);
 
+	free_parsestate(pState);
 	FreeStringInfo(buffer);
 	buffer = makeStringInfo();
 	heap_close(shard, NoLock);

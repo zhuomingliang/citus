@@ -135,6 +135,8 @@ typedef struct CitusCopyDestReceiver
 	/* if true, should copy to local placements in the current session */
 	bool shouldUseLocalCopy;
 
+	bool insideTransaction;
+
 	/* copy into intermediate result */
 	char *intermediateResultIdPrefix;
 } CitusCopyDestReceiver;
@@ -160,6 +162,7 @@ extern void AppendCopyRowData(Datum *valueArray, bool *isNullArray,
 extern void AppendCopyBinaryHeaders(CopyOutState headerOutputState);
 extern void AppendCopyBinaryFooters(CopyOutState footerOutputState);
 extern void EndRemoteCopy(int64 shardId, List *connectionList);
+extern List * CreateRangeTable(Relation rel, AclMode requiredAccess);
 extern Node * ProcessCopyStmt(CopyStmt *copyStatement, char *completionTag,
 							  const char *queryString);
 extern void CheckCopyPermissions(CopyStmt *copyStatement);

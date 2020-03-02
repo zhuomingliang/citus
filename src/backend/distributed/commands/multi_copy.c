@@ -286,6 +286,7 @@ static void CitusCopyDestReceiverDestroy(DestReceiver *destReceiver);
 static bool ContainsLocalPlacement(int64 shardId);
 static void FinishLocalCopy(CitusCopyDestReceiver *copyDest);
 static bool ShouldExecuteCopyLocally(void);
+static void LogLocalCopyExecution(uint64 shardId);
 
 
 /* exports for SQL callable functions */
@@ -433,7 +434,6 @@ CopyToExistingShards(CopyStmt *copyStatement, char *completionTag)
 	copyDest = CreateCitusCopyDestReceiver(tableId, columnNameList, partitionColumnIndex,
 										   executorState, stopOnFailure, NULL,
 										   canUseLocalCopy);
-	copyDest->originalCopySatement = copyStatement;
 	dest = (DestReceiver *) copyDest;
 	dest->rStartup(dest, 0, tupleDescriptor);
 
@@ -2033,7 +2033,7 @@ ShouldExecuteCopyLocally()
 		return true;
 	}
 
-	return true;
+	return IsTransactionBlock();
 }
 
 
@@ -2963,7 +2963,6 @@ CheckCopyPermissions(CopyStmt *copyStatement)
 	/* *INDENT-OFF* */
 	bool		is_from = copyStatement->is_from;
 	Relation	rel;
-	Oid			relid;
 	List	   *range_table = NIL;
 	TupleDesc	tupDesc;
 	AclMode		required_access = (is_from ? ACL_INSERT : ACL_SELECT);
@@ -2973,15 +2972,8 @@ CheckCopyPermissions(CopyStmt *copyStatement)
 	rel = heap_openrv(copyStatement->relation,
 	                  is_from ? RowExclusiveLock : AccessShareLock);
 
-	relid = RelationGetRelid(rel);
-
-	RangeTblEntry *rte = makeNode(RangeTblEntry);
-	rte->rtekind = RTE_RELATION;
-	rte->relid = relid;
-	rte->relkind = rel->rd_rel->relkind;
-	rte->requiredPerms = required_access;
-	range_table = list_make1(rte);
-
+	range_table = CreateRangeTable(rel, required_access);
+	RangeTblEntry *rte = (RangeTblEntry*) linitial(range_table);
 	tupDesc = RelationGetDescr(rel);
 
 	attnums = CopyGetAttnums(tupDesc, rel, copyStatement->attlist);
@@ -3005,6 +2997,21 @@ CheckCopyPermissions(CopyStmt *copyStatement)
 
 	heap_close(rel, NoLock);
 	/* *INDENT-ON* */
+}
+
+
+/*
+ * CreateRangeTable creates a range table with the given relation.
+ */
+List *
+CreateRangeTable(Relation rel, AclMode requiredAccess)
+{
+	RangeTblEntry *rte = makeNode(RangeTblEntry);
+	rte->rtekind = RTE_RELATION;
+	rte->relid = rel->rd_id;
+	rte->relkind = rel->rd_rel->relkind;
+	rte->requiredPerms = requiredAccess;
+	return list_make1(rte);
 }
 
 
@@ -3245,6 +3252,7 @@ InitializeCopyShardState(CopyShardState *shardState,
 
 		if (shouldUseLocalCopy && placement->groupId == GetLocalGroupId())
 		{
+			LogLocalCopyExecution(shardId);
 			continue;
 		}
 
@@ -3299,6 +3307,13 @@ InitializeCopyShardState(CopyShardState *shardState,
 	Assert(!stopOnFailure || failedPlacementCount == 0);
 
 	MemoryContextReset(localContext);
+}
+
+
+static void
+LogLocalCopyExecution(uint64 shardId)
+{
+	ereport(NOTICE, (errmsg("executing the copy locally for shard")));
 }
 
 
