@@ -85,7 +85,6 @@ static uint32 RangePartitionId(Datum partitionValue, Oid partitionCollation,
 static uint32 HashPartitionId(Datum partitionValue, Oid partitionCollation,
 							  const void *context);
 static StringInfo UserPartitionFilename(StringInfo directoryName, uint32 partitionId);
-static bool FileIsLink(const char *filename, struct stat filestat);
 
 
 /* exports for SQL callable functions */
@@ -688,25 +687,6 @@ CitusCreateDirectory(StringInfo directoryName)
 }
 
 
-#ifdef WIN32
-static bool
-FileIsLink(char *filename, struct stat filestat)
-{
-	return pgwin32_is_junction(filename);
-}
-
-
-#else
-static bool
-FileIsLink(const char *filename, struct stat filestat)
-{
-	return S_ISLNK(filestat.st_mode);
-}
-
-
-#endif
-
-
 /*
  * CitusRemoveDirectory first checks if the given directory exists. If it does, the
  * function recursively deletes the contents of the given directory, and then
@@ -719,86 +699,75 @@ CitusRemoveDirectory(const char *filename)
 	/* files may be added during execution, loop when that occurs */
 	while (true)
 	{
-		struct stat fileStat;
-		int removed = 0;
-
-		int statOK = stat(filename, &fileStat);
-		if (statOK < 0)
+		int removed = unlink(filename);
+		if (removed || errno == ENOENT)
 		{
-			if (errno == ENOENT)
-			{
-				return;  /* if file does not exist, return */
-			}
-			else
-			{
-				ereport(ERROR, (errcode_for_file_access(),
-								errmsg("could not stat file \"%s\": %m", filename)));
-			}
+			return;
 		}
-
-		/*
-		 * If this is a directory, iterate over all its contents and for each
-		 * content, recurse into this function. Also, make sure that we do not
-		 * recurse into symbolic links.
-		 */
-		if (S_ISDIR(fileStat.st_mode) && !FileIsLink(filename, fileStat))
-		{
-			const char *directoryName = filename;
-
-			DIR *directory = AllocateDir(directoryName);
-			if (directory == NULL)
-			{
-				ereport(ERROR, (errcode_for_file_access(),
-								errmsg("could not open directory \"%s\": %m",
-									   directoryName)));
-			}
-
-			StringInfo fullFilename = makeStringInfo();
-			struct dirent *directoryEntry = ReadDir(directory, directoryName);
-			for (; directoryEntry != NULL; directoryEntry = ReadDir(directory,
-																	directoryName))
-			{
-				const char *baseFilename = directoryEntry->d_name;
-
-				/* if system file, skip it */
-				if (strncmp(baseFilename, ".", MAXPGPATH) == 0 ||
-					strncmp(baseFilename, "..", MAXPGPATH) == 0)
-				{
-					continue;
-				}
-
-				resetStringInfo(fullFilename);
-				appendStringInfo(fullFilename, "%s/%s", directoryName, baseFilename);
-
-				CitusRemoveDirectory(fullFilename->data);
-			}
-
-			FreeStringInfo(fullFilename);
-			FreeDir(directory);
-		}
-
-		/* we now have an empty directory or a regular file, remove it */
-		if (S_ISDIR(fileStat.st_mode))
-		{
-			removed = rmdir(filename);
-
-			if (errno == ENOTEMPTY || errno == EEXIST)
-			{
-				continue;
-			}
-		}
-		else
-		{
-			removed = unlink(filename);
-		}
-
-		if (removed != 0 && errno != ENOENT)
+		if (errno != EISDIR)
 		{
 			ereport(ERROR, (errcode_for_file_access(),
 							errmsg("could not remove file \"%s\": %m", filename)));
 		}
 
-		return;
+		removed = rmdir(filename);
+		if (removed || errno == ENOENT)
+		{
+			return;
+		}
+		if (errno == ENOTDIR)
+		{
+			/* If directory changed to a file underneath us, loop again to remove it with unlink */
+			continue;
+		}
+		if (errno != ENOTEMPTY && errno == EEXIST)
+		{
+			ereport(ERROR, (errcode_for_file_access(),
+							errmsg("could not remove directory \"%s\": %m", filename)));
+		}
+
+		/*
+		 * If this is a non empty directory, iterate over all its contents and
+		 * for each content, recurse into this function. Also, make sure that
+		 * we do not recurse into symbolic links.
+		 */
+		const char *directoryName = filename;
+
+		DIR *directory = AllocateDir(directoryName);
+		if (errno == ENOENT)
+		{
+			/* If directory was removed from under us we're done */
+			return;
+		}
+		if (errno == ENOTDIR)
+		{
+			/* If directory changed to a file underneath us, loop again to remove it with unlink */
+			continue;
+		}
+
+		/* ReadDir handles other errno from AllocateDir */
+		struct dirent *directoryEntry = ReadDir(directory, directoryName);
+		StringInfo fullFilename = makeStringInfo();
+		for (; directoryEntry != NULL; directoryEntry = ReadDir(directory,
+																directoryName))
+		{
+			const char *baseFilename = directoryEntry->d_name;
+
+			/* if system file, skip it */
+			if (strncmp(baseFilename, ".", MAXPGPATH) == 0 ||
+				strncmp(baseFilename, "..", MAXPGPATH) == 0)
+			{
+				continue;
+			}
+
+			resetStringInfo(fullFilename);
+			appendStringInfo(fullFilename, "%s/%s", directoryName, baseFilename);
+
+			CitusRemoveDirectory(fullFilename->data);
+		}
+
+		FreeStringInfo(fullFilename);
+		FreeDir(directory);
 	}
 }
 
