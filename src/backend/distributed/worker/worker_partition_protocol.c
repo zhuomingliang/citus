@@ -85,7 +85,6 @@ static uint32 RangePartitionId(Datum partitionValue, Oid partitionCollation,
 static uint32 HashPartitionId(Datum partitionValue, Oid partitionCollation,
 							  const void *context);
 static StringInfo UserPartitionFilename(StringInfo directoryName, uint32 partitionId);
-static bool FileIsLink(const char *filename, struct stat filestat);
 
 
 /* exports for SQL callable functions */
@@ -688,25 +687,6 @@ CitusCreateDirectory(StringInfo directoryName)
 }
 
 
-#ifdef WIN32
-static bool
-FileIsLink(char *filename, struct stat filestat)
-{
-	return pgwin32_is_junction(filename);
-}
-
-
-#else
-static bool
-FileIsLink(const char *filename, struct stat filestat)
-{
-	return S_ISLNK(filestat.st_mode);
-}
-
-
-#endif
-
-
 /*
  * CitusRemoveDirectory first checks if the given directory exists. If it does, the
  * function recursively deletes the contents of the given directory, and then
@@ -730,6 +710,7 @@ CitusRemoveDirectory(const char *filename)
 							errmsg("could not remove file \"%s\": %m", filename)));
 		}
 
+		/* lgtm[cpp/toctou-race-condition] */
 		removed = rmdir(filename);
 		if (removed || errno == ENOENT)
 		{
@@ -740,7 +721,7 @@ CitusRemoveDirectory(const char *filename)
 			/* If directory changed to a file underneath us, loop again to remove it with unlink */
 			continue;
 		}
-		if (errno != ENOTEMPTY && errno == EEXIST)
+		if (errno != ENOTEMPTY && errno != EEXIST)
 		{
 			ereport(ERROR, (errcode_for_file_access(),
 							errmsg("could not remove directory \"%s\": %m", filename)));
