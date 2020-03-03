@@ -16,6 +16,7 @@
 #include "distributed/citus_clauses.h"
 #include "distributed/citus_custom_scan.h"
 #include "distributed/citus_nodefuncs.h"
+#include "distributed/citus_ruleutils.h"
 #include "distributed/deparse_shard_query.h"
 #include "distributed/distributed_execution_locks.h"
 #include "distributed/insert_select_executor.h"
@@ -55,7 +56,7 @@ static void RegenerateTaskForFasthPathQuery(Job *workerJob);
 static void RegenerateTaskListForInsert(Job *workerJob);
 static void CacheLocalPlanForShardQuery(Task *task,
 										DistributedPlan *originalDistributedPlan);
-static bool IsLocalPlanCachingSupported(List *taskList,
+static bool IsLocalPlanCachingSupported(Job *workerJob,
 										DistributedPlan *originalDistributedPlan);
 static DistributedPlan * CopyDistributedPlanWithoutCache(
 	DistributedPlan *originalDistributedPlan);
@@ -187,28 +188,21 @@ CitusBeginScan(CustomScanState *node, EState *estate, int eflags)
 #endif
 
 	DistributedPlan *distributedPlan = scanState->distributedPlan;
-	Job *workerJob = distributedPlan->workerJob;
-
 	if (distributedPlan->insertSelectQuery != NULL)
 	{
 		/*
-		 * INSERT..SELECT jobs are special because the SELECT is planned
-		 * separately.
+		 * INSERT..SELECT via coordinator or re-partitioning are special because
+		 * the SELECT part is planned separately.
 		 */
 		return;
 	}
-
-	Assert(workerJob != NULL);
-
-	Query *jobQuery = workerJob->jobQuery;
-
-	if (IsModifyCommand(jobQuery))
+	else if (distributedPlan->modLevel == ROW_MODIFY_READONLY)
 	{
-		CitusBeginModifyScan(node, estate, eflags);
+		CitusBeginSelectScan(node, estate, eflags);
 	}
 	else
 	{
-		CitusBeginSelectScan(node, estate, eflags);
+		CitusBeginModifyScan(node, estate, eflags);
 	}
 }
 
@@ -254,6 +248,15 @@ CitusBeginSelectScan(CustomScanState *node, EState *estate, int eflags)
 	CitusScanState *scanState = (CitusScanState *) node;
 	DistributedPlan *originalDistributedPlan = scanState->distributedPlan;
 
+	if (!originalDistributedPlan->workerJob->deferredPruning)
+	{
+		/*
+		 * For SELECT queries that have already been pruned we can proceed straight
+		 * to execution, since none of the prepared statement logic applies.
+		 */
+		return;
+	}
+
 	/*
 	 * Create a copy of the generic plan for the current execution, but make a shallow
 	 * copy of the plan cache. That means we'll be able to access the plan cache via
@@ -268,36 +271,31 @@ CitusBeginSelectScan(CustomScanState *node, EState *estate, int eflags)
 	Query *jobQuery = workerJob->jobQuery;
 	PlanState *planState = &(scanState->customScanState.ss.ps);
 
-	Assert(jobQuery->commandType == CMD_SELECT);
+	/*
+	 * We only do deferred pruning for fast path queries, which have a single
+	 * partition column value.
+	 */
+	Assert(currentPlan->fastPathRouterPlan || !EnableFastPathRouterPlanner);
 
-	if (workerJob->deferredPruning)
-	{
-		/*
-		 * We only do deferred pruning for fast path queries, which have a single
-		 * partition column value.
-		 */
-		Assert(currentPlan->fastPathRouterPlan || !EnableFastPathRouterPlanner);
+	/*
+	 * Evaluate parameters, because the parameters are only available on the
+	 * coordinator and are required for pruning.
+	 *
+	 * We don't evaluate functions for read-only queries on the coordinator
+	 * at the moment. Most function calls would be in a context where they
+	 * should be re-evaluated for every row in case of volatile functions.
+	 *
+	 * TODO: evaluate stable functions
+	 */
+	ExecuteMasterEvaluableParameters(jobQuery, planState);
 
-		/*
-		 * Evaluate parameters, because the parameters are only available on the
-		 * coordinator and are required for pruning.
-		 *
-		 * We don't evaluate functions for read-only queries on the coordinator
-		 * at the moment. Most function calls would be in a context where they
-		 * should be re-evaluated for every row in case of volatile functions.
-		 *
-		 * TODO: evaluate stable functions
-		 */
-		ExecuteMasterEvaluableParameters(jobQuery, planState);
+	/* job query no longer has parameters, so we should not send any */
+	workerJob->parametersInJobQueryResolved = true;
 
-		/* job query no longer has parameters, so we should not send any */
-		workerJob->parametersRemovedFromQuery = true;
+	/* parameters are filled in, so we can generate a task for this execution */
+	RegenerateTaskForFasthPathQuery(workerJob);
 
-		/* parameters are filled in, so we can generate a task for this execution */
-		RegenerateTaskForFasthPathQuery(workerJob);
-	}
-
-	if (IsLocalPlanCachingSupported(workerJob->taskList, originalDistributedPlan))
+	if (IsLocalPlanCachingSupported(workerJob, originalDistributedPlan))
 	{
 		Task *task = linitial(workerJob->taskList);
 
@@ -345,7 +343,7 @@ CitusBeginModifyScan(CustomScanState *node, EState *estate, int eflags)
 		ExecuteMasterEvaluableFunctionsAndParameters(jobQuery, planState);
 
 		/* job query no longer has parameters, so we should not send any */
-		workerJob->parametersRemovedFromQuery = true;
+		workerJob->parametersInJobQueryResolved = true;
 
 		if (!workerJob->deferredPruning)
 		{
@@ -388,7 +386,11 @@ CitusBeginModifyScan(CustomScanState *node, EState *estate, int eflags)
 	/* modify tasks are always assigned using first-replica policy */
 	workerJob->taskList = FirstReplicaAssignTaskList(workerJob->taskList);
 
-	if (IsLocalPlanCachingSupported(workerJob->taskList, originalDistributedPlan))
+	/*
+	 * Now that we have populated the task placements we can determine whether
+	 * any of them are local to this node and cache a plan if needed.
+	 */
+	if (IsLocalPlanCachingSupported(workerJob, originalDistributedPlan))
 	{
 		Task *task = linitial(workerJob->taskList);
 
@@ -539,8 +541,24 @@ GetCachedLocalPlan(Task *task, DistributedPlan *distributedPlan)
  * functions).
  */
 static bool
-IsLocalPlanCachingSupported(List *taskList, DistributedPlan *originalDistributedPlan)
+IsLocalPlanCachingSupported(Job *currentJob, DistributedPlan *originalDistributedPlan)
 {
+	if (!currentJob->deferredPruning)
+	{
+		/*
+		 * When not using deferred pruning we may have already replaced distributed
+		 * table RTEs with citus_extradata_container RTEs to pass the shard ID to the
+		 * deparser. In that case, we cannot pass the query tree directly to the
+		 * planner.
+		 *
+		 * If desired, we can relax this check by improving the implementation of
+		 * CacheLocalPlanForShardQuery to translate citus_extradata_container
+		 * to a shard relation OID.
+		 */
+		return false;
+	}
+
+	List *taskList = currentJob->taskList;
 	if (list_length(taskList) != 1)
 	{
 		/* we only support plan caching for single shard queries */
@@ -592,11 +610,11 @@ static void
 RegenerateTaskListForInsert(Job *workerJob)
 {
 	Query *jobQuery = workerJob->jobQuery;
-	bool parametersRemovedFromQuery = workerJob->parametersRemovedFromQuery;
+	bool parametersInJobQueryResolved = workerJob->parametersInJobQueryResolved;
 	DeferredErrorMessage *planningError = NULL;
 
 	/* need to perform shard pruning, rebuild the task list from scratch */
-	List *taskList = RouterInsertTaskList(jobQuery, parametersRemovedFromQuery,
+	List *taskList = RouterInsertTaskList(jobQuery, parametersInJobQueryResolved,
 										  &planningError);
 
 	if (planningError != NULL)
@@ -788,7 +806,7 @@ CitusReScan(CustomScanState *node)
 	EState *executorState = ScanStateGetExecutorState(scanState);
 	ParamListInfo paramListInfo = executorState->es_param_list_info;
 
-	if (paramListInfo != NULL && !workerJob->parametersRemovedFromQuery)
+	if (paramListInfo != NULL && !workerJob->parametersInJobQueryResolved)
 	{
 		ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 						errmsg("Cursors for queries on distributed tables with "

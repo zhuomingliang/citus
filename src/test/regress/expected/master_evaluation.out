@@ -111,29 +111,53 @@ SELECT get_local_node_id_volatile() > 0 FROM master_evaluation_table WHERE key =
 
 PREPARE router_with_param(int) AS SELECT get_local_node_id_volatile() > 0 FROM master_evaluation_table m1 JOIN master_evaluation_table m2 USING(key) WHERE key  = $1;
 execute router_with_param(1);
-ERROR:  there is no parameter $1
-CONTEXT:  while executing command on localhost:xxxxx
+ ?column?
+---------------------------------------------------------------------
+ t
+(1 row)
+
 execute router_with_param(2);
-ERROR:  there is no parameter $1
-CONTEXT:  while executing command on localhost:xxxxx
+ ?column?
+---------------------------------------------------------------------
+ t
+(1 row)
+
 execute router_with_param(3);
-ERROR:  there is no parameter $1
-CONTEXT:  while executing command on localhost:xxxxx
+ ?column?
+---------------------------------------------------------------------
+ t
+(1 row)
+
 execute router_with_param(4);
-ERROR:  there is no parameter $1
-CONTEXT:  while executing command on localhost:xxxxx
+ ?column?
+---------------------------------------------------------------------
+ t
+(1 row)
+
 execute router_with_param(5);
-ERROR:  there is no parameter $1
-CONTEXT:  while executing command on localhost:xxxxx
+ ?column?
+---------------------------------------------------------------------
+ t
+(1 row)
+
 execute router_with_param(6);
-ERROR:  there is no parameter $1
-CONTEXT:  while executing command on localhost:xxxxx
+ ?column?
+---------------------------------------------------------------------
+ t
+(1 row)
+
 execute router_with_param(7);
-ERROR:  there is no parameter $1
-CONTEXT:  while executing command on localhost:xxxxx
+ ?column?
+---------------------------------------------------------------------
+ t
+(1 row)
+
 execute router_with_param(8);
-ERROR:  there is no parameter $1
-CONTEXT:  while executing command on localhost:xxxxx
+ ?column?
+---------------------------------------------------------------------
+ t
+(1 row)
+
 -- same query as router_with_param, but with consts
 SELECT get_local_node_id_volatile() > 0 FROM master_evaluation_table m1 JOIN master_evaluation_table m2 USING(key) WHERE key  = 1;
  ?column?

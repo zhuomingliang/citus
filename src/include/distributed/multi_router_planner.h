@@ -47,7 +47,7 @@ extern List * RelationShardListForShardIntervalList(List *shardIntervalList,
 													bool *shardsPresent);
 extern List * FindRouterWorkerList(List *shardIntervalList, bool shardsPresent,
 								   bool replacePrunedQueryWithDummy);
-extern List * RouterInsertTaskList(Query *query, bool parametersRemovedFromQuery,
+extern List * RouterInsertTaskList(Query *query, bool parametersInQueryResolved,
 								   DeferredErrorMessage **planningError);
 extern Const * ExtractInsertPartitionKeyValue(Query *query);
 extern List * TargetShardIntervalsForRestrictInfo(RelationRestrictionContext *

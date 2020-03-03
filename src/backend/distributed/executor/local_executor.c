@@ -187,7 +187,7 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
 			int taskNumParams = numParams;
 			Oid *taskParameterTypes = parameterTypes;
 
-			if (task->parametersRemovedFromQueryString)
+			if (task->parametersInQueryStringResolved)
 			{
 				/*
 				 * Parameters were removed from the query string so do not pass them

@@ -163,7 +163,7 @@ typedef struct Job
 	 * should no longer send the list of parameters along with the
 	 * query.
 	 */
-	bool parametersRemovedFromQuery;
+	bool parametersInJobQueryResolved;
 } Job;
 
 
@@ -283,11 +283,11 @@ typedef struct Task
 	bool partiallyLocalOrRemote;
 
 	/*
-	 * When we evaluate functions and parameters in the query tree then
+	 * When we evaluate functions and parameters in the query string then
 	 * we should no longer send the list of parameters long with the
 	 * query.
 	 */
-	bool parametersRemovedFromQueryString;
+	bool parametersInQueryStringResolved;
 } Task;
 
 

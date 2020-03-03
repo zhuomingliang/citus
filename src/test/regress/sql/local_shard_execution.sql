@@ -383,7 +383,7 @@ CREATE OR REPLACE PROCEDURE only_local_execution_with_function_evaluation() AS $
 			IF nodeId <= 0 THEN
 				RAISE NOTICE 'unexpected node id';
 			END IF;
-			
+
 			-- regular router
 			SELECT get_local_node_id_volatile() INTO nodeId FROM distributed_table d1 JOIN distributed_table d2 USING (key) WHERE d1.key = 1;
 			IF nodeId <= 0 THEN
@@ -413,7 +413,7 @@ CREATE OR REPLACE PROCEDURE only_local_execution_with_function_evaluation_param(
 			IF nodeId <= 0 THEN
 				RAISE NOTICE 'unexpected node id';
 			END IF;
-			
+
 			-- regular router
 			SELECT get_local_node_id_volatile() INTO nodeId FROM distributed_table d1 JOIN distributed_table d2 USING (key) WHERE d1.key = $1;
 			IF nodeId <= 0 THEN

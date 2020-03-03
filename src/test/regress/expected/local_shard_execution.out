@@ -713,9 +713,9 @@ CALL only_local_execution_with_function_evaluation_param(1);
 NOTICE:  executing the command locally: SELECT local_shard_execution.get_local_node_id_volatile() AS get_local_node_id_volatile FROM local_shard_execution.distributed_table_1470001 distributed_table WHERE (key OPERATOR(pg_catalog.=) 1)
 CONTEXT:  SQL statement "SELECT get_local_node_id_volatile()             FROM distributed_table WHERE key = $1"
 PL/pgSQL function only_local_execution_with_function_evaluation_param(integer) line 5 at SQL statement
-ERROR:  there is no parameter $1
-QUERY:  SELECT get_local_node_id_volatile()             FROM distributed_table d1 JOIN distributed_table d2 USING (key) WHERE d1.key = $1
-CONTEXT:  PL/pgSQL function only_local_execution_with_function_evaluation_param(integer) line 11 at SQL statement
+NOTICE:  executing the command locally: SELECT local_shard_execution.get_local_node_id_volatile() AS get_local_node_id_volatile FROM (local_shard_execution.distributed_table_1470001 d1(key, value, age) JOIN local_shard_execution.distributed_table_1470001 d2(key, value, age) USING (key)) WHERE (d1.key OPERATOR(pg_catalog.=) $1)
+CONTEXT:  SQL statement "SELECT get_local_node_id_volatile()             FROM distributed_table d1 JOIN distributed_table d2 USING (key) WHERE d1.key = $1"
+PL/pgSQL function only_local_execution_with_function_evaluation_param(integer) line 11 at SQL statement
 CREATE OR REPLACE PROCEDURE local_execution_followed_by_dist() AS $$
 		DECLARE cnt INT;
 		BEGIN
