@@ -46,13 +46,6 @@
 #include "parser/parsetree.h"
 
 
-/* for pull_var_clause_deep */
-typedef struct DeepVarContext
-{
-	List *result;
-	int level;
-} DeepVarContext;
-
 /*
  * RecurringTuplesType is used to distinguish different types of expressions
  * that always produce the same set of tuples when a shard is queried. We make
@@ -93,8 +86,6 @@ static bool IsRecurringRTE(RangeTblEntry *rangeTableEntry,
 static bool IsRecurringRangeTable(List *rangeTable, RecurringTuplesType *recurType);
 static bool HasRecurringTuples(Node *node, RecurringTuplesType *recurType);
 static MultiNode * SubqueryPushdownMultiNodeTree(Query *queryTree);
-static bool PullVarClauseDeepWalker(Node *node, void *untypedContext);
-static List * pull_var_clause_deep(Node *node);
 static List * FlattenJoinVars(List *columnList, Query *queryTree);
 static Node * FlattenJoinVarsMutator(Node *node, Query *queryTree);
 static bool VarEqualsVar(Var *left, Var *right);
@@ -1581,6 +1572,8 @@ SubqueryPushdownMultiNodeTree(Query *queryTree)
 	List *havingClauseColumnList = pull_var_clause_deep(queryTree->havingQual);
 	List *columnList = list_concat(targetColumnList, havingClauseColumnList);
 
+	elog(WARNING, "SubqueryMultiNodeTree %s", nodeToString(queryTree->havingQual));
+
 	List *flattenedExprList = FlattenJoinVars(columnList, queryTree);
 
 	/* create a target entry for each unique column */
@@ -1649,62 +1642,6 @@ SubqueryPushdownMultiNodeTree(Query *queryTree)
 	currentTopNode = (MultiNode *) extendedOpNode;
 
 	return currentTopNode;
-}
-
-
-/*
- * PullVarClauseDeepWalker implements walker logic for pull_var_clause_deep.
- */
-static bool
-PullVarClauseDeepWalker(Node *node, void *untypedContext)
-{
-	DeepVarContext *context = untypedContext;
-
-	if (node == NULL)
-	{
-		return false;
-	}
-
-	if (IsA(node, Var))
-	{
-		if (((Var *) node)->varlevelsup == context->level)
-		{
-			context->result = lappend(context->result, node);
-		}
-		return false;
-	}
-	else if (IsA(node, Query))
-	{
-		context->level++;
-		bool result = query_tree_walker((Query *) node, PullVarClauseDeepWalker, context,
-										0);
-		context->level--;
-		return result;
-	}
-	else if (IsA(node, GroupingFunc))
-	{
-		/* see pull_var_clause in postgres source for rationale to return false */
-		return false;
-	}
-
-	return expression_tree_walker(node, PullVarClauseDeepWalker, context);
-}
-
-
-/*
- * pull_var_clause_deep is like pull_var_clause_default, except it also finds
- * Var nodes in subqueries which have varlevelsup referencing node's scope.
- */
-static List *
-pull_var_clause_deep(Node *node)
-{
-	DeepVarContext context = {
-		.result = NIL,
-		.level = 0,
-	};
-
-	expression_tree_walker(node, PullVarClauseDeepWalker, &context);
-	return context.result;
 }
 
 
@@ -1932,7 +1869,7 @@ UpdateColumnToMatchingTargetEntry(Var *column, Node *flattenedExpr, List *target
 			if (IsA(flattenedExpr, Var) && VarEqualsVar((Var *) flattenedExpr,
 														(Var *) targetEntryVar))
 			{
-				elog(WARNING, "FOUND %d %d", targetEntry->resno, column->vartype);
+				elog(WARNING, "FOUND %d %d %d=%d", targetEntry->resno, column->vartype, column->varattno, targetEntry->resno);
 				column->varno = 1;
 				column->varattno = targetEntry->resno;
 				break;
@@ -1940,6 +1877,7 @@ UpdateColumnToMatchingTargetEntry(Var *column, Node *flattenedExpr, List *target
 		}
 		else if (IsA(targetEntry->expr, CoalesceExpr))
 		{
+			/* TODO test this with varlevelsup */
 			/*
 			 * FlattenJoinVars() flattens full outer joins' columns that is
 			 * in the USING part into COALESCE(left_col, right_col)
@@ -1976,11 +1914,9 @@ UpdateColumnToMatchingTargetEntry(Var *column, Node *flattenedExpr, List *target
 static MultiTable *
 MultiSubqueryPushdownTable(Query *subquery)
 {
-	StringInfo rteName = makeStringInfo();
+	char *rteName = pstrdup("worker_subquery");
 	List *columnNamesList = NIL;
 	ListCell *targetEntryCell = NULL;
-
-	appendStringInfo(rteName, "worker_subquery");
 
 	foreach(targetEntryCell, subquery->targetList)
 	{
@@ -1994,9 +1930,9 @@ MultiSubqueryPushdownTable(Query *subquery)
 	subqueryTableNode->rangeTableId = SUBQUERY_RANGE_TABLE_ID;
 	subqueryTableNode->partitionColumn = NULL;
 	subqueryTableNode->alias = makeNode(Alias);
-	subqueryTableNode->alias->aliasname = rteName->data;
+	subqueryTableNode->alias->aliasname = rteName;
 	subqueryTableNode->referenceNames = makeNode(Alias);
-	subqueryTableNode->referenceNames->aliasname = rteName->data;
+	subqueryTableNode->referenceNames->aliasname = rteName;
 	subqueryTableNode->referenceNames->colnames = columnNamesList;
 
 	return subqueryTableNode;

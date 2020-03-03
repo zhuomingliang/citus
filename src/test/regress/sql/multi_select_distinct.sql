@@ -14,6 +14,13 @@ FROM lineitem_hash_part
 GROUP BY l_orderkey
 HAVING avg(l_linenumber) = (select avg(distinct l_linenumber))
 LIMIT 10;
+
+SELECT DISTINCT l_orderkey
+FROM lineitem_hash_part
+GROUP BY l_orderkey
+HAVING (select avg(distinct l_linenumber) = l_orderkey)
+LIMIT 10;
+
 reset citus.log_remote_commands;
 
 SELECT DISTINCT l_partkey, 1 + (random() * 0)::int FROM lineitem_hash_part ORDER BY 1 DESC LIMIT 3;

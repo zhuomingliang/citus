@@ -1608,11 +1608,10 @@ static void
 UpdateAllColumnAttributes(Node *columnContainer, List *rangeTableList,
 						  List *dependentJobList)
 {
-	ListCell *columnCell = NULL;
-	List *columnList = pull_var_clause_default(columnContainer);
-	foreach(columnCell, columnList)
+	List *columnList = pull_var_clause_deep(columnContainer);
+	Var *column = NULL;
+	foreach_ptr(column, columnList)
 	{
-		Var *column = (Var *) lfirst(columnCell);
 		UpdateColumnAttributes(column, rangeTableList, dependentJobList);
 	}
 }

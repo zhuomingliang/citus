@@ -61,6 +61,13 @@ typedef struct QualifierWalkerContext
 	List *outerJoinQualifierList;
 } QualifierWalkerContext;
 
+/* for pull_var_clause_deep */
+typedef struct DeepVarContext
+{
+	List *result;
+	int level;
+} DeepVarContext;
+
 
 /* Function pointer type definition for apply join rule functions */
 typedef MultiNode *(*RuleApplyFunction) (MultiNode *leftNode, MultiNode *rightNode,
@@ -72,6 +79,7 @@ static RuleApplyFunction RuleApplyFunctionArray[JOIN_RULE_LAST] = { 0 }; /* join
 /* Local functions forward declarations */
 static bool AllTargetExpressionsAreColumnReferences(List *targetEntryList);
 static FieldSelect * CompositeFieldRecursive(Expr *expression, Query *query);
+static Oid NodeTryGetRteRelid(Node *node);
 static bool FullCompositeFieldList(List *compositeFieldList);
 static bool HasUnsupportedJoinWalker(Node *node, void *context);
 static bool ErrorHintRequired(const char *errorHint, Query *queryTree);
@@ -90,6 +98,7 @@ static MultiNode * MultiJoinTree(List *joinOrderList, List *collectTableList,
 static MultiCollect * CollectNodeForTable(List *collectTableList, uint32 rangeTableId);
 static MultiSelect * MultiSelectNode(List *whereClauseList);
 static bool IsSelectClause(Node *clause);
+static bool PullVarClauseDeepWalker(Node *node, void *untypedContext);
 
 /* Local functions forward declarations for applying joins */
 static MultiNode * ApplyJoinRule(MultiNode *leftNode, MultiNode *rightNode,
@@ -323,7 +332,7 @@ TargetListOnPartitionColumn(Query *query, List *targetEntryList)
 	 */
 	if (!targetListOnPartitionColumn)
 	{
-		if (!FindNodeCheckInRangeTableList(query->rtable, IsDistributedTableRTE) &&
+		if (!FindNodeCheckInRangeTableList(query->rtable, IsDistributedNonReferenceTableRTE) &&
 			AllTargetExpressionsAreColumnReferences(targetEntryList))
 		{
 			targetListOnPartitionColumn = true;
@@ -402,50 +411,56 @@ FindNodeCheckInRangeTableList(List *rtable, bool (*check)(Node *))
 
 
 /*
- * QueryContainsDistributedTableRTE determines whether the given
- * query contains a distributed table.
+ * NodeTryGetRteRelid returns the relid of the given RTE_RELATION RangeTableEntry.
+ * Returns InvalidOid if any of these assumptions fail for given node.
  */
-bool
-QueryContainsDistributedTableRTE(Query *query)
-{
-	return FindNodeCheck((Node *) query, IsDistributedTableRTE);
-}
-
-
-/*
- * IsDistributedTableRTE gets a node and returns true if the node
- * is a range table relation entry that points to a distributed
- * relation (i.e., excluding reference tables).
- */
-bool
-IsDistributedTableRTE(Node *node)
+static Oid
+NodeTryGetRteRelid(Node *node)
 {
 	if (node == NULL)
 	{
-		return false;
+		return InvalidOid;
 	}
 
 	if (!IsA(node, RangeTblEntry))
 	{
-		return false;
+		return InvalidOid;
 	}
 
 	RangeTblEntry *rangeTableEntry = (RangeTblEntry *) node;
 	if (rangeTableEntry->rtekind != RTE_RELATION)
 	{
-		return false;
+		return InvalidOid;
 	}
 
-	Oid relationId = rangeTableEntry->relid;
-	if (!IsDistributedTable(relationId) ||
-		PartitionMethod(relationId) == DISTRIBUTE_BY_NONE)
-	{
-		return false;
-	}
-
-	return true;
+	return rangeTableEntry->relid;
 }
 
+
+/*
+ * IsDistributedTableRTE gets a node and returns true if the node is a
+ * range table relation entry that points to a distributed relation.
+ */
+bool
+IsDistributedTableRTE(Node *node)
+{
+	Oid relationId = NodeTryGetRteRelid(node);
+	return relationId != InvalidOid && IsDistributedTable(relationId);
+}
+
+
+/*
+ * IsDistributedNonReferenceTableRTE gets a node and returns true if the node
+ * is a range table relation entry that points to a distributed relation,
+ * returning false still if the relation is a reference table.
+ */
+bool
+IsDistributedNonReferenceTableRTE(Node *node)
+{
+	Oid relationId = NodeTryGetRteRelid(node);
+	return relationId != InvalidOid && IsDistributedTable(relationId) &&
+		   PartitionMethod(relationId) != DISTRIBUTE_BY_NONE;
+}
 
 /*
  * FullCompositeFieldList gets a composite field list, and checks if all fields
@@ -1790,6 +1805,7 @@ MultiProjectNode(List *targetEntryList)
 	ListCell *columnCell = NULL;
 
 	/* extract the list of columns and remove any duplicates */
+	elog(WARNING, "%s", nodeToString(targetEntryList));
 	List *columnList = pull_var_clause_default((Node *) targetEntryList);
 	foreach(columnCell, columnList)
 	{
@@ -2004,6 +2020,60 @@ pull_var_clause_default(Node *node)
 	return columnList;
 }
 
+/*
+ * PullVarClauseDeepWalker implements walker logic for pull_var_clause_deep.
+ */
+static bool
+PullVarClauseDeepWalker(Node *node, void *untypedContext)
+{
+	DeepVarContext *context = untypedContext;
+
+	if (node == NULL)
+	{
+		return false;
+	}
+
+	if (IsA(node, Var))
+	{
+		if (((Var *) node)->varlevelsup == context->level)
+		{
+			context->result = lappend(context->result, node);
+		}
+		return false;
+	}
+	else if (IsA(node, Query))
+	{
+		context->level++;
+		bool result = query_tree_walker((Query *) node, PullVarClauseDeepWalker, context,
+										0);
+		context->level--;
+		return result;
+	}
+	else if (IsA(node, GroupingFunc))
+	{
+		/* see pull_var_clause in postgres source for rationale to return false */
+		return false;
+	}
+
+	return expression_tree_walker(node, PullVarClauseDeepWalker, context);
+}
+
+
+/*
+ * pull_var_clause_deep is like pull_var_clause_default, except it also finds
+ * Var nodes in subqueries which have varlevelsup referencing node's scope.
+ */
+List *
+pull_var_clause_deep(Node *node)
+{
+	DeepVarContext context = {
+		.result = NIL,
+		.level = 0,
+	};
+
+	expression_tree_walker(node, PullVarClauseDeepWalker, &context);
+	return context.result;
+}
 
 /*
  * ApplyJoinRule finds the join rule application function that corresponds to

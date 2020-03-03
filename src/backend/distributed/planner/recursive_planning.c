@@ -314,6 +314,10 @@ RecursivelyPlanSubqueriesAndCTEs(Query *query, RecursivePlanningContext *context
 		RecursivelyPlanAllSubqueries((Node *) query->jointree->quals, context);
 	}
 
+	/*
+	 * It's possible this could be pushed down, but we don't check for now.
+	 * It'd require checking for non pushable window functions or aggregates.
+	 */
 	if (query->havingQual != NULL)
 	{
 		RecursivelyPlanAllSubqueries((Node *) query->havingQual, context);
@@ -1030,7 +1034,7 @@ RecursivelyPlanSetOperations(Query *query, Node *node,
 		Query *subquery = rangeTableEntry->subquery;
 
 		if (rangeTableEntry->rtekind == RTE_SUBQUERY &&
-			QueryContainsDistributedTableRTE(subquery))
+			FindNodeCheck((Node *) subquery, IsDistributedTableRTE))
 		{
 			RecursivelyPlanSubquery(subquery, context);
 		}
@@ -1245,9 +1249,6 @@ ContainsReferencesToOuterQuery(Query *query)
 /*
  * ContainsReferencesToOuterQueryWalker determines whether the given query
  * contains any Vars that point more than context->level levels up.
- *
- * ContainsReferencesToOuterQueryWalker recursively descends into subqueries
- * and increases the level by 1 before recursing.
  */
 static bool
 ContainsReferencesToOuterQueryWalker(Node *node, VarLevelsUpWalkerContext *context)
