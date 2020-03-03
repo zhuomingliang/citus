@@ -35,71 +35,35 @@ CREATE FUNCTION print_sorted_shard_intervals(regclass)
 CREATE TABLE pruning ( species text, last_pruned date, plant_id integer );
 SET citus.shard_replication_factor TO 1;
 SELECT create_distributed_table('pruning', 'species', 'hash');
- create_distributed_table
----------------------------------------------------------------------
-
-(1 row)
-
+ERROR:  invalid input syntax for integer: "A"
 -- with no values, expect all shards
 SELECT prune_using_no_values('pruning');
-     prune_using_no_values
----------------------------------------------------------------------
- {800000,800001,800002,800003}
-(1 row)
-
+ERROR:  relation pruning is not distributed
 -- with a single value, expect a single shard
 SELECT prune_using_single_value('pruning', 'tomato');
- prune_using_single_value
----------------------------------------------------------------------
- {800002}
-(1 row)
-
+ERROR:  relation pruning is not distributed
 -- null values should result in no pruning
 SELECT prune_using_single_value('pruning', NULL);
-   prune_using_single_value
----------------------------------------------------------------------
- {800000,800001,800002,800003}
-(1 row)
-
+ERROR:  relation pruning is not distributed
 -- build an OR clause and expect more than one sahrd
 SELECT prune_using_either_value('pruning', 'tomato', 'petunia');
- prune_using_either_value
----------------------------------------------------------------------
- {800002,800001}
-(1 row)
-
+ERROR:  relation pruning is not distributed
 -- an AND clause with values on different shards returns no shards
 SELECT prune_using_both_values('pruning', 'tomato', 'petunia');
- prune_using_both_values
----------------------------------------------------------------------
- {}
-(1 row)
-
+ERROR:  relation pruning is not distributed
 -- even if both values are on the same shard, a value can't be equal to two others
 SELECT prune_using_both_values('pruning', 'tomato', 'rose');
- prune_using_both_values
----------------------------------------------------------------------
- {}
-(1 row)
-
+ERROR:  relation pruning is not distributed
 -- unit test of the equality expression generation code
 SELECT debug_equality_expression('pruning');
-                                                                                                                                                                           debug_equality_expression
----------------------------------------------------------------------
- {OPEXPR :opno 98 :opfuncid 67 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 100 :args ({VAR :varno 1 :varattno 1 :vartype 25 :vartypmod -1 :varcollid 100 :varlevelsup 0 :varnoold 1 :varoattno 1 :location -1} {CONST :consttype 25 :consttypmod -1 :constcollid 100 :constlen -1 :constbyval false :constisnull true :location -1 :constvalue <>}) :location -1}
-(1 row)
-
+ERROR:  relation pruning is not distributed
 -- print the initial ordering of shard intervals
 SELECT print_sorted_shard_intervals('pruning');
- print_sorted_shard_intervals
----------------------------------------------------------------------
- {800000,800001,800002,800003}
-(1 row)
-
+ERROR:  relation pruning is not distributed
 -- update only min value for one shard
 UPDATE pg_dist_shard set shardminvalue = NULL WHERE shardid = 800001;
 SELECT print_sorted_shard_intervals('pruning');
-ERROR:  hash partitioned table has uninitialized shards
+ERROR:  relation pruning is not distributed
 -- repair shard
 UPDATE pg_dist_shard set shardminvalue = -1073741824 WHERE shardid = 800001;
 -- create range distributed table observe shard pruning
@@ -114,25 +78,25 @@ SELECT create_distributed_table('pruning_range', 'species', 'range');
 SELECT master_create_empty_shard('pruning_range');
  master_create_empty_shard
 ---------------------------------------------------------------------
-                    800004
+                    800000
 (1 row)
 
 SELECT master_create_empty_shard('pruning_range');
  master_create_empty_shard
 ---------------------------------------------------------------------
-                    800005
+                    800001
 (1 row)
 
 SELECT master_create_empty_shard('pruning_range');
  master_create_empty_shard
 ---------------------------------------------------------------------
-                    800006
+                    800002
 (1 row)
 
 SELECT master_create_empty_shard('pruning_range');
  master_create_empty_shard
 ---------------------------------------------------------------------
-                    800007
+                    800003
 (1 row)
 
 -- now the comparison is done via the partition column type, which is text
@@ -144,7 +108,7 @@ UPDATE pg_dist_shard SET shardminvalue = 'g', shardmaxvalue = 'h' WHERE shardid 
 SELECT print_sorted_shard_intervals('pruning_range');
  print_sorted_shard_intervals
 ---------------------------------------------------------------------
- {800004,800005,800006,800007}
+ {800000,800001,800002,800003}
 (1 row)
 
 -- update only min value for one shard
@@ -152,7 +116,7 @@ UPDATE pg_dist_shard set shardminvalue = NULL WHERE shardid = 800005;
 SELECT print_sorted_shard_intervals('pruning_range');
  print_sorted_shard_intervals
 ---------------------------------------------------------------------
- {800004,800006,800007,800005}
+ {800000,800001,800002,800003}
 (1 row)
 
 -- now lets have one more shard without min/max values
@@ -160,7 +124,7 @@ UPDATE pg_dist_shard set shardminvalue = NULL, shardmaxvalue = NULL WHERE shardi
 SELECT print_sorted_shard_intervals('pruning_range');
  print_sorted_shard_intervals
 ---------------------------------------------------------------------
- {800004,800007,800005,800006}
+ {800000,800001,800002,800003}
 (1 row)
 
 -- now lets have one more shard without min/max values
@@ -168,7 +132,7 @@ UPDATE pg_dist_shard set shardminvalue = NULL, shardmaxvalue = NULL WHERE shardi
 SELECT print_sorted_shard_intervals('pruning_range');
  print_sorted_shard_intervals
 ---------------------------------------------------------------------
- {800007,800004,800005,800006}
+ {800000,800001,800002,800003}
 (1 row)
 
 -- all shard placements are uninitialized
@@ -176,7 +140,7 @@ UPDATE pg_dist_shard set shardminvalue = NULL, shardmaxvalue = NULL WHERE shardi
 SELECT print_sorted_shard_intervals('pruning_range');
  print_sorted_shard_intervals
 ---------------------------------------------------------------------
- {800004,800005,800006,800007}
+ {800000,800001,800002,800003}
 (1 row)
 
 -- ===================================================================

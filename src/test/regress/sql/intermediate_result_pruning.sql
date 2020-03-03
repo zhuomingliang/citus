@@ -496,6 +496,37 @@ INSERT INTO table_1
 	 where table_2.key != 1 AND
  	foo.key = table_2.value::int;
 
+-- test case for issue #3556
+CREATE TABLE accounts (id text PRIMARY KEY);
+CREATE TABLE stats (account_id text PRIMARY KEY, spent int);
+
+SELECT create_distributed_table('accounts', 'id');
+SELECT create_distributed_table('stats', 'account_id', colocate_with => 'accounts');
+
+INSERT INTO accounts (id) VALUES ('foo');
+INSERT INTO stats (account_id, spent) VALUES ('foo', 100);
+
+SELECT *
+FROM
+(
+    WITH accounts_cte AS (
+        SELECT id AS account_id
+        FROM accounts
+    ),
+    joined_stats_cte_1 AS (
+        SELECT spent, account_id
+        FROM stats
+        INNER JOIN accounts_cte USING (account_id)
+    ),
+    joined_stats_cte_2 AS (
+        SELECT spent, account_id
+        FROM joined_stats_cte_1
+        INNER JOIN accounts_cte USING (account_id)
+    )
+    SELECT SUM(spent) OVER (PARTITION BY coalesce(account_id, NULL))
+    FROM accounts_cte
+    INNER JOIN joined_stats_cte_2 USING (account_id)
+) inner_query;
 
 
 -- append partitioned/heap-type
@@ -552,6 +583,6 @@ WHERE
 	range_partitioned.data IN (SELECT data FROM some_data);
 
 SET client_min_messages TO DEFAULT;
-DROP TABLE table_1, table_2, table_3, ref_table, range_partitioned;
+DROP TABLE table_1, table_2, table_3, ref_table, accounts, stats, range_partitioned;
 DROP SCHEMA intermediate_result_pruning;
 
