@@ -405,7 +405,7 @@ SELECT count(*)
 FROM   pg_dist_shard_placement AS sp,
 	   pg_dist_shard           AS s
 WHERE  sp.shardid = s.shardid
-AND    sp.nodename = 'localhost'
+AND    sp.nodename = '<host>'
 AND    sp.nodeport = :worker_1_port
 AND    sp.shardstate = 1
 AND    s.logicalrelid = 'limit_orders'::regclass;
@@ -1117,7 +1117,7 @@ ERROR:  cannot perform select on a distributed table and modify a reference tabl
 -- test connection API via using COPY
 -- COPY on SELECT part
 BEGIN;
-\COPY raw_table FROM STDIN WITH CSV
+COPY raw_table FROM STDIN WITH CSV
 INSERT INTO summary_table VALUES (3);
 UPDATE summary_table SET average_value = average_query.average FROM (
 	SELECT avg(value) AS average FROM raw_table WHERE id = 3
@@ -1136,7 +1136,7 @@ SELECT * FROM summary_table ORDER BY id;
 BEGIN;
 INSERT INTO raw_table VALUES (4, 100);
 INSERT INTO raw_table VALUES (4, 200);
-\COPY summary_table FROM STDIN WITH CSV
+COPY summary_table FROM STDIN WITH CSV
 UPDATE summary_table SET average_value = average_query.average FROM (
 	SELECT avg(value) AS average FROM raw_table WHERE id = 4
 	) average_query
@@ -1153,8 +1153,8 @@ SELECT * FROM summary_table ORDER BY id;
 
 -- COPY on both part
 BEGIN;
-\COPY raw_table FROM STDIN WITH CSV
-\COPY summary_table FROM STDIN WITH CSV
+COPY raw_table FROM STDIN WITH CSV
+COPY summary_table FROM STDIN WITH CSV
 UPDATE summary_table SET average_value = average_query.average FROM (
 	SELECT avg(value) AS average FROM raw_table WHERE id = 5
 	) average_query
@@ -1172,8 +1172,8 @@ SELECT * FROM summary_table ORDER BY id;
 
 -- COPY on reference tables
 BEGIN;
-\COPY reference_raw_table FROM STDIN WITH CSV
-\COPY summary_table FROM STDIN WITH CSV
+COPY reference_raw_table FROM STDIN WITH CSV
+COPY summary_table FROM STDIN WITH CSV
 UPDATE summary_table SET average_value = average_query.average FROM (
 	SELECT avg(value) AS average FROM reference_raw_table WHERE id = 6
 	) average_query
@@ -1247,7 +1247,7 @@ SELECT * FROM summary_table ORDER BY id;
 
 -- test connection API via using COPY with DELETEs
 BEGIN;
-\COPY summary_table FROM STDIN WITH CSV
+COPY summary_table FROM STDIN WITH CSV
 DELETE FROM summary_table USING raw_table
   WHERE summary_table.id = raw_table.id AND raw_table.id = 1;
 DELETE FROM summary_table USING reference_raw_table

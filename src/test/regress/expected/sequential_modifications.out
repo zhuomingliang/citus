@@ -577,7 +577,7 @@ BEGIN;
 
 (1 row)
 
-    \COPY test_seq_copy FROM STDIN DELIMITER AS ',';
+    COPY test_seq_copy FROM STDIN DELIMITER AS ',';
 ROLLBACK;
 SELECT distributed_2PCs_are_equal_to_worker_count();
  distributed_2pcs_are_equal_to_worker_count

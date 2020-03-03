@@ -109,21 +109,21 @@ ERROR:  could not find valid entry for shard xxxxx
 SELECT load_shard_placement_array(540001, false);
     load_shard_placement_array
 ---------------------------------------------------------------------
- {localhost:xxxxx,localhost:xxxxx}
+ {<host>:xxxxx,<host>:xxxxx}
 (1 row)
 
 -- only one of which is active
 SELECT load_shard_placement_array(540001, true);
  load_shard_placement_array
 ---------------------------------------------------------------------
- {localhost:xxxxx}
+ {<host>:xxxxx}
 (1 row)
 
 -- should see error for non-existent shard
 SELECT load_shard_placement_array(540001, false);
     load_shard_placement_array
 ---------------------------------------------------------------------
- {localhost:xxxxx,localhost:xxxxx}
+ {<host>:xxxxx,<host>:xxxxx}
 (1 row)
 
 -- should see column id of 'name'
@@ -265,7 +265,7 @@ SELECT create_distributed_table('get_shardid_test_table1', 'column1');
 
 (1 row)
 
-\COPY get_shardid_test_table1 FROM STDIN with delimiter '|';
+COPY get_shardid_test_table1 FROM STDIN with delimiter '|';
 SELECT get_shard_id_for_distribution_column('get_shardid_test_table1', 1);
  get_shard_id_for_distribution_column
 ---------------------------------------------------------------------
@@ -321,7 +321,7 @@ SELECT create_distributed_table('get_shardid_test_table2', 'column1');
 
 (1 row)
 
-\COPY get_shardid_test_table2 FROM STDIN with delimiter '|';
+COPY get_shardid_test_table2 FROM STDIN with delimiter '|';
 SELECT get_shard_id_for_distribution_column('get_shardid_test_table2', '{a, b, c}');
  get_shard_id_for_distribution_column
 ---------------------------------------------------------------------
