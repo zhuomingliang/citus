@@ -45,6 +45,8 @@ execute fast_path_router_with_param(7);
 execute fast_path_router_with_param(8);
 
 
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id  = 1;
+
 -- make sure that it is also true for  fast-path router queries with paramaters
 PREPARE fast_path_router_with_param_and_func(int) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id  = $1;
 
@@ -58,41 +60,48 @@ execute fast_path_router_with_param_and_func(7);
 execute fast_path_router_with_param_and_func(8);
 
 
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id = 1 AND u_data = ('name1', 21)::user_data;
+
 PREPARE fast_path_router_with_param_on_non_dist_key_and_func(user_data) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id = 1 AND u_data  = $1;
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
 
+
+SELECT count(*) FROM user_info_data WHERE user_id = 1 AND u_data  = ('name1', 21)::user_data;
 PREPARE fast_path_router_with_param_on_non_dist_key(user_data) AS SELECT count(*) FROM user_info_data WHERE user_id = 1 AND u_data  = $1;
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name1', 21)::user_data);
 
 
+SELECT count(*) FROM user_info_data WHERE user_id = $2 AND u_data = ('name1', 21)::user_data;
 
 PREPARE fast_path_router_with_two_params(user_data, int) AS SELECT count(*) FROM user_info_data WHERE user_id = $2 AND u_data  = $1;
 
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 1);
+EXECUTE fast_path_router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE fast_path_router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE fast_path_router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE fast_path_router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE fast_path_router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE fast_path_router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE fast_path_router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE fast_path_router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE fast_path_router_with_two_params(('name1', 21)::user_data, 1);
 
+
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id = 1;
 
 PREPARE fast_path_router_with_only_function AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id = 1;
 EXECUTE fast_path_router_with_only_function;
@@ -103,6 +112,8 @@ EXECUTE fast_path_router_with_only_function;
 EXECUTE fast_path_router_with_only_function;
 EXECUTE fast_path_router_with_only_function;
 EXECUTE fast_path_router_with_only_function;
+
+SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE user_id  = 1;
 
 -- make sure that it is also true for  fast-path router queries with paramaters
 PREPARE router_with_param(int) AS SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE user_id  = $1;
@@ -116,6 +127,8 @@ execute router_with_param(6);
 execute router_with_param(7);
 execute router_with_param(8);
 
+
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data m1 JOIN user_info_data m2 USING(user_id) WHERE m1.user_id  = 1;
 
 PREPARE router_with_param_and_func(int) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data m1 JOIN user_info_data m2 USING(user_id) WHERE m1.user_id  = $1;
 
@@ -133,40 +146,45 @@ SELECT get_local_node_id_volatile() > 0 FROM user_info_data m1 JOIN user_info_da
 
 
 PREPARE router_with_param_on_non_dist_key(user_data) AS SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE u1.user_id = 1 AND u1.u_data  = $1;
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name1', 21)::user_data);
+
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE u1.user_id = 1 AND u1.u_data  = ('name1', 21)::user_data;
 
 PREPARE router_with_param_on_non_dist_key_and_func(user_data) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE u1.user_id = 1 AND u1.u_data  = $1;
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name1', 21)::user_data);
 
+SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE user_id = 1 AND u1.u_data  = ('name1', 21)::user_data;
 
 PREPARE router_with_two_params(user_data, int) AS SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE user_id = $2 AND u1.u_data  = $1;
 
-EXECUTE router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE router_with_two_params(('test', 1)::user_data, 1);
-EXECUTE router_with_two_params(('test', 1)::user_data, 1);
+EXECUTE router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE router_with_two_params(('name1', 21)::user_data, 1);
+EXECUTE router_with_two_params(('name1', 21)::user_data, 1);
 
+
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data u1 JOIN user_info_data u2 USING(user_id) WHERE user_id = 1;
 
 PREPARE router_with_only_function AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data u1 JOIN user_info_data u2 USING(user_id) WHERE user_id = 1;
 EXECUTE router_with_only_function;
@@ -186,7 +204,6 @@ SET search_path TO master_evaluation_combinations;
 -- show that the data with user_id = 3 is local
 SELECT count(*) FROM user_info_data WHERE user_id = 3;
 
-
 -- make sure that it is also true for  fast-path router queries with paramaters
 PREPARE fast_path_router_with_param(int) AS SELECT count(*) FROM user_info_data WHERE user_id  = $1;
 
@@ -200,6 +217,8 @@ execute fast_path_router_with_param(3);
 execute fast_path_router_with_param(3);
 
 
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id  = 3;
+
 -- make sure that it is also true for  fast-path router queries with paramaters
 PREPARE fast_path_router_with_param_and_func(int) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id  = $1;
 
@@ -212,43 +231,49 @@ execute fast_path_router_with_param_and_func(3);
 execute fast_path_router_with_param_and_func(3);
 execute fast_path_router_with_param_and_func(8);
 
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id = 3 AND u_data  = ('name3', 23)::user_data;
 
 PREPARE fast_path_router_with_param_on_non_dist_key_and_func(user_data) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id = 3 AND u_data  = $1;
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+
+SELECT count(*) FROM user_info_data WHERE user_id = 3 AND u_data  = ('name3', 23)::user_data;
 
 PREPARE fast_path_router_with_param_on_non_dist_key(user_data) AS SELECT count(*) FROM user_info_data WHERE user_id = 3 AND u_data  = $1;
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE fast_path_router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE fast_path_router_with_param_on_non_dist_key(('name3', 23)::user_data);
 
-
+SELECT count(*) FROM user_info_data WHERE user_id = $2 AND u_data  = ('name3', 23)::user_data;
 
 PREPARE fast_path_router_with_two_params(user_data, int) AS SELECT count(*) FROM user_info_data WHERE user_id = $2 AND u_data  = $1;
 
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE fast_path_router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE fast_path_router_with_two_params(('name3', 23)::user_data, 3);
 
 
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id = 3
 PREPARE fast_path_router_with_only_function AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data WHERE user_id = 3;
 EXECUTE fast_path_router_with_only_function;
 EXECUTE fast_path_router_with_only_function;
@@ -259,6 +284,8 @@ EXECUTE fast_path_router_with_only_function;
 EXECUTE fast_path_router_with_only_function;
 EXECUTE fast_path_router_with_only_function;
 
+
+SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE user_id  = 3;
 
 -- make sure that it is also true for  fast-path router queries with paramaters
 PREPARE router_with_param(int) AS SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE user_id  = $1;
@@ -272,6 +299,8 @@ execute router_with_param(3);
 execute router_with_param(3);
 execute router_with_param(3);
 
+
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data m1 JOIN user_info_data m2 USING(user_id) WHERE m1.user_id  = 3;
 
 PREPARE router_with_param_and_func(int) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data m1 JOIN user_info_data m2 USING(user_id) WHERE m1.user_id  = $1;
 
@@ -288,41 +317,49 @@ execute router_with_param_and_func(3);
 SELECT get_local_node_id_volatile() > 0 FROM user_info_data m1 JOIN user_info_data m2 USING(user_id) WHERE m1.user_id  = 3;
 
 
+SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE u1.user_id = 3 AND u1.u_data = ('name3', 23)::user_data;
+
+SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE u1.user_id = 3 AND u1.u_data  = ('name3', 23)::user_data;
+
 PREPARE router_with_param_on_non_dist_key(user_data) AS SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE u1.user_id = 3 AND u1.u_data  = $1;
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key(('name3', 23)::user_data);
+
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE u1.user_id = 3 AND u1.u_data  = ('name3', 23)::user_data;
 
 PREPARE router_with_param_on_non_dist_key_and_func(user_data) AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE u1.user_id = 3 AND u1.u_data  = $1;
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
-EXECUTE router_with_param_on_non_dist_key_and_func(('test', 1)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
+EXECUTE router_with_param_on_non_dist_key_and_func(('name3', 23)::user_data);
 
+SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE user_id = 'name3', 23)::user_data AND u1.u_data  = 3;
 
 PREPARE router_with_two_params(user_data, int) AS SELECT count(*) FROM user_info_data u1 JOIN user_info_data u2 USING (user_id) WHERE user_id = $2 AND u1.u_data  = $1;
 
-EXECUTE router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE router_with_two_params(('test', 1)::user_data, 3);
-EXECUTE router_with_two_params(('test', 1)::user_data, 3);
+EXECUTE router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE router_with_two_params(('name3', 23)::user_data, 3);
+EXECUTE router_with_two_params(('name3', 23)::user_data, 3);
 
+SELECT get_local_node_id_volatile() > 0 FROM user_info_data u1 JOIN user_info_data u2 USING(user_id) WHERE user_id = 3;
 
 PREPARE router_with_only_function AS SELECT get_local_node_id_volatile() > 0 FROM user_info_data u1 JOIN user_info_data u2 USING(user_id) WHERE user_id = 3;
 EXECUTE router_with_only_function;
