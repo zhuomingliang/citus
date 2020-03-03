@@ -528,9 +528,9 @@ pg_get_tablecolumnoptionsdef_string(Oid tableRelationId)
 	{
 		ereport(ERROR, (errmsg("bad number of tuple descriptor attributes")));
 	}
+	AttrNumber tupleDescriptorNatts = tupleDescriptor->natts;
 
-	for (AttrNumber attributeIndex = 0;
-		 attributeIndex < (AttrNumber) tupleDescriptor->natts;
+	for (AttrNumber attributeIndex = 0; attributeIndex < tupleDescriptorNatts;
 		 attributeIndex++)
 	{
 		Form_pg_attribute attributeForm = TupleDescAttr(tupleDescriptor, attributeIndex);
