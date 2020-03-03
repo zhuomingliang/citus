@@ -25,6 +25,7 @@
 #include "parser/parse_relation.h"
 #include "utils/lsyscache.h"
 #include "nodes/makefuncs.h"
+#include "safe_lib.h"
 #include <netinet/in.h> /* for htons */
 
 #include "distributed/transmit.h"
@@ -189,9 +190,8 @@ CreateCopiedShard(RangeVar *distributedRel, Relation shard)
 	Form_pg_class copiedDistributedRelationTuple = (Form_pg_class) palloc(
 		CLASS_TUPLE_SIZE);
 
-	memcpy(copiedDistributedRelation, shard, sizeof(RelationData));
-	memcpy(copiedDistributedRelationTuple, shard->rd_rel,
-		   CLASS_TUPLE_SIZE);
+	*copiedDistributedRelation = *shard;
+	*copiedDistributedRelationTuple = *shard->rd_rel;
 
 	copiedDistributedRelation->rd_rel = copiedDistributedRelationTuple;
 	copiedDistributedRelation->rd_att = CreateTupleDescCopyConstr(tupleDescriptor);
@@ -223,8 +223,11 @@ ReadFromLocalBufferCallback(void *outbuf, int minread, int maxread)
 	int bytesread = 0;
 	int avail = localCopyBuffer->len - localCopyBuffer->cursor;
 	int bytesToRead = Min(avail, maxread);
-
-	memcpy(outbuf, &localCopyBuffer->data[localCopyBuffer->cursor], bytesToRead);
+	if (bytesToRead > 0)
+	{
+		memcpy_s(outbuf, bytesToRead + strlen((char *) outbuf),
+				 &localCopyBuffer->data[localCopyBuffer->cursor], bytesToRead);
+	}
 	bytesread += bytesToRead;
 	localCopyBuffer->cursor += bytesToRead;
 

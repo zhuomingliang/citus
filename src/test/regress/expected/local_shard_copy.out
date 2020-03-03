@@ -147,7 +147,6 @@ CONTEXT:  COPY distributed_table, line 1: "1, 100"
     26
 (1 row)
 
-
 ROLLBACK;
 BEGIN;
     -- run select with local execution
@@ -199,7 +198,6 @@ CONTEXT:  COPY distributed_table, line 1: "1, 100"
    2 | 200
 (26 rows)
 
-
 ROLLBACK;
 BEGIN;
     -- run select with local execution
@@ -226,7 +224,6 @@ CONTEXT:  COPY distributed_table, line 1: "1, 100"
     26
 (1 row)
 
-
 ROLLBACK;
 BEGIN;
     -- the local placements should be executed locally
@@ -252,7 +249,6 @@ CONTEXT:  COPY distributed_table, line 1: "1, 100"
 ---------------------------------------------------------------------
     26
 (1 row)
-
 
 ROLLBACK;
 BEGIN;
