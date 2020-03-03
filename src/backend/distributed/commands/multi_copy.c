@@ -2391,16 +2391,22 @@ CitusSendTupleToPlacements(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest
 }
 
 
+/*
+ * ContainsLocalPlacement returns true if the current node has
+ * a local placement for the given shard id.
+ */
 static bool
 ContainsLocalPlacement(int64 shardId)
 {
 	ListCell *placementCell = NULL;
 	List *activePlacementList = ActiveShardPlacementList(shardId);
+	int32 localGroupId = GetLocalGroupId();
+
 	foreach(placementCell, activePlacementList)
 	{
 		ShardPlacement *placement = (ShardPlacement *) lfirst(placementCell);
 
-		if (placement->groupId == GetLocalGroupId())
+		if (placement->groupId == localGroupId)
 		{
 			return true;
 		}
@@ -3310,6 +3316,10 @@ InitializeCopyShardState(CopyShardState *shardState,
 }
 
 
+/*
+ * LogLocalCopyExecution logs that the copy will be done locally for
+ * the given shard.
+ */
 static void
 LogLocalCopyExecution(uint64 shardId)
 {

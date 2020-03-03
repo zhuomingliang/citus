@@ -78,6 +78,7 @@ ProcessLocalCopy(TupleTableSlot *slot, CitusCopyDestReceiver *copyDest, int64 sh
 	StringInfo previousBuffer = copyDest->copyOutState->fe_msgbuf;
 	copyDest->copyOutState->fe_msgbuf = buffer;
 
+	/* since we are doing a local copy, the following statements should use local execution to see the changes */
 	TransactionAccessedLocalPlacement = true;
 
 	bool isBinaryCopy = copyDest->copyOutState->binary;
@@ -147,6 +148,8 @@ DoLocalCopy(StringInfo buffer, Oid relationId, int64 shardId, CopyStmt *copyStat
 	Relation shard = heap_open(shardOid, RowExclusiveLock);
 	Relation copiedShard = CreateCopiedShard(copyStatement->relation, shard);
 	ParseState *pState = make_parsestate(NULL);
+
+	/* p_rtable of pState is set so that we can check constraints. */
 	pState->p_rtable = CreateRangeTable(copiedShard, ACL_INSERT);
 
 	CopyState cstate = BeginCopyFrom(pState, copiedShard, NULL, false,
