@@ -710,6 +710,7 @@ CitusRemoveDirectory(const char *filename)
 							errmsg("could not remove file \"%s\": %m", filename)));
 		}
 
+		/* lgtm[cpp/toctou-race-condition] */
 		removed = rmdir(filename);
 		if (removed || errno == ENOENT)
 		{
@@ -720,7 +721,7 @@ CitusRemoveDirectory(const char *filename)
 			/* If directory changed to a file underneath us, loop again to remove it with unlink */
 			continue;
 		}
-		if (errno != ENOTEMPTY && errno == EEXIST)
+		if (errno != ENOTEMPTY && errno != EEXIST)
 		{
 			ereport(ERROR, (errcode_for_file_access(),
 							errmsg("could not remove directory \"%s\": %m", filename)));
