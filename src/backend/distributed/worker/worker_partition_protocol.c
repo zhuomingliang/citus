@@ -85,6 +85,8 @@ static uint32 RangePartitionId(Datum partitionValue, Oid partitionCollation,
 static uint32 HashPartitionId(Datum partitionValue, Oid partitionCollation,
 							  const void *context);
 static StringInfo UserPartitionFilename(StringInfo directoryName, uint32 partitionId);
+static bool TryUnlink(const char *filename);
+static bool TryRmdir(const char *filename);
 
 
 /* exports for SQL callable functions */
@@ -699,43 +701,16 @@ CitusRemoveDirectory(const char *filename)
 	/* files may be added during execution, loop when that occurs */
 	while (true)
 	{
-		int removed = unlink(filename);
-		if (removed || errno == ENOENT)
+		if (TryUnlink(filename) || TryRmdir(filename))
 		{
 			return;
 		}
-		if (errno != EISDIR)
-		{
-			ereport(ERROR, (errcode_for_file_access(),
-							errmsg("could not remove file \"%s\": %m", filename)));
-		}
 
 		/*
-		 * Ignore warning that the thing the filename points to might have
-		 * changed since the unlink call. It can only change to a file or
-		 * symlink. In those cases we restart the loop and try to remove it
-		 * with unlink again, because of the ENOTDIR check.
-		 */
-		removed = rmdir(filename); /* lgtm[cpp/toctou-race-condition] */
-		if (removed || errno == ENOENT)
-		{
-			return;
-		}
-		if (errno == ENOTDIR)
-		{
-			/* If directory changed to a file underneath us, loop again to remove it with unlink */
-			continue;
-		}
-		if (errno != ENOTEMPTY && errno != EEXIST)
-		{
-			ereport(ERROR, (errcode_for_file_access(),
-							errmsg("could not remove directory \"%s\": %m", filename)));
-		}
-
-		/*
-		 * If this is a non empty directory, iterate over all its contents and
-		 * for each content, recurse into this function. Also, make sure that
-		 * we do not recurse into symbolic links.
+		 * If both of these failed then filename is a non empty directory.
+		 * Iterate over all its contents and for each content, recurse into
+		 * this function. Also, make sure that we do not recurse into symbolic
+		 * links.
 		 */
 		const char *directoryName = filename;
 
@@ -775,6 +750,51 @@ CitusRemoveDirectory(const char *filename)
 		FreeStringInfo(fullFilename);
 		FreeDir(directory);
 	}
+}
+
+
+/*
+ * TryUnlink returns true if file is removed and false if the file is a
+ * directory. If an error occurs trying to remove the file this function calls
+ * ereport.
+ */
+static bool
+TryUnlink(const char *filename)
+{
+	int exitcode = unlink(filename);
+	if (exitcode == 0 || errno == ENOENT)
+	{
+		return true;
+	}
+	if (errno != EISDIR)
+	{
+		ereport(ERROR, (errcode_for_file_access(),
+						errmsg("could not remove file \"%s\": %m", filename)));
+	}
+	return false;
+}
+
+
+/*
+ * TryRmdir returns true if the directory is removed. It returns false if the
+ * filaname points to a file or symlink. It alse returns false if the directory
+ * is not empty. The difference in these cases can be found by checking errno.
+ * For all other errors ereport is called.
+ */
+static bool
+TryRmdir(const char *filename)
+{
+	int exitcode = rmdir(filename);
+	if (exitcode == 0 || errno == ENOENT)
+	{
+		return true;
+	}
+	if (errno == ENOTDIR || errno == ENOTEMPTY || errno == EEXIST)
+	{
+		return false;
+	}
+	ereport(ERROR, (errcode_for_file_access(),
+					errmsg("could not remove directory \"%s\": %m", filename)));
 }
 
 
