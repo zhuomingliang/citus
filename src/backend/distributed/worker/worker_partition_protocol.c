@@ -85,7 +85,6 @@ static uint32 RangePartitionId(Datum partitionValue, Oid partitionCollation,
 static uint32 HashPartitionId(Datum partitionValue, Oid partitionCollation,
 							  const void *context);
 static StringInfo UserPartitionFilename(StringInfo directoryName, uint32 partitionId);
-static bool FileIsLink(const char *filename, struct stat filestat);
 
 
 /* exports for SQL callable functions */
@@ -686,25 +685,6 @@ CitusCreateDirectory(StringInfo directoryName)
 							   directoryName->data)));
 	}
 }
-
-
-#ifdef WIN32
-static bool
-FileIsLink(char *filename, struct stat filestat)
-{
-	return pgwin32_is_junction(filename);
-}
-
-
-#else
-static bool
-FileIsLink(const char *filename, struct stat filestat)
-{
-	return S_ISLNK(filestat.st_mode);
-}
-
-
-#endif
 
 
 /*
