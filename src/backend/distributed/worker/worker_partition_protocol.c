@@ -710,8 +710,13 @@ CitusRemoveDirectory(const char *filename)
 							errmsg("could not remove file \"%s\": %m", filename)));
 		}
 
-		/* lgtm[cpp/toctou-race-condition] */
-		removed = rmdir(filename);
+		/*
+		 * Ignore warning that the thing the filename points to might have
+		 * changed since the unlink call. It can only change to a file or
+		 * symlink. In those cases we restart the loop and try to remove it
+		 * with unlink again, because of the ENOTDIR check.
+		 */
+		removed = rmdir(filename); /* lgtm[cpp/toctou-race-condition] */
 		if (removed || errno == ENOENT)
 		{
 			return;
